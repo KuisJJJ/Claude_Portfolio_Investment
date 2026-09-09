@@ -117,6 +117,39 @@ tbody tr:hover{background:#f8fbff}
 .bar-v.alt{background:linear-gradient(180deg,#6f7fc0,#2f3a70)}
 .bar-col span{font-size:10px;color:#667085;white-space:nowrap}
 .bar-col small{font-size:10px;font-weight:700;color:#334155}
+.wf{display:grid;gap:9px;margin-bottom:16px}
+.wf-step{display:flex;gap:12px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fff;opacity:.5}
+.wf-step.wf-mine{opacity:1}
+.wf-step.wf-active{border-color:#1769e0;background:#f2f7fe;box-shadow:0 2px 10px rgba(23,105,224,.10)}
+.wf-step.wf-done{opacity:.85;border-color:#bfe3d0;background:#f4fbf7}
+.wf-num{flex:0 0 26px;height:26px;border-radius:50%;background:#eef2f7;color:#5f7186;display:grid;place-items:center;font-weight:800;font-size:12px}
+.wf-active .wf-num{background:#1769e0;color:#fff}
+.wf-done .wf-num{background:#12805c;color:#fff}
+.wf-title{font-weight:800;font-size:13px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.wf-desc{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.55}
+.wf-hint{font-size:11.5px;font-weight:700;color:#1769e0;margin-top:5px}
+.wf-done .wf-hint{color:#12805c}
+.wf-who{font-size:9.5px;font-weight:800;padding:2px 8px;border-radius:999px;letter-spacing:.03em}
+.wf-fin{background:#e8f0fd;color:#1a5bb8}
+.wf-im{background:#fdf0e3;color:#9a5b12}
+@media(max-width:760px){.wf-step{padding:10px 11px}.wf-desc{font-size:11.5px}}
+.stbadge{display:inline-block;margin-left:6px;padding:2px 7px;border-radius:999px;font-size:9.5px;font-weight:800;vertical-align:middle}
+.st-draft{background:#eceff3;color:#5b6b7c}
+.st-pending{background:#fff2d4;color:#8a5a00}
+.st-approved{background:#e2f6ec;color:#0b7a4f}
+.st-rejected{background:#ffe6e3;color:#b23b32}
+.pending-dot{display:none;margin-left:auto;background:#e2763a;color:#fff;border-radius:999px;font-size:10px;font-weight:800;padding:1px 7px}
+body.role-viewer .btn-primary[onclick*="saveTransaction"],
+body.role-viewer [onclick*="editTransaction"],
+body.role-viewer [onclick*="publishData"],
+body.role-viewer [onclick*="importData"],
+body.role-viewer [onclick*="resetDemo"],
+body.role-viewer [data-page="new"],
+body.role-approver [onclick*="publishData"],
+body.role-approver [onclick*="importData"],
+body.role-approver [onclick*="resetDemo"],
+body.role-approver [onclick*="editTransaction"],
+body.role-approver [data-page="new"]{display:none!important}
 .doc-preview{padding:24px;max-width:850px;margin:auto;background:#fff}
 .doc-header{border-bottom:3px solid var(--navy);padding-bottom:12px;display:flex;justify-content:space-between}
 .doc-header h2{margin:0;color:var(--navy)}.doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;margin-top:18px}
@@ -562,12 +595,17 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
       <button data-page="fixed"><span class="ico">◷</span>Fixed Income</button>
       <button data-page="market"><span class="ico">⌁</span>Market Data</button>
       <button data-page="master"><span class="ico">⚙</span>Master Data</button>
+      <button data-page="approvals"><span class="ico">✓</span>Approvals <span id="navPendingDot" class="pending-dot"></span></button>
       <button data-page="documents"><span class="ico">▤</span>Documents</button>
     </div>
     <div class="side-note">
-      <b>Simulation mode</b><br>ชุดข้อมูลจำลอง 1 มิ.ย. – 31 ส.ค. 2569 · ทุนเริ่มต้น USD 1,000,000 · สร้างแบบ deterministic (ผลลัพธ์เหมือนกันทุกครั้ง) · ข้อมูลที่เพิ่มจะเก็บใน Browser เครื่องนี้ด้วย Local Storage
+      <div id="govPanel" style="margin-bottom:14px"></div>
+      <div id="dataStatus" style="line-height:1.55">กำลังตรวจแหล่งข้อมูล…</div>
       <div class="side-actions">
+        <button onclick="publishData()" style="background:#1f6fde;border-color:#2f7ce8;color:#fff;font-weight:800">เผยแพร่ให้ทีม</button>
+        <button onclick="pullLatest()">ดึงข้อมูลล่าสุด</button>
         <button onclick="exportData()">Export JSON</button>
+        <button onclick="importData()">Import JSON</button>
         <button onclick="resetDemo()">Rebuild Simulation</button>
       </div>
     </div>
@@ -582,6 +620,7 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
           <span class="refresh-stamp" id="refreshStamp">Recalculate</span>
         </div>
         <div class="filter"><label>Portfolio</label><select id="globalPortfolio"></select></div>
+        <div class="filter"><label>มุมมอง</label><select id="approvalView" onchange="SHOW_APPROVED_ONLY=(this.value==='1');saveGovPrefs();renderAll()"><option value="1">เฉพาะที่อนุมัติแล้ว</option><option value="0">รวมรออนุมัติ</option></select></div>
         <div class="filter"><label>Account</label><select id="globalAccount"></select></div>
       </div>
     </header>
@@ -692,11 +731,45 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
       <section class="page" id="page-master">
         <div class="pagehead"><div><h2>Master Data</h2><p>Portfolio → Broker → Account → Security</p></div></div>
         <div class="master-grid">
+          <div class="card master-card span2" style="grid-column:1/-1"><h3>องค์กร (แสดงบนหัวเอกสารทุกใบ)</h3>
+            <div class="mini-form">
+              <input id="entName" class="wide" placeholder="ชื่อนิติบุคคล">
+              <input id="entTax" placeholder="เลขผู้เสียภาษี 13 หลัก">
+              <input id="entIc" placeholder="ผู้แนะนำการลงทุน (IC) / เลขใบอนุญาต">
+              <input id="entAddr" class="wide" placeholder="ที่อยู่">
+              <button class="btn btn-primary" onclick="saveEntity()">บันทึกข้อมูลองค์กร</button>
+            </div>
+          </div>
+          <div class="card master-card" style="grid-column:1/-1"><h3>ทะเบียนทีมงาน — ใครทำหน้าที่อะไร</h3>
+            <p class="small-note" style="margin:-6px 0 10px">ชื่อในทะเบียนนี้จะไปปรากฏบนช่องลายเซ็นในเอกสาร และใช้เป็นชื่อผู้อนุมัติ · ข้อมูลนี้เผยแพร่ไปพร้อมชุดข้อมูล ทุกเครื่องจึงเห็นตรงกัน</p>
+            <div class="notice warn" style="margin-bottom:12px">
+              <b>ขอบเขตของรหัสผ่านในระบบนี้</b><br>
+              ระบบนี้เป็นไฟล์เดียวที่รันในเบราว์เซอร์ ไม่มีเซิร์ฟเวอร์ตรวจรหัสผ่าน — รหัสผ่านจึง<b>กันการสลับตำแหน่งโดยพลการได้</b>
+              แต่<b>กันผู้ที่ตั้งใจหลบเลี่ยงไม่ได้</b> (เปิดเครื่องมือนักพัฒนาก็ข้ามได้)
+              · ด่านที่บังคับได้จริงคือ<b>สิทธิ์เขียน repo บน GitHub</b> ต่อให้ปลดล็อกหน้าจอได้ ก็อัปโหลดทับข้อมูลไม่ได้
+              · เก็บเฉพาะค่าที่แปลงแล้ว (PBKDF2-SHA256 250,000 รอบ พร้อม salt เฉพาะคน) ไม่เก็บรหัสจริง
+            </div>
+            <div class="table-wrap"><table><thead><tr><th style="min-width:180px">ตำแหน่ง</th><th>ชื่อ-นามสกุล</th><th>อีเมล</th><th>สิทธิ์ในระบบ</th><th>รหัสผ่าน</th><th></th></tr></thead><tbody id="teamBody"></tbody></table></div>
+            <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <button class="btn btn-primary" onclick="saveTeam()">บันทึกทะเบียนทีม</button>
+              <button class="btn btn-secondary" onclick="addMember()">+ เพิ่มตำแหน่ง</button>
+              <button class="btn btn-secondary" onclick="cancelTeamEdit()">ยกเลิกการแก้ไข</button>
+              <span id="teamDirty" class="muted" style="font-size:12px"></span>
+            </div>
+          </div>
           <div class="card master-card"><h3>Portfolios</h3><div class="mini-form"><input id="pId" placeholder="Portfolio ID"><input id="pName" placeholder="Portfolio name"><button class="btn btn-primary" onclick="addPortfolio()">Add Portfolio</button></div><div class="table-wrap" style="max-height:240px"><table><thead><tr><th>ID</th><th>Name</th><th>CCY</th></tr></thead><tbody id="portfolioBody"></tbody></table></div></div>
           <div class="card master-card"><h3>Brokers / Custodians</h3><div class="mini-form"><input id="bId" placeholder="Broker ID"><input id="bName" placeholder="Broker name"><input id="bCountry" placeholder="Country"><select id="bCcy"></select><button class="btn btn-primary" onclick="addBroker()">Add Broker</button></div><div class="table-wrap" style="max-height:240px"><table><thead><tr><th>ID</th><th>Broker</th><th>Country</th><th>CCY</th></tr></thead><tbody id="brokerBody"></tbody></table></div></div>
           <div class="card master-card"><h3>Accounts</h3><div class="mini-form"><input id="aId" placeholder="Account ID"><input id="aName" placeholder="Account name"><select id="aPortfolio"></select><select id="aBroker"></select><select id="aCcy"></select><button class="btn btn-primary" onclick="addAccount()">Add Account</button></div><div class="table-wrap" style="max-height:280px"><table><thead><tr><th>ID</th><th>Name</th><th>Portfolio</th><th>Broker</th><th>CCY</th></tr></thead><tbody id="accountBody"></tbody></table></div></div>
           <div class="card master-card"><h3>Securities</h3><div class="mini-form"><input id="sId" placeholder="Ticker / Security ID"><input id="sName" placeholder="Security name"><select id="sType"></select><select id="sCcy"></select><input id="sAsset" placeholder="Asset class"><input type="number" id="sFace" placeholder="Face / Unit (optional)"><input id="sIsin" placeholder="ISIN (optional)"><input id="sMarket" placeholder="Market e.g. SET"><select id="sDayCount" class="wide"></select><button class="btn btn-primary" onclick="addSecurity()">Add Security</button></div><div class="table-wrap" style="max-height:280px"><table><thead><tr><th>Security</th><th>Name</th><th>Class</th><th>Instrument</th><th>CCY</th><th>Day Count</th></tr></thead><tbody id="securityBody"></tbody></table></div></div>
         </div>
+      </section>
+
+      <section class="page" id="page-approvals">
+        <div class="pagehead"><div><h2>Approval Queue</h2><p>รายการที่รอการอนุมัติจาก Investment Manager ก่อนนับเข้าตัวเลขทางการ</p></div></div>
+        <div id="wfPanel"></div>
+        <div class="notice" id="approvalActions"></div>
+        <div class="card table-card"><div class="table-tools"><b>รออนุมัติ</b><span class="muted" id="approvalCount"></span></div>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Txn ID</th><th>Type</th><th>Security</th><th>Account</th><th class="num">Qty</th><th class="num">Gross</th><th class="num">Cash</th><th>การอนุมัติ</th></tr></thead><tbody id="approvalBody"></tbody></table></div></div>
       </section>
 
       <section class="page" id="page-documents">
@@ -714,6 +787,7 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
           <button class="mobile-more-card" onclick="go('master')"><div class="mobile-more-icon">⚙</div><b>Master Data</b><span>Portfolio, Broker, Account, Security</span></button>
           <button class="mobile-more-card" onclick="go('documents')"><div class="mobile-more-icon">▤</div><b>Documents</b><span>Preview และ Print Transaction</span></button>
           <button class="mobile-more-card" onclick="exportData()"><div class="mobile-more-icon">⇩</div><b>Backup Data</b><span>Export JSON จาก Browser</span></button>
+          <button class="mobile-more-card" onclick="importData()"><div class="mobile-more-icon">⇧</div><b>Restore Data</b><span>Import JSON เข้าเครื่องนี้</span></button>
         </div>
       </section>
     </div>
@@ -1121,17 +1195,74 @@ const STORE={
     }
   }
 };
+/* ==================================================================
+   แหล่งข้อมูล
+   ลำดับความสำคัญ:
+     1. data.json ที่วางไว้ข้างๆ ไฟล์นี้บน GitHub  = "ข้อมูลที่เผยแพร่แล้ว"
+        ทุกคนที่เปิดลิงก์เดียวกันจะได้ชุดนี้เหมือนกัน
+     2. ฉบับร่างใน Local Storage ของเครื่องนี้ (ถ้าอ้างอิงเวอร์ชันเดียวกับข้อ 1)
+     3. ชุดข้อมูลจำลองที่ฝังในโค้ด (กรณีเปิดจากไฟล์ในเครื่อง ซึ่ง fetch ไม่ได้)
+   ================================================================== */
 let state=null;
-try{state=JSON.parse(STORE.get(KEY)||"null")}catch(e){state=null}
-if(!state){
-  try{state=demoState()}
-  catch(e){
-    document.addEventListener("DOMContentLoaded",()=>{
-      document.body.innerHTML='<div style="max-width:640px;margin:60px auto;padding:28px;font-family:Arial,sans-serif;border:1px solid #ffd0cc;background:#fff1f0;border-radius:14px;color:#7a2a24"><h2 style="margin:0 0 10px">ไม่สามารถสร้างชุดข้อมูลจำลองได้</h2><p style="line-height:1.6">เกิดข้อผิดพลาดขณะเตรียมข้อมูล: <code>'+String(e&&e.message||e)+'</code></p><p style="line-height:1.6">กรุณาส่งข้อความนี้ให้ผู้พัฒนา หรือลองเปิดด้วย Chrome / Edge เวอร์ชันล่าสุด</p></div>';
-    });
-    throw e;
-  }
+let DATA_SOURCE="";        /* published | draft | simulation */
+let PUBLISHED_STAMP="";    /* publishedAt ของ data.json ที่โหลดมา */
+let DRAFT_DIRTY=false;     /* มีการแก้ไขที่ยังไม่ได้เผยแพร่หรือไม่ */
+
+function stampOf(d){return (d&&d.publishedAt)||""}
+
+async function fetchPublished(){
+  try{
+    /* กัน cache ของ GitHub Pages ไม่ให้ค้างข้อมูลเก่า */
+    const res=await fetch("data.json?t="+Date.now(),{cache:"no-store"});
+    if(!res.ok)return null;
+    const d=await res.json();
+    if(!d||!Array.isArray(d.transactions))return null;
+    return d;
+  }catch(e){ return null; }   /* เปิดจากไฟล์ในเครื่อง (file://) จะมาทางนี้ ถือว่าปกติ */
 }
+
+async function resolveState(){
+  let draft=null;
+  try{draft=JSON.parse(STORE.get(KEY)||"null")}catch(e){draft=null}
+
+  const pub=await fetchPublished();
+
+  if(pub){
+    PUBLISHED_STAMP=stampOf(pub);
+    if(draft&&draft.__basedOn===PUBLISHED_STAMP){
+      /* ร่างอ้างอิงข้อมูลเผยแพร่ชุดเดียวกัน ใช้ร่างต่อได้ */
+      DATA_SOURCE="draft"; DRAFT_DIRTY=true;
+      draft.__baseIndex=draft.__baseIndex||buildIndex(pub.transactions);
+      return draft;
+    }
+    if(draft&&draft.__basedOn&&draft.__basedOn!==PUBLISHED_STAMP){
+      /* มีผู้เผยแพร่ชุดใหม่ระหว่างที่เรามีงานค้าง
+         ห้ามทิ้งร่างเด็ดขาด — เก็บไว้แล้วพยายามรวมให้อัตโนมัติ
+         ถ้ารวมไม่ได้ค่อยให้ผู้ใช้ตัดสินใจ โดยงานยังอยู่ครบ */
+      STALE_DRAFT=true; PENDING_DRAFT=draft;
+      const r=threeWayMerge(draft.__baseIndex||{},draft,pub);
+      if(r.ok){
+        const changed=r.myDiff.added.length+r.myDiff.modified.length+r.myDiff.removed.length;
+        MERGED_ON_LOAD=changed>0?diffSummary(r.myDiff):"";
+        DATA_SOURCE=changed>0?"draft":"published";
+        DRAFT_DIRTY=changed>0;
+        r.merged.__basedOn=PUBLISHED_STAMP;
+        r.merged.__baseIndex=buildIndex(pub.transactions);
+        return r.merged;
+      }
+      MERGE_CONFLICT=r.collisions;      /* รวมอัตโนมัติไม่ได้ ใช้ของส่วนกลางไปก่อน ร่างยังเก็บไว้ */
+    }
+    DATA_SOURCE="published";
+    pub.__basedOn=PUBLISHED_STAMP;
+    pub.__baseIndex=buildIndex(pub.transactions);
+    return pub;
+  }
+
+  if(draft){ DATA_SOURCE="draft"; DRAFT_DIRTY=!!draft.__basedOn; return draft; }
+  DATA_SOURCE="simulation"; return demoState();
+}
+let STALE_DRAFT=false, PENDING_DRAFT=null, MERGE_CONFLICT=null, MERGED_ON_LOAD="";
+
 let filterPortfolio="";
 let filterAccount="";
 let currentType="BUY";
@@ -1139,10 +1270,13 @@ let previewTxn="";
 let editTxnId="";
 let editOriginal=null;
 let pendingEditCandidate=null;
-let dashboardCurrency=state.dashboardCurrency||"THB";
-state.auditTrail=state.auditTrail||[];
+let dashboardCurrency="THB";
 
 function save(){
+  state.__basedOn=PUBLISHED_STAMP;      /* ร่างนี้ต่อยอดจากข้อมูลเผยแพร่ชุดไหน */
+  if(!state.__baseIndex)state.__baseIndex={};
+  DRAFT_DIRTY=true; DATA_SOURCE="draft";
+  renderDataStatus();
   let ok=STORE.set(KEY,JSON.stringify(state));
   if(!ok)showStorageWarning();
   return ok;
@@ -1248,7 +1382,14 @@ function cashImpact(t,gross){
 }
 function engine(asOf){
   let positions={},cash={},txDetails=[];
-  let txs=[...state.transactions].filter(t=>!asOf||t.date<=asOf).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+  /* รายการที่ไม่อนุมัติไม่นับเข้าพอร์ตเสมอ
+     ส่วนรายการที่ยังรออนุมัติ จะนับหรือไม่ ขึ้นกับสวิตช์ "เฉพาะที่อนุมัติแล้ว" */
+  let txs=[...state.transactions].filter(t=>{
+    const st=txStatus(t);
+    if(st==="REJECTED")return false;
+    if(SHOW_APPROVED_ONLY&&st!=="APPROVED")return false;
+    return !asOf||t.date<=asOf;
+  }).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
   for(const t of txs){
     const a=acct(t.account); if(!a)continue;
     const s=sec(t.security),ccy=txnCurrency(t),rate=Number(t.fxOverride)||getFx(ccy,t.date)||0;
@@ -1344,11 +1485,15 @@ function navInit(){
 }
 let currentPage="dashboard";
 function go(page){
+  if(currentPage==="master"&&page!=="master"&&typeof teamDirty==="function"&&teamDirty()){
+    if(!confirm("ทะเบียนทีมมีการแก้ไขที่ยังไม่ได้บันทึก\nออกจากหน้านี้แล้วการแก้ไขจะหายไป — ยืนยันหรือไม่?"))return;
+    resetTeamEdit();
+  }
   currentPage=page;
   document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));byId("page-"+page).classList.add("active");
   document.querySelectorAll("#nav button").forEach(x=>x.classList.toggle("active",x.dataset.page===page));
   document.querySelectorAll("#mobileNav button").forEach(x=>x.classList.toggle("active",x.dataset.page===page));
-  const titles={dashboard:"Dashboard",new:"New Transaction",transactions:"Transactions",holdings:"Holdings",cashfx:"Cash & FX",fixed:"Fixed Income",market:"Market Data",master:"Master Data",documents:"Documents",more:"More"};
+  const titles={approvals:"Approval Queue",dashboard:"Dashboard",new:"New Transaction",transactions:"Transactions",holdings:"Holdings",cashfx:"Cash & FX",fixed:"Fixed Income",market:"Market Data",master:"Master Data",documents:"Documents",more:"More"};
   byId("topPageTitle").textContent=titles[page]||page; renderAll();
 }
 function fillSelect(el,items,valueFn,labelFn,blank){
@@ -1929,7 +2074,7 @@ function renderTransactions(){
   byId("txnCount").textContent=`${tx.length} transactions`;
   let txTotal=tx.length; if(q)PAGE_LIMIT.txn=Math.max(PAGE_LIMIT.txn,PAGE_STEP.txn);
   tx=tx.slice(0,PAGE_LIMIT.txn);
-  byId("txnBody").innerHTML=tx.map(t=>`<tr><td>${dmy(t.date)}</td><td><b>${t.id}</b>${(t.version||1)>1?`<span class="amended-tag">v${t.version} AMENDED</span>`:""}</td><td>${typeBadge(t.type)}</td><td>${t.portfolio}</td><td>${t.broker}</td><td>${t.account}</td><td>${t.security||"CASH"}</td><td>${t.currency}</td><td class="num">${t.qty?fmt(t.qty,2):"—"}</td><td class="num">${fmt(t.gross,2)}</td><td class="num ${t.cashUSD>=0?'pos':'neg'}">${usd(t.cashUSD)}</td><td>${t.ref||"—"}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="editTransaction('${t.id}')">Edit</button> ${(t.version||1)>1?`<button class="btn btn-secondary" style="padding:6px 8px" onclick="showAuditHistory('${t.id}')">History</button>`:""} <button class="btn btn-secondary" style="padding:6px 8px" onclick="previewDocument('${t.id}')">View</button></td></tr>`).join("")+moreRow("txn","renderTransactions",txTotal,tx.length,13)||`<tr><td colspan="13" class="empty">No transactions</td></tr>`;
+  byId("txnBody").innerHTML=tx.map(t=>`<tr><td>${dmy(t.date)}</td><td><b>${t.id}</b>${(t.version||1)>1?`<span class="amended-tag">v${t.version} AMENDED</span>`:""}</td><td>${typeBadge(t.type)}${statusBadge(t)}</td><td>${t.portfolio}</td><td>${t.broker}</td><td>${t.account}</td><td>${t.security||"CASH"}</td><td>${t.currency}</td><td class="num">${t.qty?fmt(t.qty,2):"—"}</td><td class="num">${fmt(t.gross,2)}</td><td class="num ${t.cashUSD>=0?'pos':'neg'}">${usd(t.cashUSD)}</td><td>${t.ref||"—"}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="editTransaction('${t.id}')">Edit</button> ${(t.version||1)>1?`<button class="btn btn-secondary" style="padding:6px 8px" onclick="showAuditHistory('${t.id}')">History</button>`:""} <button class="btn btn-secondary" style="padding:6px 8px" onclick="previewDocument('${t.id}')">View</button></td></tr>`).join("")+moreRow("txn","renderTransactions",txTotal,tx.length,13)||`<tr><td colspan="13" class="empty">No transactions</td></tr>`;
 }
 function renderHoldings(){
   let h=viewData().holdings.sort((a,b)=>b.mvUSD-a.mvUSD);byId("holdingCount").textContent=`${h.length} open positions`;
@@ -1966,7 +2111,132 @@ function renderMarket(){
     +(marketShowAll?moreRow("market","renderMarket",total,rows.length,4):"");
   byId("fxDailyBody").innerHTML=[...state.fx].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,30).map(x=>`<tr><td>${dmy(x.date)}</td><td class="num">${fmt(x.THB,4)}</td><td class="num">${fmt(x.HKD,4)}</td><td class="num">${fmt(x.JPY,4)}</td><td class="num">${fmt(x.EUR,4)}</td></tr>`).join("");
 }
+function saveEntity(){
+  if(!guard("edit"))return;
+  state.entity={name:byId("entName").value.trim(),taxId:byId("entTax").value.trim(),
+                address:byId("entAddr").value.trim(),ic:byId("entIc").value.trim()};
+  save();renderAll();toast("บันทึกข้อมูลองค์กรแล้ว");
+}
+/* ---------- ฉบับร่างของทะเบียนทีม ----------
+   แก้ชื่อตำแหน่ง / เพิ่ม / ลบ ได้อิสระ แล้วค่อยกด "บันทึกทะเบียนทีม" ครั้งเดียว
+   ระหว่างที่ยังไม่บันทึก ข้อมูลจริง (state.team) ยังไม่ถูกแตะต้อง */
+let TEAM_EDIT=null;
+function teamEdit(){ if(!TEAM_EDIT)TEAM_EDIT=JSON.parse(JSON.stringify(teamOf())); return TEAM_EDIT }
+function resetTeamEdit(){ TEAM_EDIT=null }
+function teamDirty(){ return !!TEAM_EDIT && JSON.stringify(TEAM_EDIT)!==JSON.stringify(teamOf()) }
+/* ดึงค่าที่พิมพ์ค้างอยู่บนหน้าจอกลับเข้าฉบับร่าง ก่อนจะ render ใหม่ทุกครั้ง */
+function syncTeamInputs(){
+  const d=teamEdit();
+  d.forEach(m=>{
+    const t=byId("tm_"+m.id+"_title"), nm=byId("tm_"+m.id+"_name"),
+          e=byId("tm_"+m.id+"_email"), r=byId("tm_"+m.id+"_role");
+    if(t)m.title=t.value.trim();
+    if(nm)m.name=nm.value.trim();
+    if(e)m.email=e.value.trim();
+    if(r)m.role=r.value;
+  });
+  return d;
+}
+/* รหัสประจำตำแหน่งใหม่ — ต้องไม่ชนของเดิม เพราะรหัสนี้ผูกกับ po_me และรหัสผ่าน */
+function newMemberId(){
+  const used=new Set(teamEdit().map(m=>m.id).concat(teamOf().map(m=>m.id)));
+  for(let i=1;i<100;i++){const id="M"+String(i).padStart(2,"0");if(!used.has(id))return id}
+  return "M"+Date.now().toString(36).toUpperCase();
+}
+function addMember(){
+  if(!guard("edit"))return;
+  syncTeamInputs().push({id:newMemberId(),name:"",title:"",role:"viewer",email:""});
+  renderTeam();
+  const rows=teamEdit(); const last=rows[rows.length-1];
+  const el=byId("tm_"+last.id+"_title"); if(el)el.focus();
+}
+function removeMember(id){
+  if(!guard("edit"))return;
+  const d=syncTeamInputs(); const m=d.find(x=>x.id===id); if(!m)return;
+  if(id===meId()){alert("ลบตำแหน่งที่เครื่องนี้กำลังใช้งานอยู่ไม่ได้\n\nถ้าต้องการลบจริง ให้กด \"ออกจากระบบ\" หรือสลับไปเป็นตำแหน่งอื่นก่อน");return}
+  let w="ลบตำแหน่ง \""+(m.title||m.id)+"\" ออกจากทะเบียน?";
+  if(hasPassword(m))w+="\n\n⚠ ตำแหน่งนี้ตั้งรหัสผ่านไว้แล้ว — ลบแล้วรหัสผ่านจะหายไปด้วย";
+  if(m.role==="editor"&&d.filter(x=>x.role==="editor").length===1)w+="\n\n⚠ นี่คือผู้บันทึกรายการเพียงคนเดียว — ลบแล้วจะไม่มีใครบันทึก/เผยแพร่ข้อมูลได้";
+  if(m.role==="approver"&&d.filter(x=>x.role==="approver").length===1)w+="\n\n⚠ นี่คือผู้อนุมัติเพียงคนเดียว — ลบแล้วจะไม่มีใครอนุมัติรายการได้";
+  w+="\n\n(ยังไม่มีผลจนกว่าจะกด \"บันทึกทะเบียนทีม\")";
+  if(!confirm(w))return;
+  TEAM_EDIT=d.filter(x=>x.id!==id);
+  renderTeam();
+}
+function cancelTeamEdit(){
+  if(teamDirty()&&!confirm("ยกเลิกการแก้ไขทะเบียนทีมทั้งหมด และกลับไปใช้ค่าที่บันทึกไว้ล่าสุด?"))return;
+  resetTeamEdit(); renderTeam(); toast("ยกเลิกการแก้ไขแล้ว");
+}
+function saveTeam(){
+  if(!guard("edit"))return;
+  const t=syncTeamInputs().map(m=>({...m}));   /* คง pwHash/pwSalt เดิมไว้เสมอ */
+  if(!t.length){alert("ต้องมีอย่างน้อย 1 ตำแหน่งในทะเบียน");return}
+  const blank=t.find(m=>!m.title);
+  if(blank){alert("ทุกแถวต้องระบุชื่อตำแหน่ง (แถวรหัส "+blank.id+" ยังว่างอยู่)");
+    const el=byId("tm_"+blank.id+"_title"); if(el)el.focus(); return}
+  const dup=t.map(m=>m.title.toLowerCase()).find((x,i,a)=>a.indexOf(x)!==i);
+  if(dup&&!confirm("มีชื่อตำแหน่งซ้ำกัน (\""+dup+"\") — ยืนยันหรือไม่?"))return;
+  /* ตำแหน่งที่หายไปจากทะเบียน แต่เครื่องอื่นอาจยังผูก po_me อยู่ */
+  const gone=teamOf().filter(o=>!t.some(m=>m.id===o.id));
+  if(gone.length&&!confirm("จะลบ "+gone.length+" ตำแหน่งออกจากทะเบียน:\n  • "
+      +gone.map(m=>(m.title||m.id)+(m.name?" ("+m.name+")":"")).join("\n  • ")
+      +"\n\nเครื่องที่เคยเข้าใช้งานในตำแหน่งนี้จะกลับไปเป็น \"ดูอย่างเดียว\" อัตโนมัติ\nยืนยันหรือไม่?"))return;
+  const eds=t.filter(m=>m.role==="editor").length;
+  if(eds!==1&&!confirm("ควรมีผู้บันทึกรายการเพียง 1 คนเพื่อไม่ให้ข้อมูลขัดกัน\nขณะนี้ตั้งไว้ "+eds+" คน — ยืนยันหรือไม่?"))return;
+  if(!t.some(m=>m.role==="approver")&&!confirm("ไม่มีผู้อนุมัติเหลืออยู่ในทะเบียน — รายการจะค้างที่สถานะ \"รออนุมัติ\"\nยืนยันหรือไม่?"))return;
+  state.team=t; resetTeamEdit();
+  /* ถ้าตำแหน่งที่เครื่องนี้ผูกอยู่ถูกลบไป ให้ถอยกลับเป็นดูอย่างเดียว */
+  if(meId()&&!t.some(m=>m.id===meId())){
+    try{localStorage.removeItem("po_me")}catch(e){}
+    writeSession(null); ROLE="viewer"; saveGovPrefs(); applyRole();
+  }else{ const cur=memberById(meId()); if(cur&&!needsPassword(cur.role)){ROLE=cur.role;saveGovPrefs();applyRole()} }
+  
+  /* ถ้าเครื่องนี้ยังไม่ได้ระบุตัวตน แต่ตำแหน่งตรงกับสมาชิกเพียงคนเดียว ให้ผูกให้เลย
+     จะได้ไม่ต้องมาถามชื่อซ้ำตอนเผยแพร่หรืออนุมัติ */
+  if(!meId()){
+    const match=t.filter(m=>m.role===ROLE&&m.name);
+    if(match.length===1){try{localStorage.setItem("po_me",match[0].id)}catch(e){}}
+  }
+  save(); renderAll(); toast("บันทึกทะเบียนทีมแล้ว");
+}
+function renderTeam(){
+  const el=byId("teamBody"); if(!el)return;
+  const dis=canEdit()?"":" disabled";
+  const saved=teamOf();
+  const rows=canEdit()?teamEdit():saved;      /* ผู้ที่แก้ไม่ได้ ให้เห็นค่าที่บันทึกไว้จริง */
+  const inp='style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px"';
+  el.innerHTML=rows.map(m=>{
+    const isNew=!saved.some(x=>x.id===m.id);
+    return '<tr><td><input id="tm_'+m.id+'_title" value="'+(m.title||"").replace(/"/g,"&quot;")+'" placeholder="เช่น Finance Manager" '+inp+dis+'>'
+    +'<br><span class="muted" style="font-size:10px">'+m.id+(isNew?' · ใหม่ (ยังไม่บันทึก)':'')+'</span></td>'
+    +'<td><input id="tm_'+m.id+'_name" value="'+(m.name||"").replace(/"/g,"&quot;")+'" placeholder="ยังไม่ได้ระบุ" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px"'+dis+'></td>'
+    +'<td><input id="tm_'+m.id+'_email" value="'+(m.email||"").replace(/"/g,"&quot;")+'" placeholder="name@monta.co.th" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px"'+dis+'></td>'
+    +'<td><select id="tm_'+m.id+'_role" style="border:1px solid var(--line);border-radius:8px;padding:7px"'+dis+'>'
+    +Object.keys(ROLE_LABEL).map(r=>'<option value="'+r+'"'+(r===m.role?" selected":"")+'>'+ROLE_LABEL[r]+'</option>').join("")
+    +'</select></td>'
+    +'<td>'+(!needsPassword(m.role) ? '<span class="muted">ไม่ต้องใช้</span>'
+        : isNew ? '<span class="muted" style="font-size:11px">บันทึกทะเบียนก่อน<br>จึงตั้งรหัสผ่านได้</span>'
+        : (hasPassword(m)
+            ? '<span class="pos" style="font-weight:700">ตั้งแล้ว</span>'
+              +'<br><span class="muted" style="font-size:10px">'+(m.pwSetAt?new Date(m.pwSetAt).toLocaleDateString("th-TH"):"")+'</span>'
+              +(canEdit()||meId()===m.id?'<br><button class="btn btn-secondary" style="padding:4px 8px;font-size:10px;margin-top:4px" onclick="setMemberPassword(\''+m.id+'\')">เปลี่ยน</button>':'')
+              +(canEdit()?' <button class="btn btn-danger" style="padding:4px 8px;font-size:10px" onclick="clearMemberPassword(\''+m.id+'\')">ลบ</button>':'')
+            : '<span class="neg" style="font-weight:700">ยังไม่ตั้ง</span>'
+              +(canEdit()?'<br><button class="btn btn-primary" style="padding:4px 8px;font-size:10px;margin-top:4px" onclick="setMemberPassword(\''+m.id+'\')">ตั้งรหัสผ่าน</button>':'')))
+    +'</td>'
+    +'<td style="text-align:center">'+(canEdit()
+        ? '<button class="btn btn-danger" style="padding:4px 9px;font-size:11px" onclick="removeMember(\''+m.id+'\')" title="ลบตำแหน่งนี้">ลบ</button>'
+        : '')+'</td>'
+    +'</tr>'}).join("");
+  const dn=byId("teamDirty");
+  if(dn)dn.innerHTML=teamDirty()?'<b class="neg">● มีการแก้ไขที่ยังไม่ได้บันทึก</b>':'';
+  const e=entityOf();
+  if(byId("entName")){byId("entName").value=e.name;byId("entTax").value=e.taxId;
+    byId("entAddr").value=e.address;byId("entIc").value=e.ic;
+    ["entName","entTax","entAddr","entIc"].forEach(id=>byId(id).disabled=!canEdit());}
+}
 function renderMaster(){
+  renderTeam();
   byId("portfolioBody").innerHTML=state.portfolios.map(x=>`<tr><td><b>${x.id}</b></td><td>${x.name}</td><td>${x.currency}</td></tr>`).join("");
   byId("brokerBody").innerHTML=state.brokers.map(x=>`<tr><td><b>${x.id}</b></td><td>${x.name}</td><td>${x.country}</td><td>${x.currency}</td></tr>`).join("");
   byId("accountBody").innerHTML=state.accounts.map(x=>`<tr><td><b>${x.id}</b></td><td>${x.name}</td><td>${x.portfolioId}</td><td>${x.brokerId}</td><td>${x.currency}</td></tr>`).join("");
@@ -1987,7 +2257,30 @@ function drawDoc(id){
   byId("docPreview").innerHTML=transactionDocument(t,false);
 }
 function previewDocument(id){previewTxn=id;go("documents");drawDoc(id)}
-const ENTITY={name:"‹ชื่อองค์กร / Entity Name›",taxId:"‹เลขผู้เสียภาษี 13 หลัก›",address:"‹ที่อยู่›",ic:"‹ผู้แนะนำการลงทุน (IC) / เลขใบอนุญาต›"};
+/* ข้อมูลองค์กรและทะเบียนทีม เก็บอยู่ในชุดข้อมูลเดียวกัน จึงเผยแพร่ไปถึงทุกเครื่องพร้อมกัน
+   ทำให้ชื่อในเอกสารและชื่อผู้อนุมัติมาจากทะเบียนกลาง ไม่ใช่สิ่งที่แต่ละคนพิมพ์เอง */
+function defaultEntity(){return {name:"",taxId:"",address:"",ic:""}}
+function defaultTeam(){return [
+  {id:"FIN", name:"", title:"Finance Manager",     role:"editor",   email:""},
+  {id:"IM",  name:"", title:"Investment Manager",  role:"approver", email:""},
+  {id:"CEO", name:"", title:"Chief Executive Officer", role:"viewer", email:""},
+  {id:"SEC", name:"", title:"Secretary",           role:"viewer",   email:""}
+]}
+const entityOf = ()=>Object.assign(defaultEntity(), state.entity||{});
+const teamOf   = ()=>(Array.isArray(state.team)&&state.team.length)?state.team:defaultTeam();
+const memberById = id=>teamOf().find(m=>m.id===id)||null;
+/* ใครคือ "ฉัน" บนเครื่องนี้ — เลือกจากทะเบียน ไม่ใช่พิมพ์ชื่อเอง */
+function meId(){try{return localStorage.getItem("po_me")||""}catch(e){return ""}}
+function me(){return memberById(meId())}
+function meName(){const m=me();return m&&m.name?m.name:""}
+function roleHolders(r){return teamOf().filter(m=>m.role===r&&m.name)}
+function ENTITY_(){
+  const e=entityOf();
+  return {name:e.name||"‹ยังไม่ได้ตั้งชื่อองค์กร — ตั้งที่ Master Data›",
+          taxId:e.taxId||"‹ยังไม่ได้ระบุเลขผู้เสียภาษี›",
+          address:e.address||"‹ยังไม่ได้ระบุที่อยู่›",
+          ic:e.ic||"‹ยังไม่ได้ระบุผู้แนะนำการลงทุน›"};
+}
 function addBusinessDays(d,n){if(!d)return "";let x=new Date(d+"T00:00:00Z"),added=0;while(added<n){x.setUTCDate(x.getUTCDate()+1);let g=x.getUTCDay();if(g!==0&&g!==6)added++;}return x.toISOString().slice(0,10);}
 function marketOf(s){if(!s)return "—";if(s.market)return s.market;if(s.currency==="THB")return isFixed(s)?"ThaiBMA / OTC":"SET";return "—";}
 function transactionDocument(t,printing){
@@ -2007,12 +2300,12 @@ function transactionDocument(t,printing){
   let realizedBlock = isSell ? sect("REALIZED GAIN / LOSS (FIFO)")+
     `<div class="doc-row"><span>Realized Asset P/L (USD)</span><b>${usd(t.realizedAsset||0)}</b></div><div class="doc-row"><span>Realized FX P/L (USD)</span><b>${usd(t.realizedFx||0)}</b></div>`+
     `<div class="doc-row" style="grid-column:1/-1"><span>Total Realized P/L (USD)</span><b>${usd((t.realizedAsset||0)+(t.realizedFx||0))}</b></div>` : "";
-  return `<div class="doc-header"><div><h2>INVESTMENT TRANSACTION RECORD</h2><div class="muted">${ENTITY.name} · ${ENTITY.address}</div><div class="muted">Internal Portfolio Administration Document</div></div><div style="text-align:right"><b>${t.id}</b>${(t.version||1)>1?`<br><span style="color:#8b6300;font-weight:700">Version ${t.version} · AMENDED</span>`:""}<br><span class="muted">Trade Date: ${dmy(t.date)}</span></div></div>
+  return `<div class="doc-header"><div><h2>INVESTMENT TRANSACTION RECORD</h2><div class="muted">${ENTITY_().name} · ${ENTITY_().address}</div><div class="muted">Internal Portfolio Administration Document</div></div><div style="text-align:right"><b>${t.id}</b>${(t.version||1)>1?`<br><span style="color:#8b6300;font-weight:700">Version ${t.version} · AMENDED</span>`:""}<br><span class="muted">Trade Date: ${dmy(t.date)}</span></div></div>
   <div class="doc-grid">
     ${sect("PARTIES / คู่สัญญา")}
-    <div class="doc-row"><span>Entity / นิติบุคคล</span><b>${ENTITY.name}</b></div><div class="doc-row"><span>Tax ID / เลขผู้เสียภาษี</span><b>${ENTITY.taxId}</b></div>
+    <div class="doc-row"><span>Entity / นิติบุคคล</span><b>${ENTITY_().name}</b></div><div class="doc-row"><span>Tax ID / เลขผู้เสียภาษี</span><b>${ENTITY_().taxId}</b></div>
     <div class="doc-row"><span>Portfolio</span><b>${p?.name||t.portfolio}</b></div><div class="doc-row"><span>Account</span><b>${a?.name||t.account}</b></div>
-    <div class="doc-row"><span>Broker / Custodian</span><b>${b?.name||t.broker}</b></div><div class="doc-row"><span>Investment Consultant (IC)</span><b>${ENTITY.ic}</b></div>
+    <div class="doc-row"><span>Broker / Custodian</span><b>${b?.name||t.broker}</b></div><div class="doc-row"><span>Investment Consultant (IC)</span><b>${ENTITY_().ic}</b></div>
     ${sect("TRADE DETAILS / รายละเอียดการทำรายการ")}
     <div class="doc-row"><span>Transaction Type</span><b>${t.type}</b></div><div class="doc-row"><span>Market / Exchange</span><b>${marketOf(s)}</b></div>
     <div class="doc-row"><span>Security</span><b>${s?`${s.id} — ${s.name}`:"CASH"}</b></div><div class="doc-row"><span>ISIN / Security Code</span><b>${s?.isin||"—"}</b></div>
@@ -2035,7 +2328,23 @@ function transactionDocument(t,printing){
     ${(t.version||1)>1?`<div class="doc-row" style="grid-column:1/-1"><span>Amendment Reason</span><b>${(state.auditTrail||[]).filter(x=>x.txnId===t.id).slice(-1)[0]?.reason||"Amended"}</b></div>`:""}
   </div>
   <div style="margin-top:22px;border-top:1px solid #dfe5eb;padding-top:15px"><b>ATTACHMENT CHECKLIST</b><p>☐ Broker / Fund Confirmation &nbsp;&nbsp; ☐ Bank / Settlement Slip &nbsp;&nbsp; ☐ FX Evidence &nbsp;&nbsp; ☐ Tax / WHT Certificate &nbsp;&nbsp; ☐ Other</p></div>
-  <div style="margin-top:32px;display:grid;grid-template-columns:repeat(3,1fr);gap:35px;text-align:center"><div>ผู้จัดทำ (Prepared by)<br><span class="muted">เลขานุการ / ฝ่ายการเงิน</span><br><br>____________________<br>Date: ____________</div><div>ผู้อนุมัติ (Approved by)<br><span class="muted">Investment Manager</span><br><br>____________________<br>Date: ____________</div><div>อนุมัติสูงสุด (Final Approval)<br><span class="muted">CEO</span><br><br>____________________<br>Date: ____________</div></div>`;
+  ${(function(){
+    const sig=(label,mem,stamp)=>{
+      const nm=mem&&mem.name?mem.name:"____________________";
+      const ti=mem&&mem.title?mem.title:"";
+      return '<div>'+label+'<br><span class="muted">'+ti+'</span><br><br>'
+        +(stamp?'<b>'+nm+'</b><br><span class="muted">'+stamp+'</span>':nm+'<br>Date: ____________')+'</div>';
+    };
+    const fin=teamOf().find(m=>m.role==="editor");
+    const im=teamOf().find(m=>m.role==="approver");
+    const ceo=teamOf().find(m=>m.id==="CEO");
+    const approvedStamp=(t.status==="APPROVED"&&t.approvedAt)
+      ? "อนุมัติ "+new Date(t.approvedAt).toLocaleString("th-TH",{dateStyle:"medium",timeStyle:"short"}) : "";
+    return '<div style="margin-top:32px;display:grid;grid-template-columns:repeat(3,1fr);gap:35px;text-align:center">'
+      +sig("ผู้จัดทำ (Prepared by)",fin,"")
+      +sig("ผู้อนุมัติ (Approved by)",(t.approvedBy?{name:t.approvedBy,title:im?im.title:"Investment Manager"}:im),approvedStamp)
+      +sig("รับทราบ (Acknowledged)",ceo,"")+'</div>';
+  })()}`;
 }
 function printTransaction(id){
   let t=engine().txDetails.find(x=>x.id===id);if(!t)return;
@@ -2270,6 +2579,7 @@ function validateTransactionSet(txs){
   return "";
 }
 function editTransaction(id){
+  if(!guard("edit"))return;
   let t=state.transactions.find(x=>x.id===id);if(!t)return;
   editTxnId=id;editOriginal=JSON.parse(JSON.stringify(t));currentType=t.type;
   go("new");
@@ -2424,13 +2734,14 @@ function saveFxConversion(){
   save();alert(`Saved ${id}`);previewTxn=id;clearTransaction();renderAll();previewDocument(id);
 }
 function saveTransaction(){
+  if(!guard("edit"))return;
   if(editTxnId){previewEditImpact();return}
   if(currentType==="FX CONVERSION"){saveFxConversion();return}
   let a=acct(byId("fAccount").value),s=sec(byId("fSecurity").value),trade=TYPE_GROUPS.trade.includes(currentType),date=byId("fDate").value,ccy=trade?s?.currency:a?.currency,rate=Number(byId("fFxOverride").value)||getFx(ccy,date);
   let qty=Number(byId("fQty").value)||0,price=Number(byId("fPrice").value)||0,amount=Number(byId("fAmount").value)||0;
   if(!date||!a||!rate||(trade&&(!s||qty<=0||price<=0))||(!trade&&amount<=0)){alert("กรุณากรอกข้อมูลที่จำเป็นให้ครบ");return}
   let id=nextTxnId(date);
-  let newTxn={id,date,type:currentType,account:a.id,security:trade?s.id:"",qty,price,amount,fxOverride:Number(byId("fFxOverride").value)||0,accrued:Number(byId("fAccrued").value)||0,fee:Number(byId("fFee").value)||0,tax:Number(byId("fTax").value)||0,ref:byId("fRef").value.trim(),note:byId("fNote").value.trim(),version:1};
+  let newTxn={id,date,type:currentType,account:a.id,security:trade?s.id:"",qty,price,amount,fxOverride:Number(byId("fFxOverride").value)||0,accrued:Number(byId("fAccrued").value)||0,fee:Number(byId("fFee").value)||0,tax:Number(byId("fTax").value)||0,ref:byId("fRef").value.trim(),note:byId("fNote").value.trim(),version:1,status:"DRAFT"};
   let err=validateTransactionSet([...state.transactions,newTxn]);if(err){alert(err);return}
   state.transactions.push(newTxn);
   save();alert(`Saved ${id}`);previewTxn=id;clearTransaction();renderAll();previewDocument(id);
@@ -2443,7 +2754,849 @@ function addBroker(){let id=byId("bId").value.trim().toUpperCase(),name=byId("bN
 function addAccount(){let id=byId("aId").value.trim().toUpperCase(),name=byId("aName").value.trim(),portfolioId=byId("aPortfolio").value,brokerId=byId("aBroker").value;if(!id||!name||!portfolioId||!brokerId)return alert("กรอก Account ให้ครบ");state.accounts.push({id,name,portfolioId,brokerId,currency:byId("aCcy").value||"USD"});save();renderAll()}
 function addSecurity(){let id=byId("sId").value.trim().toUpperCase(),name=byId("sName").value.trim(),instrument=byId("sType").value,currency=byId("sCcy").value;if(!id||!name||!instrument||!currency)return alert("กรอก Security ให้ครบ");state.securities.push({id,name,assetClass:byId("sAsset").value.trim()||instrument,instrument,currency,face:Number(byId("sFace").value)||0,coupon:0,frequency:"",dayCount:byId("sDayCount").value,maturity:"",isin:(byId("sIsin")?.value||"").trim().toUpperCase(),market:(byId("sMarket")?.value||"").trim()});save();renderAll()}
 function editFixedDates(id){let x=state.fixedDates[id]||{},p=prompt(`Prev Coupon / Start (${id}) YYYY-MM-DD`,x.prev||"");if(p===null)return;let n=prompt(`Next Coupon / Maturity (${id}) YYYY-MM-DD`,x.next||sec(id)?.maturity||"");if(n===null)return;state.fixedDates[id]={prev:p,next:n};save();renderAll()}
-function exportData(){let blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="portfolio-data.json";a.click();URL.revokeObjectURL(a.href)}
+/* ==================================================================
+   IMPORT / EXPORT
+   ข้อมูลถูกเก็บใน Local Storage ของเบราว์เซอร์แต่ละเครื่อง จึงไม่แชร์กันเอง
+   สองฟังก์ชันนี้คือวิธีย้ายข้อมูลระหว่างเครื่องจนกว่าจะมีฐานข้อมูลกลาง
+   ================================================================== */
+/* ==================================================================
+   SAFE PUBLISH — กันข้อมูลการเงินหายจากการเผยแพร่ทับกัน
+
+   ปัญหา: สองคนโหลดข้อมูลชุดเดียวกัน ต่างคนต่างแก้ แล้วต่างคนต่างเผยแพร่
+           คนที่อัปโหลดทีหลังจะทับงานของคนแรกหายไปเงียบๆ
+
+   วิธีแก้ (optimistic concurrency + three-way merge):
+     1. ก่อนเผยแพร่ ดึง data.json ล่าสุดจากเซิร์ฟเวอร์มาเทียบเสมอ
+     2. ถ้า publishedAt ตรงกับที่เราอ้างอิงอยู่ = ไม่มีใครแทรก เผยแพร่ได้เลย
+     3. ถ้าไม่ตรง = มีคนเผยแพร่คั่น ให้รวมงานสองฝั่งเข้าด้วยกัน
+        โดยเทียบสามทาง: ฐานเดิม (base) / ของเรา (mine) / ของเขา (theirs)
+     4. ถ้ามีรายการเดียวกันที่ทั้งสองฝั่งแก้ต่างกัน = ชนกันจริง
+        ระบบจะ "ปฏิเสธการเผยแพร่" และแสดงรายการที่ชนให้ตัดสินใจเอง
+        ไม่เดาแทนผู้ใช้ เพราะเป็นข้อมูลการเงิน
+
+   หลักการ: ยอมให้เผยแพร่ไม่สำเร็จ ดีกว่าปล่อยให้ข้อมูลหายโดยไม่มีใครรู้
+   ================================================================== */
+
+/* hash แบบ FNV-1a สำหรับตรวจว่ารายการถูกแก้หรือไม่ (ไม่ใช่งานเข้ารหัส) */
+function fnv1a(str){
+  let h=0x811c9dc5;
+  for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=(h+((h<<1)+(h<<4)+(h<<7)+(h<<8)+(h<<24)))>>>0}
+  return h.toString(16);
+}
+function canonical(o){
+  if(o===null||typeof o!=="object")return JSON.stringify(o);
+  if(Array.isArray(o))return "["+o.map(canonical).join(",")+"]";
+  return "{"+Object.keys(o).filter(k=>k[0]!=="_").sort()
+    .map(k=>JSON.stringify(k)+":"+canonical(o[k])).join(",")+"}";
+}
+function txnHash(t){return fnv1a(canonical(t))}
+function buildIndex(txns){let m={};(txns||[]).forEach(t=>{if(t&&t.id)m[t.id]=txnHash(t)});return m}
+function diffIndex(base,cur){
+  const added=[],modified=[],removed=[];
+  for(const id in cur){ if(!(id in base))added.push(id); else if(cur[id]!==base[id])modified.push(id); }
+  for(const id in base){ if(!(id in cur))removed.push(id); }
+  return {added,modified,removed};
+}
+function byIdMap(arr,key){let m={};(arr||[]).forEach(x=>{if(x&&x[key]!==undefined)m[x[key]]=x});return m}
+
+/* รวมรายการอ้างอิง (securities/accounts/...) แบบ union — ของใครเพิ่มมาก็เก็บไว้ทั้งคู่ */
+function unionByKey(theirs,mine,key){
+  const out=[...(theirs||[])], seen=new Set(out.map(x=>x[key]));
+  (mine||[]).forEach(x=>{if(!seen.has(x[key])){out.push(x);seen.add(x[key])}});
+  return out;
+}
+/* ราคาและ FX ใช้คู่ (security,date) / (date) เป็นกุญแจ ของใหม่กว่าชนะ */
+function unionByComposite(theirs,mine,keyFn){
+  const m=new Map();(theirs||[]).forEach(x=>m.set(keyFn(x),x));
+  (mine||[]).forEach(x=>{if(!m.has(keyFn(x)))m.set(keyFn(x),x)});
+  return [...m.values()];
+}
+
+/* three-way merge: baseIndex = ภาพตอนที่เราเริ่มแก้, mine = state ปัจจุบัน, theirs = data.json ล่าสุด */
+function threeWayMerge(baseIndex, mine, theirs){
+  const myIdx=buildIndex(mine.transactions), thIdx=buildIndex(theirs.transactions);
+  const myDiff=diffIndex(baseIndex,myIdx), thDiff=diffIndex(baseIndex,thIdx);
+
+  const myTouched=new Set([...myDiff.modified,...myDiff.removed]);
+  const thTouched=new Set([...thDiff.modified,...thDiff.removed]);
+  const collisions=[];
+  myTouched.forEach(id=>{ if(thTouched.has(id))collisions.push(id) });
+  /* เพิ่มรายการรหัสเดียวกันทั้งคู่ แต่เนื้อหาต่างกัน = ชนกันเช่นกัน */
+  myDiff.added.forEach(id=>{ if(thIdx[id]&&thIdx[id]!==myIdx[id])collisions.push(id) });
+
+  if(collisions.length)return {ok:false,collisions:[...new Set(collisions)],myDiff,thDiff};
+
+  /* เริ่มจากของเขา แล้วเอาการเปลี่ยนแปลงของเราทาบลงไป */
+  const map=byIdMap(theirs.transactions,"id");
+  const myMap=byIdMap(mine.transactions,"id");
+  myDiff.added.forEach(id=>{map[id]=myMap[id]});
+  myDiff.modified.forEach(id=>{map[id]=myMap[id]});
+  myDiff.removed.forEach(id=>{delete map[id]});
+
+  const merged=JSON.parse(JSON.stringify(theirs));
+  merged.transactions=Object.values(map).sort((a,b)=>
+    a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+  merged.portfolios = unionByKey(theirs.portfolios, mine.portfolios, "id");
+  merged.brokers    = unionByKey(theirs.brokers,    mine.brokers,    "id");
+  merged.accounts   = unionByKey(theirs.accounts,   mine.accounts,   "id");
+  merged.securities = unionByKey(theirs.securities, mine.securities, "id");
+  merged.prices     = unionByComposite(theirs.prices, mine.prices, x=>x.security+"|"+x.date);
+  merged.fx         = unionByComposite(theirs.fx,     mine.fx,     x=>x.date);
+  merged.fixedDates = Object.assign({}, mine.fixedDates||{}, theirs.fixedDates||{});
+  merged.auditTrail = [...(theirs.auditTrail||[]),
+    ...(mine.auditTrail||[]).filter(e=>!(theirs.auditTrail||[]).some(x=>
+      x.txnId===e.txnId&&x.versionTo===e.versionTo&&x.amendedAt===e.amendedAt))];
+  merged.valuationDate = mine.valuationDate||theirs.valuationDate;
+
+  return {ok:true,merged,myDiff,thDiff};
+}
+
+function diffSummary(d){
+  const p=[];
+  if(d.added.length)p.push("เพิ่ม "+d.added.length);
+  if(d.modified.length)p.push("แก้ไข "+d.modified.length);
+  if(d.removed.length)p.push("ลบ "+d.removed.length);
+  return p.length?p.join(" · ")+" รายการ":"ไม่มีการเปลี่ยนแปลง";
+}
+
+/* ---------- ดึงข้อมูลล่าสุดมารวมกับงานที่ค้างอยู่ (ไม่เผยแพร่) ---------- */
+async function pullLatest(){
+  const remote=await fetchPublished();
+  if(!remote){alert("ดึง data.json ไม่สำเร็จ\n\nถ้าเปิดจากไฟล์ในเครื่อง จะดึงข้อมูลส่วนกลางไม่ได้ ต้องเปิดผ่านลิงก์เว็บ");return false}
+  if(stampOf(remote)===PUBLISHED_STAMP){
+    alert("ข้อมูลของคุณเป็นชุดล่าสุดอยู่แล้ว\n\nเผยแพร่เมื่อ "+
+      (PUBLISHED_STAMP?new Date(PUBLISHED_STAMP).toLocaleString("th-TH"):"—"));
+    return true;
+  }
+  const base=state.__baseIndex||{};
+  const r=threeWayMerge(base,state,remote);
+  if(!r.ok){
+    alert("ไม่สามารถรวมข้อมูลอัตโนมัติได้\n\n"+
+      "รายการต่อไปนี้ถูกแก้ทั้งจากคุณและจากผู้อื่น:\n  "+r.collisions.slice(0,12).join("\n  ")+
+      (r.collisions.length>12?"\n  … และอีก "+(r.collisions.length-12)+" รายการ":"")+
+      "\n\nกรุณา Export JSON เก็บงานของคุณไว้ก่อน แล้วปรึกษากับผู้ที่แก้รายการเดียวกัน");
+    return false;
+  }
+  if(!confirm("พบข้อมูลชุดใหม่จากส่วนกลาง\n\n"+
+     "การเปลี่ยนแปลงจากผู้อื่น: "+diffSummary(r.thDiff)+"\n"+
+     "การเปลี่ยนแปลงของคุณที่ยังไม่เผยแพร่: "+diffSummary(r.myDiff)+"\n\n"+
+     "รวมเข้าด้วยกันเลยหรือไม่? (งานของคุณจะไม่หาย)"))return false;
+  state=r.merged;
+  state.__basedOn=stampOf(remote);
+  state.__baseIndex=buildIndex(remote.transactions);
+  PUBLISHED_STAMP=stampOf(remote);
+  STALE_DRAFT=false;
+  DRAFT_DIRTY=(r.myDiff.added.length+r.myDiff.modified.length+r.myDiff.removed.length)>0;
+  DATA_SOURCE=DRAFT_DIRTY?"draft":"published";
+  STORE.set(KEY,JSON.stringify(state));
+  initSelectors();renderAll();renderDataStatus();
+  toast("รวมข้อมูลสำเร็จ · "+diffSummary(r.thDiff)+" จากผู้อื่น");
+  return true;
+}
+
+/* ---------- เผยแพร่ พร้อมตรวจการชนกันก่อนเสมอ ---------- */
+async function publishData(){
+  let who=meName();
+  if(!who){try{who=localStorage.getItem("po_publisher")||""}catch(e){}}
+  if(!who){
+    who=prompt("ระบุชื่อผู้เผยแพร่ (แนะนำให้ตั้งทะเบียนทีมที่ Master Data แทน)","");
+    if(who===null)return;
+    who=who.trim(); if(!who){alert("ต้องระบุชื่อผู้เผยแพร่");return}
+    try{localStorage.setItem("po_publisher",who)}catch(e){}
+  }
+
+  /* ขั้นสำคัญ: ดึงของล่าสุดมาเทียบก่อนเสมอ ห้ามเผยแพร่ทับโดยไม่ตรวจ */
+  const remote=await fetchPublished();
+  let outState=state;
+
+  if(remote && stampOf(remote)!==PUBLISHED_STAMP){
+    const base=state.__baseIndex||{};
+    const r=threeWayMerge(base,state,remote);
+    if(!r.ok){
+      alert("⛔ หยุดการเผยแพร่ เพื่อไม่ให้ข้อมูลของผู้อื่นหาย\n\n"+
+        "มีผู้เผยแพร่ข้อมูลชุดใหม่หลังจากที่คุณเริ่มแก้ และรายการเหล่านี้ถูกแก้ทั้งสองฝั่ง:\n  "+
+        r.collisions.slice(0,12).join("\n  ")+
+        (r.collisions.length>12?"\n  … และอีก "+(r.collisions.length-12)+" รายการ":"")+
+        "\n\nสิ่งที่ควรทำ:\n"+
+        "1. กด Export JSON เก็บงานของคุณไว้ก่อน\n"+
+        "2. คุยกับผู้ที่แก้รายการเดียวกันว่าจะใช้ของใคร\n"+
+        "3. กด \"ดึงข้อมูลล่าสุด\" แล้วบันทึกรายการที่ตกลงกันใหม่");
+      return;
+    }
+    if(!confirm("มีผู้เผยแพร่ข้อมูลชุดใหม่ระหว่างที่คุณแก้ไข\n\n"+
+       "จากผู้อื่น: "+diffSummary(r.thDiff)+"\n"+
+       "ของคุณ:    "+diffSummary(r.myDiff)+"\n\n"+
+       "ระบบจะรวมทั้งสองฝั่งเข้าด้วยกันแล้วเผยแพร่ ไม่มีข้อมูลฝั่งใดหาย\n\nดำเนินการต่อ?"))return;
+    outState=r.merged;
+  }
+
+  const out=JSON.parse(JSON.stringify(outState));
+  delete out.__basedOn; delete out.__baseIndex;
+  out.publishedAt=new Date().toISOString();
+  out.publishedBy=who;
+  /* บันทึกประวัติการเผยแพร่ไว้ในไฟล์ แบบต่อท้ายอย่างเดียว */
+  out.publishLog=[...(out.publishLog||[]).slice(-49),
+    {at:out.publishedAt,by:who,transactions:out.transactions.length}];
+
+  const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download="data.json"; a.click();
+  URL.revokeObjectURL(a.href);
+
+  /* หลังผู้ใช้อัปโหลดขึ้น GitHub แล้ว ชุดนี้จะกลายเป็นฐานอ้างอิงใหม่ */
+  state=JSON.parse(JSON.stringify(out));
+  state.__basedOn=out.publishedAt;
+  state.__baseIndex=buildIndex(out.transactions);
+  PUBLISHED_STAMP=out.publishedAt;
+  DRAFT_DIRTY=false; DATA_SOURCE="published"; STALE_DRAFT=false;
+  STORE.set(KEY,JSON.stringify(state));
+  renderDataStatus();
+
+  alert("ดาวน์โหลด data.json แล้ว ("+out.transactions.length+" รายการ)\n\n"+
+    "ขั้นตอนถัดไป — อัปโหลดขึ้น GitHub:\n"+
+    "1. เปิด repo ของคุณบน github.com\n"+
+    "2. กด Add file → Upload files\n"+
+    "3. ลากไฟล์ data.json เข้าไป (ทับไฟล์เดิมอัตโนมัติ)\n"+
+    "4. กด Commit changes\n\n"+
+    "รอ 1-2 นาที แล้วทีมกด refresh จะเห็นชุดนี้");
+}
+
+/* ==================================================================
+   GOVERNANCE — บทบาทผู้ใช้ · สถานะอนุมัติ · การส่งผลอนุมัติกลับ
+
+   หลักการออกแบบ (สำคัญ):
+   ระบบนี้เป็นไฟล์ HTML แบบ static ไม่มีเซิร์ฟเวอร์ตรวจสิทธิ์
+   "โหมดผู้ใช้" ในที่นี้จึงเป็นการ "กันพลาด" ไม่ใช่ "ระบบความปลอดภัย"
+   ใครเปิด DevTools ก็ปลดล็อกปุ่มได้ ดังนั้น
+     ==> ด่านความปลอดภัยจริงคือ "สิทธิ์เขียน repo บน GitHub"
+         ทีมที่มีสิทธิ์อ่านอย่างเดียว จะแก้ data.json ไม่ได้แม้จะปลดปุ่มในหน้าเว็บ
+
+   เขียนเข้า data.json ได้คนเดียว (เครื่องหลัก) เพื่อตัดปัญหาเขียนทับกัน
+   ผู้อนุมัติจึงไม่เผยแพร่เอง แต่ส่ง "ไฟล์ผลอนุมัติ" ขนาดเล็กกลับมาแทน
+   ================================================================== */
+
+const ROLE_LABEL={editor:"ผู้บันทึกรายการ (เครื่องหลัก)",approver:"ผู้อนุมัติ — Investment Manager",viewer:"ดูอย่างเดียว"};
+let ROLE="viewer";                 /* ค่าเริ่มต้นปลอดภัยที่สุด */
+let SHOW_APPROVED_ONLY=true;       /* ตัวเลขทางการนับเฉพาะรายการที่อนุมัติแล้ว */
+let LOCAL_DECISIONS={};            /* ผลอนุมัติที่ยังไม่ได้ส่งกลับ {txnId:{decision,by,at,note,hash}} */
+
+function loadGovPrefs(){
+  try{
+    ROLE=localStorage.getItem("po_role")||"viewer";
+    const s=localStorage.getItem("po_approved_only"); if(s!==null)SHOW_APPROVED_ONLY=(s==="1");
+    LOCAL_DECISIONS=JSON.parse(localStorage.getItem("po_decisions")||"{}");
+  }catch(e){}
+  if(!ROLE_LABEL[ROLE])ROLE="viewer";
+}
+function saveGovPrefs(){
+  try{
+    localStorage.setItem("po_role",ROLE);
+    localStorage.setItem("po_approved_only",SHOW_APPROVED_ONLY?"1":"0");
+    localStorage.setItem("po_decisions",JSON.stringify(LOCAL_DECISIONS));
+  }catch(e){}
+}
+const canEdit    = ()=>ROLE==="editor";
+const canApprove = ()=>ROLE==="approver";
+function guard(what){
+  if(what==="edit"&&!canEdit()){
+    alert("โหมดปัจจุบัน: "+ROLE_LABEL[ROLE]+"\n\nการบันทึก/แก้ไขรายการทำได้เฉพาะเครื่องหลักเท่านั้น\nหากคุณคือผู้บันทึก ให้เปลี่ยนโหมดที่แถบซ้ายล่าง");
+    return false;
+  }
+  if(what==="approve"&&!canApprove()){
+    alert("โหมดปัจจุบัน: "+ROLE_LABEL[ROLE]+"\n\nการอนุมัติทำได้เฉพาะผู้อนุมัติ (Investment Manager)");
+    return false;
+  }
+  return true;
+}
+function setRole(r){
+  if(!ROLE_LABEL[r])return;
+  if(r==="editor"&&!confirm("เปลี่ยนเป็นโหมด \"ผู้บันทึกรายการ (เครื่องหลัก)\"?\n\nควรมีเครื่องเดียวในทีมที่ใช้โหมดนี้\nถ้ามีหลายเครื่องบันทึกพร้อมกัน ข้อมูลอาจขัดกันได้"))return;
+  ROLE=r; saveGovPrefs(); applyRole(); renderAll(); renderGovPanel();
+  toast("เปลี่ยนเป็นโหมด "+ROLE_LABEL[r]);
+}
+function applyRole(){
+  document.body.classList.remove("role-editor","role-approver","role-viewer");
+  document.body.classList.add("role-"+ROLE);
+}
+
+/* ---------- สถานะรายการ ---------- */
+/* รายการเดิมที่ไม่มีสถานะ ถือว่าอนุมัติแล้ว (เป็นฐานตั้งต้นของระบบ) */
+const txStatus = t => t.status || "APPROVED";
+const STATUS_TH={DRAFT:"ร่าง",PENDING:"รออนุมัติ",APPROVED:"อนุมัติแล้ว",REJECTED:"ไม่อนุมัติ"};
+const STATUS_CLS={DRAFT:"st-draft",PENDING:"st-pending",APPROVED:"st-approved",REJECTED:"st-rejected"};
+function statusBadge(t){
+  const s=txStatus(t);
+  return '<span class="stbadge '+STATUS_CLS[s]+'">'+STATUS_TH[s]+'</span>';
+}
+function auditPush(txnId,action,detail){
+  state.auditTrail=state.auditTrail||[];
+  state.auditTrail.push({txnId,action,detail:detail||"",at:new Date().toISOString(),
+    by:(function(){try{return localStorage.getItem("po_publisher")||ROLE_LABEL[ROLE]}catch(e){return ROLE}})()});
+}
+
+/* ---------- เครื่องหลัก: ส่งรายการเข้าอนุมัติ ---------- */
+function submitForApproval(ids){
+  if(!guard("edit"))return;
+  const list=(ids||state.transactions.filter(t=>txStatus(t)==="DRAFT").map(t=>t.id));
+  if(!list.length){alert("ไม่มีรายการสถานะ \"ร่าง\" ที่จะส่งอนุมัติ");return}
+  if(!confirm("ส่ง "+list.length+" รายการเข้าสู่การอนุมัติ?"))return;
+  const now=new Date().toISOString();
+  list.forEach(id=>{
+    const t=state.transactions.find(x=>x.id===id); if(!t)return;
+    t.status="PENDING"; t.submittedAt=now;
+    auditPush(id,"SUBMIT","ส่งเข้าอนุมัติ");
+  });
+  save(); renderAll();
+  toast("ส่งเข้าอนุมัติ "+list.length+" รายการ");
+}
+
+/* ---------- ผู้อนุมัติ: ตัดสินใจ (เก็บไว้ในเครื่องก่อน) ---------- */
+function decide(id,decision){
+  if(!guard("approve"))return;
+  const t=state.transactions.find(x=>x.id===id);
+  if(!t){alert("ไม่พบรายการ "+id);return}
+  if(txStatus(t)!=="PENDING"){alert("รายการนี้ไม่ได้อยู่ในสถานะรออนุมัติ");return}
+  let note="";
+  if(decision==="REJECTED"){
+    note=prompt("เหตุผลที่ไม่อนุมัติ "+id+" (จำเป็น)","");
+    if(note===null)return;
+    note=note.trim();
+    if(!note){alert("ต้องระบุเหตุผลที่ไม่อนุมัติ");return}
+  }
+  let who=meName();
+  if(!who){try{who=localStorage.getItem("po_publisher")||""}catch(e){}}
+  if(!who){
+    alert("ยังไม่ได้ระบุว่าคุณคือใคร\n\nไปที่แถบซ้าย เลือกชื่อของคุณจากทะเบียนทีม\n(ถ้ายังไม่มีทะเบียน ให้ฝ่ายการเงินตั้งที่ Master Data ก่อน)");
+    return;
+  }
+  LOCAL_DECISIONS[id]={decision,by:who,at:new Date().toISOString(),note,hash:txnHash(t)};
+  saveGovPrefs(); renderAll();
+  toast((decision==="APPROVED"?"อนุมัติ ":"ไม่อนุมัติ ")+id+" · ยังต้องกด \"ส่งผลอนุมัติ\"");
+}
+function undecide(id){ delete LOCAL_DECISIONS[id]; saveGovPrefs(); renderAll(); }
+
+/* ผู้อนุมัติส่งไฟล์เล็กๆ กลับให้เครื่องหลัก แทนการเผยแพร่ทั้งชุด */
+function exportDecisions(){
+  const ids=Object.keys(LOCAL_DECISIONS);
+  if(!ids.length){alert("ยังไม่มีผลอนุมัติที่จะส่ง");return}
+  const out={type:"portfolio-approvals",v:1,createdAt:new Date().toISOString(),
+    basedOn:PUBLISHED_STAMP||"",decisions:LOCAL_DECISIONS};
+  const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="approvals-"+new Date().toISOString().slice(0,10)+".json";
+  a.click(); URL.revokeObjectURL(a.href);
+  alert("ดาวน์โหลดไฟล์ผลอนุมัติแล้ว ("+ids.length+" รายการ)\n\nส่งไฟล์นี้ให้เครื่องหลักทาง Teams/อีเมล\nเครื่องหลักกด \"รับผลอนุมัติ\" เพื่อนำเข้า");
+}
+
+/* ---------- เครื่องหลัก: รับผลอนุมัติมาลงระบบ ---------- */
+function importDecisions(){
+  if(!guard("edit"))return;
+  const inp=document.createElement("input");
+  inp.type="file"; inp.accept="application/json,.json";
+  inp.onchange=function(){
+    const f=inp.files&&inp.files[0]; if(!f)return;
+    const rd=new FileReader();
+    rd.onload=function(){
+      let d; try{d=JSON.parse(String(rd.result))}catch(e){alert("อ่านไฟล์ไม่ได้: "+e.message);return}
+      applyDecisions(d);
+    };
+    rd.readAsText(f,"utf-8");
+  };
+  inp.click();
+}
+
+/* ==================================================================
+   ส่งผลอนุมัติทางอีเมล + รับผลด้วยการวางข้อความ
+
+   ข้อจำกัดที่ต้องรู้: ลิงก์ mailto: แนบไฟล์ไม่ได้ (เป็นข้อกำหนดของเบราว์เซอร์)
+   จึงออกแบบให้ "ฝังผลอนุมัติเป็นข้อความในเนื้อเมลเลย" แล้วเครื่องหลัก
+   ใช้วิธีวางข้อความแทนการแนบไฟล์ — ตัดขั้นตอนแนบไฟล์ออกทั้งหมด
+   ถ้ารายการเยอะจนเมลยาวเกินที่โปรแกรมเมลรับได้ จะถอยไปใช้ไฟล์แนบแทน
+   ================================================================== */
+
+const MAILTO_LIMIT=1800;
+/* แยกออกมาเป็นฟังก์ชันเดียว เพื่อให้ทดสอบเนื้อหาเมลได้โดยไม่ต้องเปิดโปรแกรมเมลจริง */
+function openMailto(url){window.location.href=url}   /* โปรแกรมเมลส่วนใหญ่รับ URL ได้ราว 2000 ตัวอักษร */
+
+function approvalRecipient(){
+  /* ปลายทางคืออีเมลของผู้บันทึกรายการตามทะเบียนทีม */
+  const ed=teamOf().find(m=>m.role==="editor"&&m.email);
+  if(ed)return ed.email;
+  let to="";
+  try{to=localStorage.getItem("po_finance_email")||""}catch(e){}
+  if(!to){
+    to=prompt("อีเมลของผู้บันทึกรายการ (เครื่องหลัก) ที่จะส่งผลอนุมัติไปให้","");
+    if(to===null)return null;
+    to=to.trim();
+    if(!to){alert("ต้องระบุอีเมลปลายทาง");return null}
+    try{localStorage.setItem("po_finance_email",to)}catch(e){}
+  }
+  return to;
+}
+function changeRecipient(){
+  let cur="";try{cur=localStorage.getItem("po_finance_email")||""}catch(e){}
+  const v=prompt("อีเมลผู้บันทึกรายการ (เครื่องหลัก)",cur);
+  if(v===null)return;
+  try{localStorage.setItem("po_finance_email",v.trim())}catch(e){}
+  renderApprovals();
+}
+
+function decisionPayload(){
+  return {type:"portfolio-approvals",v:1,createdAt:new Date().toISOString(),
+    basedOn:PUBLISHED_STAMP||"",decisions:LOCAL_DECISIONS};
+}
+
+/* ---------- ผู้อนุมัติ: เปิดโปรแกรมเมลพร้อมเนื้อหาครบ ---------- */
+function emailDecisions(){
+  const ids=Object.keys(LOCAL_DECISIONS);
+  if(!ids.length){alert("ยังไม่มีผลอนุมัติที่จะส่ง");return}
+  const to=approvalRecipient(); if(to===null)return;
+
+  const payload=decisionPayload();
+  const who=(ids.length&&LOCAL_DECISIONS[ids[0]].by)||"";
+  const ok=ids.filter(i=>LOCAL_DECISIONS[i].decision==="APPROVED");
+  const no=ids.filter(i=>LOCAL_DECISIONS[i].decision==="REJECTED");
+
+  const lines=[];
+  lines.push("เรียน ฝ่ายการเงิน");
+  lines.push("");
+  lines.push("ผลการพิจารณารายการลงทุน "+ids.length+" รายการ");
+  lines.push("");
+  ids.forEach(id=>{
+    const d=LOCAL_DECISIONS[id];
+    const t=state.transactions.find(x=>x.id===id);
+    const desc=t?(t.type+" "+(t.security||"CASH")+" "+(t.qty?fmt(t.qty,2):"")+" @ "+(t.price?fmt(t.price,4):"-")):"";
+    lines.push((d.decision==="APPROVED"?"[อนุมัติ]    ":"[ไม่อนุมัติ] ")+id+"  "+desc);
+    if(d.note)lines.push("             เหตุผล: "+d.note);
+  });
+  lines.push("");
+  lines.push("สรุป: อนุมัติ "+ok.length+" รายการ · ไม่อนุมัติ "+no.length+" รายการ");
+  lines.push("ผู้อนุมัติ: "+who);
+  lines.push("วันที่: "+new Date().toLocaleString("th-TH",{dateStyle:"long",timeStyle:"short"}));
+  lines.push("");
+  lines.push("=============== ข้อมูลสำหรับนำเข้าระบบ ===============");
+  lines.push("คัดลอกตั้งแต่บรรทัดถัดไปจนจบ แล้วกด \"วางผลอนุมัติ\" ในระบบ");
+  lines.push("");
+  lines.push(JSON.stringify(payload));
+  lines.push("");
+  lines.push("=====================================================");
+
+  const subject="ผลอนุมัติรายการลงทุน "+ids.length+" รายการ · "+new Date().toISOString().slice(0,10);
+  const body=lines.join("\n");
+  const url="mailto:"+encodeURIComponent(to)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(body);
+
+  if(url.length>MAILTO_LIMIT*4){
+    /* ยาวเกินกว่าที่โปรแกรมเมลจะรับได้ ให้ใช้ไฟล์แนบแทน */
+    if(!confirm("มี "+ids.length+" รายการ ซึ่งยาวเกินกว่าที่โปรแกรมอีเมลจะรับได้\n\n"+
+      "ระบบจะดาวน์โหลดเป็นไฟล์แทน แล้วเปิดอีเมลให้ (กรุณาแนบไฟล์เอง)\n\nดำเนินการต่อ?"))return;
+    exportDecisions();
+    const shortBody=lines.slice(0,lines.indexOf("=============== ข้อมูลสำหรับนำเข้าระบบ ===============")).join("\n")
+      +"\n\n** กรุณาแนบไฟล์ approvals-"+new Date().toISOString().slice(0,10)+".json ที่เพิ่งดาวน์โหลด **";
+    openMailto("mailto:"+encodeURIComponent(to)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(shortBody));
+    return;
+  }
+  openMailto(url);
+  setTimeout(()=>{
+    if(confirm("เปิดโปรแกรมอีเมลแล้ว\n\nถ้าโปรแกรมอีเมลไม่เปิดขึ้นมา ให้กด OK เพื่อดาวน์โหลดเป็นไฟล์แทน\nหรือกด Cancel ถ้าอีเมลเปิดเรียบร้อยแล้ว"))exportDecisions();
+  },1500);
+}
+
+/* ---------- เครื่องหลัก: รับผลอนุมัติด้วยการวางข้อความจากอีเมล ---------- */
+function pasteDecisions(){
+  if(!guard("edit"))return;
+  const raw=prompt("วางเนื้อหาที่คัดลอกมาจากอีเมลของผู้อนุมัติทั้งหมดที่นี่\n(ระบบจะดึงเฉพาะส่วนข้อมูลออกมาให้เอง)","");
+  if(raw===null)return;
+  const i=raw.indexOf("{"), j=raw.lastIndexOf("}");
+  if(i<0||j<=i){alert("ไม่พบข้อมูลผลอนุมัติในข้อความที่วางมา\n\nกรุณาคัดลอกเนื้อหาอีเมลให้ครบ รวมส่วนที่อยู่ใต้หัวข้อ \"ข้อมูลสำหรับนำเข้าระบบ\"");return}
+  let d;
+  try{d=JSON.parse(raw.slice(i,j+1))}
+  catch(e){alert("ข้อมูลที่วางมาไม่สมบูรณ์: "+e.message+"\n\nอาจถูกตัดตอนคัดลอก กรุณาคัดลอกใหม่ทั้งบล็อก");return}
+  applyDecisions(d);
+}
+
+/* ตัวกลางที่ทั้งการนำเข้าไฟล์และการวางข้อความเรียกใช้ร่วมกัน */
+function applyDecisions(d){
+  if(!d||d.type!=="portfolio-approvals"||!d.decisions){alert("ไม่ใช่ข้อมูลผลอนุมัติ");return}
+  const applied=[],changed=[],missing=[],skipped=[];
+  Object.keys(d.decisions).forEach(id=>{
+    const dec=d.decisions[id];
+    const t=state.transactions.find(x=>x.id===id);
+    if(!t){missing.push(id);return}
+    if(txStatus(t)!=="PENDING"){skipped.push(id);return}
+    if(dec.hash&&dec.hash!==txnHash(t)){changed.push(id);return}
+    t.status=dec.decision; t.approvedBy=dec.by; t.approvedAt=dec.at;
+    if(dec.note)t.approvalNote=dec.note;
+    auditPush(id,dec.decision==="APPROVED"?"APPROVE":"REJECT",(dec.by||"")+(dec.note?" · "+dec.note:""));
+    applied.push(id);
+  });
+  save(); renderAll();
+  let msg="นำเข้าผลอนุมัติแล้ว\n\nลงระบบสำเร็จ: "+applied.length+" รายการ";
+  if(changed.length)msg+="\n\n⚠ ต้องอนุมัติใหม่ "+changed.length+" รายการ (ถูกแก้ไขหลังผู้อนุมัติตรวจ):\n  "+changed.slice(0,8).join("\n  ");
+  if(skipped.length)msg+="\n\nข้าม "+skipped.length+" รายการ (ไม่ได้อยู่สถานะรออนุมัติแล้ว)";
+  if(missing.length)msg+="\n\nไม่พบ "+missing.length+" รายการในระบบ";
+  if(applied.length)msg+="\n\nอย่าลืมกด \"เผยแพร่ให้ทีม\" เพื่อให้ทุกคนเห็นผลอนุมัตินี้";
+  alert(msg);
+}
+
+/* ==================================================================
+   แผงขั้นตอนการทำงาน — บอกว่าตอนนี้อยู่ขั้นไหน ต้องทำอะไรต่อ
+   ================================================================== */
+function renderWorkflow(){
+  const el=byId("wfPanel"); if(!el)return;
+  const tx=state.transactions;
+  const nDraft=tx.filter(t=>txStatus(t)==="DRAFT").length;
+  const nPending=tx.filter(t=>txStatus(t)==="PENDING").length;
+  const nDecided=Object.keys(LOCAL_DECISIONS).length;
+  const nUnpub=unpublishedCount();
+
+  /* แต่ละขั้น: ใครทำ / ทำอะไร / ตอนนี้ถึงคิวหรือยัง */
+  const steps=[
+    {who:"editor",  t:"บันทึกรายการ",        d:"หน้า New Transaction — รายการใหม่จะเป็นสถานะ \"ร่าง\" ยังไม่นับเข้าตัวเลขทางการ",
+     active:canEdit()&&nDraft>0, done:nDraft===0&&(nPending>0||nUnpub>0),
+     hint:nDraft?nDraft+" รายการเป็นร่างอยู่":""},
+    {who:"editor",  t:"ส่งเข้าอนุมัติ",       d:"กดปุ่ม \"ส่งรายการร่างทั้งหมดเข้าอนุมัติ\" ด้านบน สถานะจะเปลี่ยนเป็น \"รออนุมัติ\"",
+     active:canEdit()&&nDraft>0, done:nDraft===0&&nPending>0,
+     hint:""},
+    {who:"editor",  t:"เผยแพร่ให้ทีม",        d:"กด \"เผยแพร่ให้ทีม\" ที่แถบซ้าย → อัปโหลด data.json ขึ้น GitHub เพื่อให้ IM เห็นคิว",
+     active:canEdit()&&nUnpub>0, done:nUnpub===0&&nPending>0,
+     hint:nUnpub?nUnpub+" รายการยังไม่เผยแพร่":""},
+    {who:"approver",t:"IM พิจารณาอนุมัติ",    d:"IM เปิดลิงก์เดิม → หน้า Approvals → กดอนุมัติ/ไม่อนุมัติทีละรายการ",
+     active:canApprove()&&nPending>0&&nDecided<nPending, done:canApprove()&&nDecided>0&&nDecided>=nPending,
+     hint:canApprove()&&nPending?"ตัดสินใจแล้ว "+nDecided+" จาก "+nPending:""},
+    {who:"approver",t:"IM ส่งผลกลับทางอีเมล", d:"กด \"ส่งผลทางอีเมล\" ระบบจะเปิดโปรแกรมอีเมลพร้อมเนื้อหาครบ กด Send ได้เลย",
+     active:canApprove()&&nDecided>0, done:false,
+     hint:nDecided?"รอส่ง "+nDecided+" รายการ":""},
+    {who:"editor",  t:"รับผลอนุมัติเข้าระบบ", d:"กด \"วางผลอนุมัติ\" แล้ววางเนื้อหาจากอีเมล → สถานะเปลี่ยนเป็นอนุมัติแล้ว → เผยแพร่อีกครั้ง",
+     active:canEdit()&&nPending>0, done:false,
+     hint:nPending?nPending+" รายการรอผลอนุมัติ":""}
+  ];
+
+  const nameFor=r=>{const m=teamOf().find(x=>x.role===r&&x.name);return m?m.name:null};
+  const roleTag=w=>w==="editor"
+    ? '<span class="wf-who wf-fin">'+(nameFor("editor")||"ฝ่ายการเงิน")+'</span>'
+    : '<span class="wf-who wf-im">'+(nameFor("approver")||"IM")+'</span>';
+
+  el.innerHTML='<div class="wf">'+steps.map((s,i)=>{
+    const cls=s.active?"wf-step wf-active":(s.done?"wf-step wf-done":"wf-step");
+    const mine=(s.who==="editor"&&canEdit())||(s.who==="approver"&&canApprove());
+    return '<div class="'+cls+(mine?" wf-mine":"")+'">'
+      +'<div class="wf-num">'+(s.done?"✓":(i+1))+'</div>'
+      +'<div class="wf-body"><div class="wf-title">'+s.t+' '+roleTag(s.who)+'</div>'
+      +'<div class="wf-desc">'+s.d+'</div>'
+      +(s.hint?'<div class="wf-hint">'+s.hint+'</div>':'')+'</div></div>';
+  }).join("")+'</div>';
+}
+
+/* ---------- หน้า Approval Queue ---------- */
+function renderApprovals(){
+  renderWorkflow();
+  const el=byId("approvalBody"); if(!el)return;
+  /* คิวอนุมัติต้องเห็นรายการที่ "รออนุมัติ" เสมอ
+     ไม่ว่าผู้ใช้จะตั้งมุมมองเป็น "เฉพาะที่อนุมัติแล้ว" อยู่หรือไม่
+     จึงต้องปิดตัวกรองชั่วคราวระหว่างคำนวณหน้านี้ */
+  const keep=SHOW_APPROVED_ONLY; SHOW_APPROVED_ONLY=false;
+  let v; try{ v=viewData(); } finally { SHOW_APPROVED_ONLY=keep; }
+  const pending=v.tx.filter(t=>txStatus(t)==="PENDING")
+    .sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+  byId("approvalCount").textContent=pending.length+" รายการรออนุมัติ";
+  const decided=Object.keys(LOCAL_DECISIONS).length;
+  const bar=byId("approvalActions");
+  if(bar){
+    const ed0=teamOf().find(m=>m.role==="editor"&&m.email);
+    let to=ed0?ed0.email:"";
+    if(!to){try{to=localStorage.getItem("po_finance_email")||""}catch(e){}}
+    bar.innerHTML = canApprove()
+      ? (decided
+          ? '<b>ตัดสินใจแล้ว '+decided+' รายการ · ยังไม่ได้ส่ง</b> '
+            +'<button class="btn btn-primary" onclick="emailDecisions()">ส่งผลทางอีเมล</button> '
+            +'<button class="btn btn-secondary" onclick="exportDecisions()">ดาวน์โหลดเป็นไฟล์</button>'
+            +'<div class="small-note" style="margin-top:8px">ส่งไปที่ '+(to?'<b>'+to+'</b>':'<i>ยังไม่ได้ตั้งอีเมลปลายทาง</i>')
+            +' <a href="#" onclick="changeRecipient();return false" style="color:#1769e0">เปลี่ยน</a></div>'
+          : '<span class="muted">กดอนุมัติหรือไม่อนุมัติในตารางด้านล่าง แล้วจึงส่งผลกลับทางอีเมล</span>')
+      : canEdit()
+        ? '<button class="btn btn-secondary" onclick="submitForApproval()">ส่งรายการร่างทั้งหมดเข้าอนุมัติ</button> '
+          +'<button class="btn btn-primary" onclick="pasteDecisions()">วางผลอนุมัติจากอีเมล</button> '
+          +'<button class="btn btn-secondary" onclick="importDecisions()">หรือเลือกไฟล์</button>'
+        : '<span class="muted">โหมดดูอย่างเดียว — ดูสถานะได้ แต่แก้ไขไม่ได้</span>';
+  }
+  if(!pending.length){el.innerHTML='<tr><td colspan="9" class="empty">ไม่มีรายการรออนุมัติ</td></tr>';return}
+  el.innerHTML=pending.map(t=>{
+    const d=LOCAL_DECISIONS[t.id];
+    const act = canApprove()
+      ? (d ? '<span class="'+(d.decision==="APPROVED"?"pos":"neg")+'"><b>'+(d.decision==="APPROVED"?"อนุมัติ":"ไม่อนุมัติ")+'</b></span> <button class="btn btn-secondary" style="padding:5px 8px" onclick="undecide(\''+t.id+'\')">แก้</button>'
+              : '<button class="btn btn-primary" style="padding:6px 10px" onclick="decide(\''+t.id+'\',\'APPROVED\')">อนุมัติ</button> <button class="btn btn-danger" style="padding:6px 10px" onclick="decide(\''+t.id+'\',\'REJECTED\')">ไม่อนุมัติ</button>')
+      : '<span class="muted">—</span>';
+    return '<tr><td>'+dmy(t.date)+'</td><td><b>'+t.id+'</b></td><td>'+typeBadge(t.type)+'</td>'
+      +'<td>'+(t.security||"CASH")+'</td><td>'+t.account+'</td><td class="num">'+(t.qty?fmt(t.qty,2):"—")+'</td>'
+      +'<td class="num">'+fmt(t.gross,2)+' '+t.currency+'</td>'
+      +'<td class="num">'+dm(t.cashUSD)+'</td>'
+      +'<td>'+act+' <button class="btn btn-secondary" style="padding:5px 8px" onclick="previewDocument(\''+t.id+'\')">ดูเอกสาร</button></td></tr>';
+  }).join("");
+}
+
+/* ---------- แผงบทบาท + เตือนสำรองข้อมูล ---------- */
+function unpublishedCount(){
+  if(!state||!state.__baseIndex)return 0;
+  const d=diffIndex(state.__baseIndex,buildIndex(state.transactions));
+  return d.added.length+d.modified.length+d.removed.length;
+}
+function daysSincePublish(){
+  if(!PUBLISHED_STAMP)return null;
+  return Math.floor((Date.now()-new Date(PUBLISHED_STAMP).getTime())/86400000);
+}
+/* ==================================================================
+   รหัสผ่านประจำตำแหน่ง
+
+   ⚠ สิ่งที่ต้องเข้าใจก่อนใช้ (เขียนไว้ให้ผู้ดูแลระบบในอนาคตอ่านด้วย):
+   นี่คือ HTML ไฟล์เดียวที่รันในเบราว์เซอร์ ไม่มีเซิร์ฟเวอร์ตรวจรหัสผ่าน
+   ค่าที่ใช้ตรวจสอบ (hash) เดินทางไปพร้อมไฟล์ ทุกคนที่เปิดลิงก์ได้จะดาวน์โหลดไปได้
+   ดังนั้น "รหัสผ่าน" นี้จึงเป็น
+       ✓ เครื่องกีดขวางการสลับตำแหน่งโดยไม่ตั้งใจ / โดยพลการ
+       ✓ หลักฐานว่าผู้ใช้ตั้งใจเข้าสู่ตำแหน่งนั้น (ประกอบการตรวจสอบภายใน)
+       ✗ ไม่ใช่ระบบความปลอดภัยที่กันผู้ที่ตั้งใจหลบเลี่ยงได้
+         (เปิด DevTools เรียกฟังก์ชันตรงๆ ก็ข้ามได้)
+
+   ด่านที่บังคับได้จริงยังคงเป็น "สิทธิ์เขียน repo บน GitHub"
+   เพราะต่อให้ปลดล็อกหน้าจอได้ ก็อัปโหลด data.json ทับไม่ได้อยู่ดี
+
+   การเก็บรหัสผ่าน: ไม่เก็บรหัสจริง เก็บเฉพาะ PBKDF2-SHA256 (250,000 รอบ)
+   พร้อม salt เฉพาะคน เพื่อไม่ให้รหัสรั่วไปกระทบบัญชีอื่นของผู้ใช้
+   ================================================================== */
+
+const PBKDF2_ITER=250000;
+const cryptoOK = ()=> !!(window.crypto && window.crypto.subtle && window.crypto.getRandomValues);
+
+function toHex(buf){return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("")}
+function fromHex(h){const a=new Uint8Array(h.length/2);for(let i=0;i<a.length;i++)a[i]=parseInt(h.substr(i*2,2),16);return a}
+function randHex(n){const a=new Uint8Array(n);crypto.getRandomValues(a);return toHex(a)}
+
+async function pbkdf2(pw,saltHex,iter){
+  const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(pw),{name:"PBKDF2"},false,["deriveBits"]);
+  const bits=await crypto.subtle.deriveBits(
+    {name:"PBKDF2",salt:fromHex(saltHex),iterations:iter||PBKDF2_ITER,hash:"SHA-256"},key,256);
+  return toHex(bits);
+}
+/* เทียบแบบใช้เวลาคงที่ ไม่ให้เดาได้จากระยะเวลาตอบสนอง */
+function safeEqual(a,b){
+  if(typeof a!=="string"||typeof b!=="string"||a.length!==b.length)return false;
+  let d=0; for(let i=0;i<a.length;i++)d|=a.charCodeAt(i)^b.charCodeAt(i);
+  return d===0;
+}
+const needsPassword = role => role==="editor"||role==="approver";
+const hasPassword = m => !!(m&&m.pwHash&&m.pwSalt);
+
+/* ---------- ตั้ง / เปลี่ยนรหัสผ่าน ---------- */
+async function setMemberPassword(id){
+  if(!cryptoOK()){alert("เบราว์เซอร์นี้ไม่รองรับการเข้ารหัส (Web Crypto)\nกรุณาใช้ Chrome หรือ Edge รุ่นปัจจุบัน");return}
+  const m=memberById(id); if(!m){alert("ไม่พบสมาชิก");return}
+  /* เจ้าตัวเปลี่ยนรหัสของตัวเองได้ หรือผู้บันทึกรายการรีเซ็ตให้ได้ */
+  const self=meId()===id;
+  if(!self&&!canEdit()){alert("เปลี่ยนรหัสผ่านของผู้อื่นได้เฉพาะผู้บันทึกรายการ");return}
+  if(self&&hasPassword(m)){
+    const old=prompt("รหัสผ่านเดิมของ "+m.name,"");
+    if(old===null)return;
+    const h=await pbkdf2(old,m.pwSalt,m.pwIter);
+    if(!safeEqual(h,m.pwHash)){alert("รหัสผ่านเดิมไม่ถูกต้อง");return}
+  }
+  const pw=prompt("รหัสผ่านใหม่สำหรับ "+m.name+" ("+m.title+")\n\nอย่างน้อย 8 ตัวอักษร","");
+  if(pw===null)return;
+  if(pw.length<8){alert("รหัสผ่านต้องยาวอย่างน้อย 8 ตัวอักษร");return}
+  const pw2=prompt("พิมพ์รหัสผ่านใหม่อีกครั้งเพื่อยืนยัน","");
+  if(pw2===null)return;
+  if(pw!==pw2){alert("รหัสผ่านทั้งสองครั้งไม่ตรงกัน");return}
+  const salt=randHex(16);
+  m.pwSalt=salt; m.pwIter=PBKDF2_ITER; m.pwHash=await pbkdf2(pw,salt,PBKDF2_ITER);
+  m.pwSetAt=new Date().toISOString();
+  state.team=teamOf().map(x=>x.id===id?m:x);
+  if(TEAM_EDIT){const d=TEAM_EDIT.find(x=>x.id===id);
+    if(d){d.pwSalt=m.pwSalt;d.pwIter=m.pwIter;d.pwHash=m.pwHash;d.pwSetAt=m.pwSetAt}}
+  save(); renderAll();
+  alert("ตั้งรหัสผ่านให้ "+m.name+" เรียบร้อย\n\nอย่าลืมกด \"เผยแพร่ให้ทีม\" เพื่อให้รหัสนี้ใช้ได้บนเครื่องอื่น");
+}
+function clearMemberPassword(id){
+  if(!canEdit()){alert("ทำได้เฉพาะผู้บันทึกรายการ");return}
+  const m=memberById(id); if(!m)return;
+  if(!confirm("ลบรหัสผ่านของ "+m.name+"?\nหลังลบแล้วตำแหน่งนี้จะเข้าใช้งานไม่ได้จนกว่าจะตั้งรหัสใหม่"))return;
+  delete m.pwHash; delete m.pwSalt; delete m.pwIter; delete m.pwSetAt;
+  state.team=teamOf().map(x=>x.id===id?m:x);
+  if(TEAM_EDIT){const d=TEAM_EDIT.find(x=>x.id===id);
+    if(d){delete d.pwHash;delete d.pwSalt;delete d.pwIter;delete d.pwSetAt}}
+  save(); renderAll(); toast("ลบรหัสผ่านของ "+m.name+" แล้ว");
+}
+
+/* ---------- เข้าสู่ระบบ / ออกจากระบบ ---------- */
+const SESSION_KEY="po_session";
+function readSession(){
+  try{return JSON.parse(sessionStorage.getItem(SESSION_KEY)||"null")}catch(e){return null}
+}
+function writeSession(o){
+  try{o?sessionStorage.setItem(SESSION_KEY,JSON.stringify(o)):sessionStorage.removeItem(SESSION_KEY)}catch(e){}
+}
+async function signIn(id){
+  const m=memberById(id);
+  if(!m){writeSession(null);try{localStorage.removeItem("po_me")}catch(e){} ROLE="viewer";applyRole();renderAll();return}
+
+  if(!needsPassword(m.role)){          /* ตำแหน่งที่ดูอย่างเดียว ไม่ต้องใช้รหัส */
+    try{localStorage.setItem("po_me",id)}catch(e){}
+    writeSession({id,at:Date.now()});
+    ROLE=m.role; saveGovPrefs(); applyRole(); renderAll();
+    toast("เข้าใช้งานในนาม "+m.name); return;
+  }
+  if(!hasPassword(m)){
+    alert("ตำแหน่ง \""+m.title+"\" ยังไม่ได้ตั้งรหัสผ่าน\n\nให้ผู้บันทึกรายการไปที่ Master Data → ทะเบียนทีมงาน แล้วกด \"ตั้งรหัสผ่าน\"");
+    renderGovPanel(); return;
+  }
+  if(!cryptoOK()){alert("เบราว์เซอร์นี้ไม่รองรับการเข้ารหัส กรุณาใช้ Chrome หรือ Edge รุ่นปัจจุบัน");return}
+
+  const pw=prompt("รหัสผ่านของ "+m.name+" ("+m.title+")","");
+  if(pw===null){renderGovPanel();return}
+  const h=await pbkdf2(pw,m.pwSalt,m.pwIter||PBKDF2_ITER);
+  if(!safeEqual(h,m.pwHash)){
+    /* หน่วงเล็กน้อยเพื่อลดการเดาสุ่มแบบรัวๆ */
+    await new Promise(r=>setTimeout(r,700));
+    alert("รหัสผ่านไม่ถูกต้อง");
+    renderGovPanel(); return;
+  }
+  try{localStorage.setItem("po_me",id)}catch(e){}
+  writeSession({id,at:Date.now()});
+  ROLE=m.role; saveGovPrefs(); applyRole(); renderAll();
+  toast("เข้าใช้งานในนาม "+m.name+" · "+ROLE_LABEL[ROLE]);
+}
+function signOut(){
+  writeSession(null);
+  try{localStorage.removeItem("po_me")}catch(e){}
+  ROLE="viewer"; saveGovPrefs(); applyRole(); renderAll();
+  toast("ออกจากระบบแล้ว");
+}
+/* ตอนเปิดหน้าใหม่: ตำแหน่งที่ต้องใช้รหัสจะกลับไปเป็นดูอย่างเดียวเสมอ
+   จนกว่าจะปลดล็อกใหม่ในแท็บนี้ (session อยู่ใน sessionStorage จึงหายเมื่อปิดแท็บ) */
+function restoreSession(){
+  const m=me();
+  if(!m){ROLE="viewer";return}
+  if(!needsPassword(m.role)){ROLE=m.role;return}
+  const s=readSession();
+  ROLE=(s&&s.id===m.id)?m.role:"viewer";
+}
+
+function setMe(id){ signIn(id); }
+function renderGovPanel(){
+  const el=byId("govPanel"); if(!el)return;
+  const n=unpublishedCount(), days=daysSincePublish();
+  let warn="";
+  if(n>0){
+    const sev = (n>=20||(days!==null&&days>=3));
+    warn='<div style="margin-top:10px;padding:9px 10px;border-radius:9px;line-height:1.5;'
+      +(sev?'background:#5c2018;border:1px solid #8c3527;color:#ffd7d0':'background:#4a3410;border:1px solid #7a591c;color:#ffe6b8')+'">'
+      +'<b>'+(sev?'⚠ ควรสำรองข้อมูลด่วน':'บันทึกที่ยังไม่เผยแพร่')+'</b><br>'
+      +n+' รายการยังไม่ถูกเผยแพร่'+(days!==null?' · เผยแพร่ครั้งล่าสุด '+days+' วันก่อน':'')
+      +'<br>ข้อมูลนี้อยู่ในเบราว์เซอร์เครื่องนี้เท่านั้น ถ้าล้าง cache จะหาย'
+      +'<br><button class="btn btn-secondary" style="margin-top:7px;padding:6px 10px;font-size:11px" onclick="exportData()">สำรองเป็นไฟล์เดี๋ยวนี้</button></div>';
+  }
+  const team=teamOf(), named=team.filter(m=>m.name);
+  let picker;
+  if(named.length){
+    /* มีทะเบียนทีมแล้ว — เลือกว่าเราคือใคร สิทธิ์มาตามตำแหน่งในทะเบียน */
+    picker='<div style="font-size:11px;color:#9db2c7;font-weight:800;letter-spacing:.05em;margin-bottom:6px">ผู้ใช้งานเครื่องนี้</div>'
+      +'<select onchange="setMe(this.value)" style="width:100%;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#e6eef6;border-radius:9px;padding:8px">'
+      +'<option value="">— ยังไม่ระบุ (ดูอย่างเดียว) —</option>'
+      +named.map(m=>'<option value="'+m.id+'"'+(m.id===meId()?" selected":"")+'>'+m.name+' · '+m.title+'</option>').join("")
+      +'</select>'
+      +'<div style="font-size:11px;color:#9db2c7;margin-top:6px">สิทธิ์: <b style="color:#cfe0f0">'+ROLE_LABEL[ROLE]+'</b>'
+      +(function(){
+         const m=me();
+         if(!m)return '';
+         if(!needsPassword(m.role))return ' <span style="opacity:.7">· ไม่ต้องใช้รหัส</span>';
+         if(!hasPassword(m))return ' <span style="color:#ffc9a3">· ยังไม่ตั้งรหัสผ่าน</span>';
+         return ROLE===m.role
+           ? ' <span style="color:#8fe3b8">· ปลดล็อกแล้ว</span> <a href="#" onclick="signOut();return false" style="color:#9dc4ec">ออกจากระบบ</a>'
+           : ' <span style="color:#ffc9a3">· ล็อกอยู่</span> <a href="#" onclick="signIn(meId());return false" style="color:#9dc4ec">ปลดล็อก</a>';
+       })()
+      +'</div>';
+  }else{
+    /* ยังไม่มีทะเบียน — ใช้การเลือกบทบาทแบบเดิมไปก่อน */
+    picker='<div style="font-size:11px;color:#9db2c7;font-weight:800;letter-spacing:.05em;margin-bottom:6px">โหมดผู้ใช้</div>'
+      +'<select onchange="setRole(this.value)" style="width:100%;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#e6eef6;border-radius:9px;padding:8px">'
+      +Object.keys(ROLE_LABEL).map(r=>'<option value="'+r+'"'+(r===ROLE?" selected":"")+'>'+ROLE_LABEL[r]+'</option>').join("")
+      +'</select>'
+      +'<div style="margin-top:8px;padding:8px 10px;border-radius:9px;background:rgba(255,255,255,.07);color:#c9d9e8;font-size:11.5px;line-height:1.5">'
+      +'ยังไม่ได้ตั้งทะเบียนทีม — ไปที่ <b>Master Data</b> เพื่อระบุว่าใครเป็นฝ่ายการเงิน ใครเป็น IM ชื่อจะได้ขึ้นบนเอกสารอัตโนมัติ</div>';
+  }
+  el.innerHTML=picker+warn;
+}
+
+/* เตือนก่อนปิดหน้า ถ้ายังมีงานที่ไม่ได้เผยแพร่ */
+window.addEventListener("beforeunload",function(e){
+  if(canEdit()&&unpublishedCount()>0){e.preventDefault();e.returnValue=""}
+});
+
+function renderDataStatus(){
+  let el=document.getElementById("dataStatus"); if(!el)return;
+  let when=PUBLISHED_STAMP?new Date(PUBLISHED_STAMP).toLocaleString("th-TH",{dateStyle:"medium",timeStyle:"short"}):"";
+  let html="";
+  if(DATA_SOURCE==="published"){
+    html='<b style="color:#8fe3b8">● ข้อมูลจากส่วนกลาง</b><br>เผยแพร่เมื่อ '+when+
+         (state.publishedBy?'<br>โดย '+state.publishedBy:'')+'<br>ทุกคนที่เปิดลิงก์นี้เห็นชุดเดียวกัน';
+  }else if(DATA_SOURCE==="draft"){
+    html='<b style="color:#ffc9a3">● มีการแก้ไขที่ยังไม่เผยแพร่</b><br>'+
+         (when?'ต่อยอดจากชุดที่เผยแพร่ '+when+'<br>':'')+
+         'ทีมยังไม่เห็นการแก้ไขนี้ จนกว่าจะกด <b>เผยแพร่</b>';
+  }else{
+    html='<b style="color:#a9c4dd">● ชุดข้อมูลจำลอง</b><br>ยังไม่พบ data.json — ใช้ข้อมูลตัวอย่างที่ฝังในไฟล์';
+  }
+  if(MERGE_CONFLICT&&MERGE_CONFLICT.length){
+    html+='<br><br><b style="color:#ffb0a5">⛔ รวมข้อมูลอัตโนมัติไม่ได้</b><br>'+
+      MERGE_CONFLICT.length+' รายการถูกแก้ทั้งจากคุณและผู้อื่น<br>'+
+      '<b>งานของคุณยังอยู่ครบ</b> กด Export JSON เก็บไว้ แล้วตกลงกับผู้ที่แก้รายการเดียวกัน';
+  }else if(MERGED_ON_LOAD){
+    html+='<br><br><b style="color:#8fe3b8">✓ รวมงานค้างให้แล้ว</b><br>ดึงชุดใหม่จากส่วนกลางและคงงานของคุณไว้ ('+MERGED_ON_LOAD+')';
+  }
+  el.innerHTML=html;
+}
+
+function importData(){
+  let inp=document.createElement("input");
+  inp.type="file"; inp.accept="application/json,.json";
+  inp.onchange=function(){
+    let f=inp.files&&inp.files[0]; if(!f)return;
+    let rd=new FileReader();
+    rd.onload=function(){
+      let data;
+      try{ data=JSON.parse(String(rd.result)); }
+      catch(e){ alert("ไฟล์นี้ไม่ใช่ JSON ที่อ่านได้\n\n"+e.message); return; }
+
+      /* ตรวจโครงสร้างก่อน จะได้ไม่เขียนทับข้อมูลดีๆ ด้วยไฟล์ผิด */
+      let need=["transactions","securities","accounts","portfolios","fx","prices"];
+      let missing=need.filter(k=>!Array.isArray(data[k]));
+      if(missing.length){
+        alert("ไฟล์ไม่ครบโครงสร้างที่ระบบต้องการ\nขาด: "+missing.join(", ")+
+              "\n\nกรุณาใช้ไฟล์ที่ได้จากปุ่ม Export JSON เท่านั้น");
+        return;
+      }
+      let err=validateTransactionSet(data.transactions);
+      if(err&&!confirm("ข้อมูลในไฟล์มีปัญหา:\n"+err+"\n\nต้องการนำเข้าต่อหรือไม่?"))return;
+
+      let cur=state.transactions.length, inc=data.transactions.length;
+      if(!confirm("นำเข้าข้อมูลจากไฟล์ "+f.name+"\n\n"+
+                  "รายการในไฟล์: "+inc+" รายการ\n"+
+                  "รายการปัจจุบันในเครื่องนี้: "+cur+" รายการ\n\n"+
+                  "ข้อมูลปัจจุบันจะถูกแทนที่ทั้งหมด ดำเนินการต่อ?"))return;
+
+      state=data;
+      state.auditTrail=state.auditTrail||[];
+      dashboardCurrency=state.dashboardCurrency||dashboardCurrency||"THB";
+      filterPortfolio="";filterAccount="";previewTxn="";
+      PAGE_LIMIT={txn:PAGE_STEP.txn,doc:PAGE_STEP.doc,market:PAGE_STEP.market};
+      save();
+      initSelectors();renderAll();
+      toast("นำเข้าข้อมูลสำเร็จ "+inc+" รายการ");
+    };
+    rd.onerror=function(){alert("อ่านไฟล์ไม่สำเร็จ")};
+    rd.readAsText(f,"utf-8");
+  };
+  inp.click();
+}
+function exportData(){let blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="portfolio-data-"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(a.href)}
 function resetDemo(){if(confirm("ล้างข้อมูลทั้งหมด และสร้าง Simulation ใหม่ (1 มิ.ย. - 31 ส.ค. 2569, ทุนเริ่มต้น USD 1,000,000)?")){state=demoState();filterPortfolio="";filterAccount="";previewTxn="";save();initSelectors();renderAll()}}
 
 
@@ -2475,6 +3628,7 @@ const PAGE_RENDER={
   market:()=>renderMarket(),
   master:()=>renderMaster(),
   documents:()=>renderDocuments(),
+  approvals:()=>renderApprovals(),
   new:()=>{},
   more:()=>{}
 };
@@ -2484,20 +3638,34 @@ function renderAll(){
   initSelectors();
   let f=PAGE_RENDER[currentPage];
   try{ (f||PAGE_RENDER.dashboard)() }catch(e){ console.error("render "+currentPage,e) }
+  const pend=state.transactions.filter(t=>txStatus(t)==="PENDING").length;
+  const dot=byId("navPendingDot"); if(dot){dot.textContent=pend?pend:"";dot.style.display=pend?"inline-block":"none"}
+  byId("approvalView").value=SHOW_APPROVED_ONLY?"1":"0";
+  renderGovPanel();
   initForm();
   enhanceMobileTables();
 }
 window.addEventListener("resize",()=>{clearTimeout(window.__rsz);window.__rsz=setTimeout(enhanceMobileTables,200)});
 
 /* รันหลัง first paint เพื่อให้ผู้ใช้เห็นแถบสถานะทันที ไม่ใช่จอขาว */
-function boot(){
+async function boot(){
   try{
-    bootStep("ตรวจข้อมูลที่บันทึกไว้",15);
-    if(!state) throw new Error("สร้าง state ไม่สำเร็จ");
+    bootStep("กำลังดึงข้อมูลส่วนกลาง (data.json)",15);
+    state=await resolveState();
+    if(!state) throw new Error("ไม่สามารถเตรียมข้อมูลได้");
+    state.auditTrail=state.auditTrail||[];
+    dashboardCurrency=state.dashboardCurrency||"THB";
+    loadGovPrefs();
+    /* ถ้าระบุตัวตนไว้แล้ว สิทธิ์ต้องมาจากทะเบียนกลาง ไม่ใช่ค่าที่ค้างในเครื่อง
+       เพื่อให้การเปลี่ยนตำแหน่งในทะเบียนมีผลกับทุกเครื่องทันทีที่เผยแพร่ */
+    restoreSession();
+    applyRole();
+
     bootStep("เตรียมเมนูและตัวกรอง",35);
     navInit();
     bootStep("คำนวณพอร์ตและผลตอบแทน",60);
     renderAll();
+    renderDataStatus();
     bootStep("เสร็จสิ้น",100);
     setTimeout(bootDone,120);
   }catch(e){
