@@ -30951,7 +30951,11 @@
       "name": "Jayawat Suwannao",
       "title": "Finance Manager",
       "role": "editor",
-      "email": "Jayawat.s@monta.co.th"
+      "email": "Jayawat.s@monta.co.th",
+      "pwSalt": "f7301818175416cd43cef3b68bed12ce",
+      "pwIter": 250000,
+      "pwHash": "9d06689b4583700b6f69034805f8584bc84ca88de44dba4698e4e160cc1e3a9f",
+      "pwSetAt": "2026-09-09T10:45:10.934Z"
     },
     {
       "id": "IM",
@@ -30972,14 +30976,23 @@
       "name": "Pakitta Sadbuddee",
       "title": "Secretary",
       "role": "approver",
-      "email": "Pakitta.s@monta.co.th"
+      "email": "Pakitta.s@monta.co.th",
+      "pwSalt": "c471f730e23428225b4ac7a699fbc5da",
+      "pwIter": 250000,
+      "pwHash": "50f7a443d0a47ce3924bf8a263d3a4aa7b8e3c3de3a8eb0cf22cc73eb7949877",
+      "pwSetAt": "2026-09-09T10:47:33.470Z"
     }
   ],
-  "publishedAt": "2026-09-09T09:58:22.151Z",
+  "publishedAt": "2026-09-09T10:48:02.414Z",
   "publishedBy": "Jayawat Suwannao",
   "publishLog": [
     {
       "at": "2026-09-09T09:58:22.151Z",
+      "by": "Jayawat Suwannao",
+      "transactions": 926
+    },
+    {
+      "at": "2026-09-09T10:48:02.414Z",
       "by": "Jayawat Suwannao",
       "transactions": 926
     }
