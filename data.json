@@ -30968,10 +30968,10 @@
     },
     {
       "id": "IM",
-      "name": "",
+      "name": "Pakitta Sanbuddee",
       "title": "Investment Manager",
       "role": "approver",
-      "email": "",
+      "email": "Pakitta.s@monta.co.th",
       "pwSalt": "2da0112ca1582b6769113ef5acaafcb5",
       "pwIter": 250000,
       "pwHash": "cc9758804c73399a57d26746b9b80ce90f5ef4abb4ae234a997415b61ecc1bff",
@@ -30992,11 +30992,11 @@
       "email": ""
     }
   ],
-  "publishedAt": "2026-09-11T03:05:19.296Z",
+  "publishedAt": "2026-09-11T03:25:46.965Z",
   "publishedBy": "Jayawat Suwannao",
   "publishLog": [
     {
-      "at": "2026-09-11T03:05:19.296Z",
+      "at": "2026-09-11T03:25:46.965Z",
       "by": "Jayawat Suwannao",
       "transactions": 926
     }
