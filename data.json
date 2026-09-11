@@ -30968,10 +30968,45 @@
       "ref": "Test_Buy_0001",
       "note": "",
       "version": 1,
-      "status": "DRAFT"
+      "status": "PENDING",
+      "submittedAt": "2026-09-11T03:32:25.173Z"
+    },
+    {
+      "id": "TXN-20260904-001",
+      "date": "2026-09-04",
+      "type": "SELL",
+      "account": "CORE-KKP",
+      "security": "ADVANC",
+      "qty": 50,
+      "price": 364,
+      "amount": 0,
+      "fxOverride": 0,
+      "accrued": 0,
+      "fee": 0,
+      "tax": 0,
+      "ref": "Test_Sell_0002",
+      "note": "",
+      "version": 1,
+      "status": "PENDING",
+      "submittedAt": "2026-09-11T03:33:45.721Z"
     }
   ],
-  "auditTrail": [],
+  "auditTrail": [
+    {
+      "txnId": "TXN-20260903-001",
+      "action": "SUBMIT",
+      "detail": "ส่งเข้าอนุมัติ",
+      "at": "2026-09-11T03:32:25.174Z",
+      "by": "ผู้บันทึกรายการ (เครื่องหลัก)"
+    },
+    {
+      "txnId": "TXN-20260904-001",
+      "action": "SUBMIT",
+      "detail": "ส่งเข้าอนุมัติ",
+      "at": "2026-09-11T03:33:45.722Z",
+      "by": "ผู้บันทึกรายการ (เครื่องหลัก)"
+    }
+  ],
   "team": [
     {
       "id": "FIN",
@@ -31010,7 +31045,7 @@
       "email": ""
     }
   ],
-  "publishedAt": "2026-09-11T03:30:44.919Z",
+  "publishedAt": "2026-09-11T03:34:52.380Z",
   "publishedBy": "Jayawat Suwannao",
   "publishLog": [
     {
@@ -31022,6 +31057,11 @@
       "at": "2026-09-11T03:30:44.919Z",
       "by": "Jayawat Suwannao",
       "transactions": 927
+    },
+    {
+      "at": "2026-09-11T03:34:52.380Z",
+      "by": "Jayawat Suwannao",
+      "transactions": 928
     }
   ]
 }
