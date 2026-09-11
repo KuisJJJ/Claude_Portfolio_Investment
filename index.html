@@ -1392,9 +1392,9 @@ function showStorageWarning(){
    กติกา: แก้เลขนี้ทุกครั้งที่อัปโหลด index.html ขึ้น GitHub
           X.Y = เพิ่มความสามารถ · X.Y.Z = แก้บั๊ก/ปรับเล็กน้อย
    ================================================================== */
-const APP_VERSION="1.7.1";
+const APP_VERSION="1.8.0";
 const APP_BUILD="2026-09-11";
-const APP_VERSION_NOTE="ตัวกรองครบ + ไฮไลต์แถวที่กำลังดูเอกสาร";
+const APP_VERSION_NOTE="หน้าต่างนำส่งผลอนุมัติ — แนบไฟล์หรือคัดลอกลิงก์กดได้";
 function versionLabel(){return "v"+APP_VERSION}
 function versionFull(){return "v"+APP_VERSION+" · build "+APP_BUILD}
 function byId(id){return document.getElementById(id)}
@@ -3645,7 +3645,10 @@ function consumeDecisionLink(){
 }
 /* ใช้ร่วมกันทั้งตอนเปิดลิงก์ และตอนวางลิงก์เองเมื่อกดลิงก์ไม่ได้ */
 function applyApCode(raw){
-  let c; try{ c=JSON.parse(b64urlDecode(String(raw).trim())) }
+  /* Outlook ตัดบรรทัดกลาง URL ยาวๆ พอคัดลอกมาจึงมีขึ้นบรรทัดใหม่/ช่องว่างปนอยู่
+     ต้องล้างช่องว่างทุกชนิดออกก่อน ไม่อย่างนั้นถอดรหัสไม่ผ่าน */
+  const clean=String(raw).replace(/[\s\u00a0\u200b-\u200d\ufeff]/g,"");
+  let c; try{ c=JSON.parse(b64urlDecode(clean)) }
   catch(e){ alert("โค้ดผลอนุมัตินี้อ่านไม่ได้ อาจถูกตัดตอนส่งอีเมล\n\n"+e.message
     +"\n\nวิธีแก้: ให้ผู้อนุมัติกดส่งใหม่ แล้วใช้\"ไฟล์แนบ\"แทนลิงก์"); return true; }
   const d=expandDecisions(c);
@@ -3657,15 +3660,21 @@ function applyApCode(raw){
 function pasteApLink(){
   if(!guard("edit"))return;
   const raw=prompt("กดลิงก์ในอีเมลไม่ได้ใช่ไหม?\n\n"
-    +"ให้คลิกขวาที่ลิงก์ในอีเมล → Copy Link (หรือลากคลุมลิงก์แล้วกด Ctrl+C)\n"
-    +"แล้ววางลงช่องนี้","");
+    +"ลากคลุมลิงก์ทั้งหมดในอีเมล (ให้ครบทุกบรรทัด) → Ctrl+C → วางลงช่องนี้\n"
+    +"หรือคลิกขวาที่ลิงก์ → Copy Link\n\n"
+    +"ไม่ต้องกังวลถ้าลิงก์ถูกตัดหลายบรรทัด ระบบต่อให้เอง","");
   if(raw===null)return;
-  const t=raw.trim(); if(!t)return;
+  /* ล้างช่องว่าง/ขึ้นบรรทัดที่ Outlook แทรกกลาง URL ออกก่อนเสมอ */
+  const t=String(raw).replace(/[\s\u00a0\u200b-\u200d\ufeff]/g,"");
+  if(!t)return;
   let code="";
   const m=t.match(/[?#&]ap=([A-Za-z0-9\-_]+)/);
   if(m)code=m[1];
-  else if(/^[A-Za-z0-9\-_]+$/.test(t))code=t;    /* วางเฉพาะโค้ดมาก็รับ */
-  if(!code){alert("ไม่พบโค้ดผลอนุมัติในลิงก์ที่วางมา\n\nลิงก์ที่ถูกต้องต้องมีคำว่า ap= อยู่ด้วย\nถ้าหาไม่เจอ ให้ใช้วิธีไฟล์แนบแทน");return}
+  else if(/^[A-Za-z0-9\-_]{20,}$/.test(t))code=t;    /* วางเฉพาะโค้ดมาก็รับ */
+  if(!code){alert("ไม่พบโค้ดผลอนุมัติในสิ่งที่วางมา\n\n"
+    +"ลิงก์ที่ถูกต้องต้องมีคำว่า ap= อยู่ด้วย เช่น\n"
+    +"  https://….github.io/…/?ap=eyJ2Ijox…\n\n"
+    +"ถ้าหาไม่เจอ ให้ขอไฟล์แนบจากผู้อนุมัติ แล้วใช้ปุ่ม \"นำเข้าไฟล์ผลอนุมัติ\" แทน");return}
   applyApCode(code);
 }
 function decisionPayload(){
@@ -3688,6 +3697,8 @@ function emailDecisions(){
   const no=ids.filter(i=>LOCAL_DECISIONS[i].decision==="REJECTED");
 
   const lines=[];
+  lines.push("*** ก่อนกด Send: ต้องแนบไฟล์ "+fname+" หรือวางลิงก์แบบกดได้ ***");
+  lines.push("");
   lines.push("เรียน ฝ่ายการเงิน");
   lines.push("");
   lines.push("ผลการพิจารณารายการลงทุน "+ids.length+" รายการ");
@@ -3733,17 +3744,81 @@ function emailDecisions(){
   }
   openMailto(finalUrl);
 
-  /* ปัญหาเดิม: กดส่งแล้วหน้าจอนิ่งสนิท ผู้อนุมัติไม่รู้ว่าเกิดอะไรขึ้น
-     ตอนนี้ประทับเวลาไว้ทุกรายการ แล้วหน้าจอเปลี่ยนสถานะให้เห็นชัด */
   const stamp=new Date().toISOString();
   ids.forEach(id=>{ if(LOCAL_DECISIONS[id])LOCAL_DECISIONS[id].sentAt=stamp });
   SENT_AT=Date.now(); saveGovPrefs(); renderAll();
-  setTimeout(()=>alert("เปิดโปรแกรมอีเมลแล้ว — ยังไม่ได้ส่งจนกว่าจะกด Send\n\n"
-    +"ในอีเมลมี 2 ทางให้ฝ่ายการเงินเลือก:\n"
-    +"  ก) ไฟล์แนบ "+(fname||"approvals-....json")+" — ใช้ได้แน่นอน\n"
-    +"     ⚠ ไฟล์อยู่ในโฟลเดอร์ Downloads กรุณาแนบไปกับอีเมลด้วย\n"
-    +"  ข) ลิงก์ในเนื้ออีเมล — สะดวกกว่า แต่บางองค์กรกดไม่ได้\n\n"
-    +"แนบไฟล์แล้วกด Send ได้เลย"),300);
+  setTimeout(()=>openSendModal(fname,link,ids.length),350);
+}
+
+/* ---------- หน้าต่างบอกขั้นตอนที่ผู้อนุมัติต้องทำเอง ----------
+   เดิมใช้ alert ซึ่งกดปิดแล้วหายไป ผู้อนุมัติจึงกด Send โดยไม่ได้แนบอะไร
+   เปลี่ยนเป็นหน้าต่างค้างไว้ มีปุ่มช่วยทำจริง ไม่ใช่แค่ข้อความบอก */
+let SEND_CTX={fname:"",link:""};
+function openSendModal(fname,link,count){
+  SEND_CTX={fname:fname||"",link:link||""};
+  const sub=byId("sendSubtitle");
+  if(sub)sub.textContent="ตัดสินใจแล้ว "+count+" รายการ · เปิดโปรแกรมอีเมลให้แล้ว";
+  const el=byId("sendBody"); if(!el)return;
+  el.innerHTML=
+    '<div class="notice warn" style="margin-bottom:14px">'
+      +'<b>⚠ อีเมลยังไม่สมบูรณ์</b><br>'
+      +'โปรแกรมอีเมลแนบไฟล์เองไม่ได้ และ Outlook มักไม่แปลงลิงก์ยาวให้กดได้<br>'
+      +'<b>ต้องทำเพิ่มอีก 1 อย่าง</b> ก่อนกด Send — เลือกทางใดทางหนึ่ง</div>'
+
+    +'<div style="border:2px solid #12805c;border-radius:12px;padding:14px;margin-bottom:12px;background:#f3fbf7">'
+      +'<b style="color:#0b6a4a">ทาง ก — แนบไฟล์ (แนะนำ ใช้ได้ทุกที่)</b>'
+      +'<div style="margin-top:8px;font-size:12.5px;line-height:1.75">'
+        +'ไฟล์ดาวน์โหลดไว้ให้แล้ว: <b style="font-family:ui-monospace,monospace">'+(fname||"approvals-….json")+'</b><br>'
+        +'ใน Outlook กด <b>Attach File</b> → <b>Browse This PC</b> → โฟลเดอร์ <b>Downloads</b> → เลือกไฟล์นี้<br>'
+        +'<span class="muted">หรือลากไฟล์จาก Downloads มาวางในอีเมลก็ได้</span></div>'
+      +'<button class="btn btn-secondary" style="margin-top:9px" onclick="exportDecisions()">ดาวน์โหลดไฟล์ซ้ำ</button>'
+    +'</div>'
+
+    +'<div style="border:1px solid var(--line);border-radius:12px;padding:14px;background:#fbfcfd">'
+      +'<b>ทาง ข — วางลิงก์แบบกดได้</b>'
+      +'<div style="margin-top:8px;font-size:12.5px;line-height:1.75">'
+        +'กดปุ่มข้างล่าง → คลิกในเนื้ออีเมล → กด <b>Ctrl+V</b><br>'
+        +'จะได้ลิงก์สีน้ำเงินที่กดได้จริง (ต่างจากข้อความยาวๆ ที่อยู่ในเมลตอนนี้)</div>'
+      +'<button class="btn btn-primary" style="margin-top:9px" onclick="copyDecisionLink()">📋 คัดลอกลิงก์แบบกดได้</button>'
+      +'<span id="copyState" class="small-note" style="margin-left:10px"></span>'
+    +'</div>'
+
+    +'<div class="small-note" style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)">'
+      +'ทำเสร็จแล้วกด <b>Send</b> ในโปรแกรมอีเมลได้เลย · '
+      +'ถ้าอีเมลถูกส่งไปแล้วโดยไม่มีทั้งไฟล์และลิงก์ ให้กด <b>"ส่งอีเมลซ้ำ"</b> แล้วทำตามขั้นตอนนี้อีกครั้ง</div>';
+  const m=byId("sendModal"); if(m)m.classList.add("open");
+}
+function closeSendModal(){const m=byId("sendModal"); if(m)m.classList.remove("open")}
+
+/* คัดลอกลิงก์เป็น HTML จริง เพื่อให้ Outlook วางออกมาเป็นลิงก์สีน้ำเงินที่กดได้
+   (ถ้าวางเป็นข้อความล้วน Outlook มักไม่แปลง URL ยาวให้เป็นลิงก์) */
+async function copyDecisionLink(){
+  const st=byId("copyState");
+  const link=SEND_CTX.link||decisionLink();
+  const html='<p><a href="'+link+'">👉 กดที่นี่เพื่อลงผลอนุมัติเข้าระบบ</a></p>';
+  const done=m=>{if(st){st.innerHTML='<b class="pos">'+m+'</b>'}};
+  const fail=m=>{if(st){st.innerHTML='<b class="neg">'+m+'</b>'}};
+  try{
+    if(window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write){
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/html":new Blob([html],{type:"text/html"}),
+        "text/plain":new Blob([link],{type:"text/plain"})
+      })]);
+      done("✓ คัดลอกแล้ว — คลิกในเนื้ออีเมลแล้วกด Ctrl+V");
+      return;
+    }
+    await navigator.clipboard.writeText(link);
+    done("✓ คัดลอกลิงก์แล้ว — วางในอีเมลด้วย Ctrl+V");
+  }catch(e){
+    /* บางเบราว์เซอร์ห้ามคัดลอกถ้าไม่ได้เกิดจากการคลิกโดยตรง — ถอยไปใช้วิธีเลือกข้อความ */
+    const ta=document.createElement("textarea");
+    ta.value=link; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select();
+    let okc=false; try{okc=document.execCommand("copy")}catch(e2){}
+    document.body.removeChild(ta);
+    okc?done("✓ คัดลอกลิงก์แล้ว — วางในอีเมลด้วย Ctrl+V")
+       :fail("คัดลอกไม่สำเร็จ กรุณาใช้ทาง ก (แนบไฟล์) แทน");
+  }
 }
 
 /* เดิมมีปุ่ม "วางผลอนุมัติ" ให้ผู้บันทึกคัดลอกข้อความจากอีเมลมาวางเอง
@@ -4370,6 +4445,15 @@ if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",
 else setTimeout(boot,30);
 </script>
 
+
+<div class="modal-backdrop" id="sendModal" onclick="if(event.target===this)closeSendModal()">
+  <div class="modal-card" style="max-width:720px">
+    <div class="modal-head"><div><h3>ส่งผลอนุมัติ</h3><div class="small-note" id="sendSubtitle"></div></div>
+      <button class="btn btn-secondary" onclick="closeSendModal()">✕</button></div>
+    <div class="modal-body" id="sendBody"></div>
+    <div class="modal-actions"><button class="btn btn-primary" onclick="closeSendModal()">เข้าใจแล้ว</button></div>
+  </div>
+</div>
 
 <div class="modal-backdrop" id="impactModal" onclick="if(event.target===this)closeImpactModal()">
   <div class="modal-card">
