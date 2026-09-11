@@ -689,7 +689,18 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
 
       <section class="page" id="page-transactions">
         <div class="pagehead"><div><h2>Transactions</h2><p>Ledger การซื้อขาย เงินเข้า/ออก รายได้ ค่าธรรมเนียม และภาษี</p></div><div class="actions"><button class="btn btn-primary" onclick="go('new')">+ New</button></div></div>
-        <div class="card table-card"><div class="table-tools"><input class="search" id="txnSearch" placeholder="ค้นหา Txn ID / Security / Account / Ref..." oninput="renderTransactions()"><span class="muted" id="txnCount"></span></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Txn ID</th><th>Type</th><th>Portfolio</th><th>Broker</th><th>Account</th><th>Security</th><th>CCY</th><th class="num">Qty</th><th class="num">Gross</th><th class="num">Cash USD</th><th>Reference</th><th></th></tr></thead><tbody id="txnBody"></tbody></table></div></div>
+        <div class="card table-card"><div class="table-tools">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <input class="search" id="txnSearch" placeholder="ค้นหา Txn ID / Security / Account / Ref..." oninput="renderTransactions()">
+            <select id="txnStatusFilter" onchange="PAGE_LIMIT.txn=PAGE_STEP.txn;renderTransactions()" style="border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-weight:600">
+              <option value="">ทุกสถานะ</option>
+              <option value="DRAFT">ร่าง — ยังไม่ส่งอนุมัติ</option>
+              <option value="PENDING">รออนุมัติ</option>
+              <option value="APPROVED">อนุมัติแล้ว</option>
+              <option value="REJECTED">ไม่อนุมัติ</option>
+            </select>
+          </div>
+          <span class="muted" id="txnCount"></span></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Txn ID</th><th>Type</th><th>Portfolio</th><th>Broker</th><th>Account</th><th>Security</th><th>CCY</th><th class="num">Qty</th><th class="num">Gross</th><th class="num">Cash USD</th><th>Reference</th><th></th></tr></thead><tbody id="txnBody"></tbody></table></div></div>
       </section>
 
       <section class="page" id="page-holdings">
@@ -779,6 +790,15 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
       <section class="page" id="page-approvals">
         <div class="pagehead"><div><h2>Approval Queue</h2><p id="apprSubtitle">รายการที่รออนุมัติ ก่อนนับเข้าตัวเลขทางการ</p></div></div>
         <div id="wfPanel"></div>
+        <div class="card table-card" id="draftCard" style="display:none;margin-bottom:16px;border-color:#f0d9a8">
+          <div class="table-tools" style="background:#fffaf0">
+            <b>📝 รายการร่าง — ตรวจให้เรียบร้อยก่อนส่งอนุมัติ</b>
+            <span class="muted" id="draftSummary"></span>
+          </div>
+          <div class="table-wrap" style="max-height:420px"><table>
+            <thead><tr><th>บันทึกเมื่อ</th><th>Txn ID</th><th>Date</th><th>Type</th><th>Security</th><th>Account</th><th class="num">Qty</th><th class="num">Gross</th><th class="num">Cash USD</th><th></th></tr></thead>
+            <tbody id="draftBody"></tbody></table></div>
+        </div>
         <div class="notice" id="approvalActions"></div>
         <div class="card table-card"><div class="table-tools"><b>รออนุมัติ</b><span class="muted" id="approvalCount"></span></div>
         <div class="table-wrap"><table><thead><tr><th>Date</th><th>Txn ID</th><th>Type</th><th>Security</th><th>Account</th><th class="num">Qty</th><th class="num">Gross</th><th class="num">Cash</th><th>การอนุมัติ</th></tr></thead><tbody id="approvalBody"></tbody></table></div></div>
@@ -2126,10 +2146,16 @@ function byNewestCreated(a,b){
   return b.id.localeCompare(a.id);
 }
 function renderTransactions(){
-  let v=viewData(),q=(byId("txnSearch")?.value||"").toLowerCase();
+  const q=(byId("txnSearch")?.value||"").toLowerCase();
+  /* ถ้าผู้ใช้เลือกกรองสถานะไว้ ต้องเห็นสถานะนั้นจริงๆ
+     ไม่ถูกสวิตช์ "เฉพาะที่อนุมัติแล้ว" กรองซ้ำจนได้ตารางว่าง */
+  const fs0=(byId("txnStatusFilter")||{}).value||"";
+  const keep=SHOW_APPROVED_ONLY; if(fs0)SHOW_APPROVED_ONLY=false;
+  let v; try{ v=viewData() } finally { SHOW_APPROVED_ONLY=keep; }
   /* รวมรายการที่ไม่อนุมัติเข้ามาด้วย เพื่อให้ยังค้นเจอและใช้อ้างอิงได้
      (ไม่ถูกนับเข้ายอดพอร์ต — มาจากกองแยกของ engine) */
   let tx=[...v.tx,...(v.rejected||[])].sort(byNewestCreated);
+  if(fs0)tx=tx.filter(t=>txStatus(t)===fs0);
   if(q)tx=tx.filter(t=>[t.id,t.security,t.account,t.ref,t.note,t.type,t.portfolio,t.broker].join(" ").toLowerCase().includes(q));
   const nRej=tx.filter(t=>t.excluded).length;
   byId("txnCount").textContent=`${tx.length} transactions`+(nRej?` · ไม่อนุมัติ ${nRej} (ไม่นับเข้าพอร์ต)`:"");
@@ -3535,8 +3561,17 @@ async function submitAndPublish(){
   const nUnpub=unpublishedCount();
   if(!nDraft&&!nUnpub){alert("ไม่มีรายการร่างและไม่มีอะไรค้างเผยแพร่");return}
   if(nDraft){
+    const keep=SHOW_APPROVED_ONLY; SHOW_APPROVED_ONLY=false;
+    let v; try{ v=viewData() } finally { SHOW_APPROVED_ONLY=keep; }
+    const ds=v.tx.filter(t=>txStatus(t)==="DRAFT");
+    const net=ds.reduce((a,t)=>a+(t.cashUSD||0),0);
+    const list=ds.slice(0,10).map(t=>"  • "+t.id+"  "+t.type+" "+(t.security||"CASH")
+      +(t.qty?" "+fmt(t.qty,2):"")+"  "+usd(t.cashUSD)).join("\n");
     if(!confirm("ส่งรายการร่าง "+nDraft+" รายการเข้าอนุมัติ แล้วสร้างไฟล์ data.json ให้ทันที?\n\n"
-      +"หลังจากนี้ให้อัปโหลด data.json ขึ้น GitHub เพื่อให้ "+approverTitle()+" เห็นคิว"))return;
+      +list+(ds.length>10?"\n  … และอีก "+(ds.length-10)+" รายการ":"")
+      +"\n\nเงินสดสุทธิ "+usd(net)
+      +"\n\nส่งแล้วแก้ไม่ได้จนกว่าผู้อนุมัติจะตัดสิน — ตรวจครบแล้วใช่ไหม?"
+      +"\n\nหลังจากนี้ให้อัปโหลด data.json ขึ้น GitHub เพื่อให้ "+approverTitle()+" เห็นคิว"))return;
     state.transactions.forEach(t=>{ if(txStatus(t)==="DRAFT"){t.status="PENDING";auditPush(t.id,"SUBMIT",meName()||"")} });
     save();
   }
@@ -3544,9 +3579,48 @@ async function submitAndPublish(){
   await publishData();
 }
 
+/* ตรวจรายการร่างก่อนส่งอนุมัติ
+   วางไว้เหนือปุ่ม "ส่งเข้าอนุมัติ" เพราะเป็นสิ่งที่ต้องดูก่อนกดปุ่มนั้นพอดี */
+function renderDraftReview(){
+  const card=byId("draftCard"); if(!card)return;
+  if(!canEdit()){card.style.display="none";return}
+  const keep=SHOW_APPROVED_ONLY; SHOW_APPROVED_ONLY=false;
+  let v; try{ v=viewData() } finally { SHOW_APPROVED_ONLY=keep; }
+  const drafts=v.tx.filter(t=>txStatus(t)==="DRAFT").sort(byNewestCreated);
+  if(!drafts.length){card.style.display="none";return}
+  card.style.display="";
+  const net=drafts.reduce((a,t)=>a+(t.cashUSD||0),0);
+  byId("draftSummary").innerHTML=drafts.length+" รายการ · เงินสดสุทธิ <b class="+(net>=0?'"pos"':'"neg"')+">"+usd(net)+"</b>";
+  byId("draftBody").innerHTML=drafts.map(t=>
+    '<tr><td class="muted" style="font-size:11px">'+(t.createdAt
+        ? new Date(t.createdAt).toLocaleString("th-TH",{dateStyle:"short",timeStyle:"short"})
+        : "—")+'</td>'
+    +'<td><b>'+t.id+'</b></td><td>'+dmy(t.date)+'</td><td>'+typeBadge(t.type)+'</td>'
+    +'<td>'+(t.security||"CASH")+'</td><td>'+t.account+'</td>'
+    +'<td class="num">'+(t.qty?fmt(t.qty,2):"—")+'</td>'
+    +'<td class="num">'+fmt(t.gross,2)+' '+t.currency+'</td>'
+    +'<td class="num '+(t.cashUSD>=0?"pos":"neg")+'">'+usd(t.cashUSD)+'</td>'
+    +'<td><button class="btn btn-secondary" style="padding:5px 8px" onclick="previewDocument(\''+t.id+'\')">ดูเอกสาร</button> '
+    +'<button class="btn btn-secondary" style="padding:5px 8px" onclick="editTransaction(\''+t.id+'\')">แก้ไข</button> '
+    +'<button class="btn btn-danger" style="padding:5px 8px" onclick="deleteDraft(\''+t.id+'\')">ลบร่าง</button></td></tr>'
+  ).join("");
+}
+/* ลบได้เฉพาะรายการที่ยังเป็นร่าง — ที่ส่งอนุมัติแล้วต้องคงไว้เป็นหลักฐานเสมอ */
+function deleteDraft(id){
+  if(!guard("edit"))return;
+  const t=state.transactions.find(x=>x.id===id);
+  if(!t){alert("ไม่พบรายการ "+id);return}
+  if(txStatus(t)!=="DRAFT"){alert("ลบได้เฉพาะรายการร่างเท่านั้น\nรายการที่ส่งอนุมัติแล้วต้องเก็บไว้เป็นหลักฐาน");return}
+  if(!confirm("ลบรายการร่าง "+id+"?\n\n"+t.type+" "+(t.security||"CASH")+"\nวันที่ "+dmy(t.date)+"\n\nลบแล้วกู้คืนไม่ได้"))return;
+  state.transactions=state.transactions.filter(x=>x.id!==id);
+  auditPush(id,"DELETE_DRAFT",meName()||"");
+  save(); renderAll(); toast("ลบรายการร่าง "+id+" แล้ว");
+}
+
 /* ---------- หน้า Approval Queue ---------- */
 function renderApprovals(){
   renderWorkflow();
+  renderDraftReview();
   const sub=byId("apprSubtitle");
   if(sub)sub.textContent="รายการที่รอการอนุมัติจาก "+approverTitle()+" ก่อนนับเข้าตัวเลขทางการ";
   const el=byId("approvalBody"); if(!el)return;
@@ -3945,7 +4019,12 @@ function renderAll(){
   initSelectors();
   let f=PAGE_RENDER[currentPage];
   try{ (f||PAGE_RENDER.dashboard)() }catch(e){ console.error("render "+currentPage,e) }
-  const pend=state.transactions.filter(t=>txStatus(t)==="PENDING").length;
+  /* ป้ายบนเมนู Approvals: ผู้บันทึกเห็นจำนวน "ร่างที่ยังไม่ส่ง" (สิ่งที่ตัวเองต้องทำ)
+     ส่วนคนอื่นเห็นจำนวน "รออนุมัติ" */
+  const pend=canEdit()
+    ? state.transactions.filter(t=>txStatus(t)==="DRAFT").length
+      || state.transactions.filter(t=>txStatus(t)==="PENDING").length
+    : state.transactions.filter(t=>txStatus(t)==="PENDING").length;
   const dot=byId("navPendingDot"); if(dot){dot.textContent=pend?pend:"";dot.style.display=pend?"inline-block":"none"}
   byId("approvalView").value=SHOW_APPROVED_ONLY?"1":"0";
   renderGovPanel();
