@@ -31011,8 +31011,10 @@
       "ref": "Test_Sell_003",
       "note": "",
       "version": 1,
-      "status": "PENDING",
-      "createdAt": "2026-09-11T07:57:32.077Z"
+      "status": "APPROVED",
+      "createdAt": "2026-09-11T07:57:32.077Z",
+      "approvedBy": "Pakitta Sanbuddee",
+      "approvedAt": "2026-09-11T08:29:13.261Z"
     },
     {
       "id": "TXN-20260904-003",
@@ -31030,8 +31032,11 @@
       "ref": "Test_CashIn_004",
       "note": "",
       "version": 1,
-      "status": "PENDING",
-      "createdAt": "2026-09-11T08:22:50.276Z"
+      "status": "REJECTED",
+      "createdAt": "2026-09-11T08:22:50.276Z",
+      "approvedBy": "Pakitta Sanbuddee",
+      "approvedAt": "2026-09-11T08:29:13.261Z",
+      "approvalNote": "รวยอยู่แล้ว"
     }
   ],
   "auditTrail": [
@@ -31076,6 +31081,20 @@
       "detail": "Jayawat Suwannao",
       "at": "2026-09-11T08:23:42.526Z",
       "by": "ผู้บันทึกรายการ (เครื่องหลัก)"
+    },
+    {
+      "txnId": "TXN-20260904-003",
+      "action": "REJECT",
+      "detail": "Pakitta Sanbuddee · รวยอยู่แล้ว",
+      "at": "2026-09-11T09:48:06.064Z",
+      "by": "ผู้บันทึกรายการ (เครื่องหลัก)"
+    },
+    {
+      "txnId": "TXN-20260904-002",
+      "action": "APPROVE",
+      "detail": "Pakitta Sanbuddee",
+      "at": "2026-09-11T09:48:06.064Z",
+      "by": "ผู้บันทึกรายการ (เครื่องหลัก)"
     }
   ],
   "team": [
@@ -31116,7 +31135,7 @@
       "email": ""
     }
   ],
-  "publishedAt": "2026-09-11T08:23:42.857Z",
+  "publishedAt": "2026-09-11T09:48:44.349Z",
   "publishedBy": "Jayawat Suwannao",
   "publishLog": [
     {
@@ -31143,6 +31162,12 @@
       "at": "2026-09-11T08:23:42.857Z",
       "by": "Jayawat Suwannao",
       "transactions": 930
+    },
+    {
+      "at": "2026-09-11T09:48:44.349Z",
+      "by": "Jayawat Suwannao",
+      "transactions": 930
     }
-  ]
+  ],
+  "publishedByVersion": "1.7.1"
 }
