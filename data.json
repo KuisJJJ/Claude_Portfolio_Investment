@@ -1,5 +1,5 @@
 {
-  "valuationDate": "2026-08-31",
+  "valuationDate": "2026-09-04",
   "inceptionDate": "2026-05-31",
   "simulated": true,
   "dashboardCurrency": "THB",
@@ -30994,6 +30994,44 @@
       "approvedBy": "Pakitta Sanbuddee",
       "approvedAt": "2026-09-11T03:39:10.505Z",
       "approvalNote": "เก็บไว้ก่อน รอดูสถานการณ์"
+    },
+    {
+      "id": "TXN-20260904-002",
+      "date": "2026-09-04",
+      "type": "SELL",
+      "account": "CORE-KKP",
+      "security": "ADVANC",
+      "qty": 50,
+      "price": 365,
+      "amount": 0,
+      "fxOverride": 0,
+      "accrued": 0,
+      "fee": 0,
+      "tax": 0,
+      "ref": "Test_Sell_003",
+      "note": "",
+      "version": 1,
+      "status": "PENDING",
+      "createdAt": "2026-09-11T07:57:32.077Z"
+    },
+    {
+      "id": "TXN-20260904-003",
+      "date": "2026-09-04",
+      "type": "CASH IN",
+      "account": "CORE-KKP",
+      "security": "",
+      "qty": 0,
+      "price": 0,
+      "amount": 1000000,
+      "fxOverride": 0,
+      "accrued": 0,
+      "fee": 0,
+      "tax": 0,
+      "ref": "Test_CashIn_004",
+      "note": "",
+      "version": 1,
+      "status": "PENDING",
+      "createdAt": "2026-09-11T08:22:50.276Z"
     }
   ],
   "auditTrail": [
@@ -31023,6 +31061,20 @@
       "action": "REJECT",
       "detail": "Pakitta Sanbuddee · เก็บไว้ก่อน รอดูสถานการณ์",
       "at": "2026-09-11T03:42:15.823Z",
+      "by": "ผู้บันทึกรายการ (เครื่องหลัก)"
+    },
+    {
+      "txnId": "TXN-20260904-002",
+      "action": "SUBMIT",
+      "detail": "Jayawat Suwannao",
+      "at": "2026-09-11T08:23:42.526Z",
+      "by": "ผู้บันทึกรายการ (เครื่องหลัก)"
+    },
+    {
+      "txnId": "TXN-20260904-003",
+      "action": "SUBMIT",
+      "detail": "Jayawat Suwannao",
+      "at": "2026-09-11T08:23:42.526Z",
       "by": "ผู้บันทึกรายการ (เครื่องหลัก)"
     }
   ],
@@ -31064,7 +31116,7 @@
       "email": ""
     }
   ],
-  "publishedAt": "2026-09-11T03:42:21.480Z",
+  "publishedAt": "2026-09-11T08:23:42.857Z",
   "publishedBy": "Jayawat Suwannao",
   "publishLog": [
     {
@@ -31086,6 +31138,11 @@
       "at": "2026-09-11T03:42:21.480Z",
       "by": "Jayawat Suwannao",
       "transactions": 928
+    },
+    {
+      "at": "2026-09-11T08:23:42.857Z",
+      "by": "Jayawat Suwannao",
+      "transactions": 930
     }
   ]
 }
