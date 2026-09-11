@@ -26,6 +26,9 @@ button{cursor:pointer}
 .brand{display:flex;gap:12px;align-items:center;padding:4px 8px 22px}
 .logo{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,#2e7be8,#79a9ed);display:grid;place-items:center;font-weight:800;box-shadow:0 7px 20px rgba(0,0,0,.2)}
 .brand h1{font-size:16px;margin:0}.brand small{display:block;color:#a9bdd2;margin-top:3px}
+.ver-tag{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;color:#7fa3c4;letter-spacing:.02em;margin-top:5px}
+.ver-chip{display:inline-flex;align-items:center;gap:7px;background:#eef3f9;border:1px solid #d8e3ee;border-radius:999px;padding:5px 11px;font-size:11px;font-family:ui-monospace,Menlo,Consolas,monospace;color:#42597a;white-space:nowrap}
+.ver-chip b{font-weight:800;color:#1a4f79}
 .nav{display:flex;flex-direction:column;gap:6px}
 .nav button{width:100%;border:0;background:transparent;color:#c6d5e4;text-align:left;padding:11px 12px;border-radius:10px;display:flex;gap:10px;align-items:center}
 .nav button:hover,.nav button.active{background:rgba(255,255,255,.09);color:#fff}
@@ -464,9 +467,39 @@ body.role-approver [data-page="new"]{display:none!important}
 .edit-banner.active{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .edit-banner b{color:#5c430d}
 .edit-banner .btn{min-height:34px;padding:7px 10px;font-size:10px}
+/* แถวที่กำลังเปิดดูเอกสารอยู่ — ต้องหาเจอทันทีเมื่อเลื่อนกลับขึ้นมา
+   จึงใช้พื้นเข้ม ตัวอักษรขาว และแถบสีด้านซ้าย ไม่ใช่แค่สีอ่อนๆ */
+tbody tr.row-selected td{background:#1a4f79;color:#fff;font-weight:600;border-bottom-color:#123b5d}
+tbody tr.row-selected td b{color:#fff}
+tbody tr.row-selected td:first-child{box-shadow:inset 4px 0 0 #ffc53d}
+tbody tr.row-selected:hover td{background:#123b5d}
+tbody tr.row-selected .muted{color:#c6dbec}
+tbody tr.row-selected .badge,tbody tr.row-selected .stbadge{filter:brightness(1.12)}
+tbody tr.row-selected td .btn-secondary{background:rgba(255,255,255,.92);border-color:transparent}
+.now-tag{display:inline-block;background:#ffc53d;color:#4a3200;font-size:9.5px;font-weight:900;
+  border-radius:4px;padding:2px 6px;margin-left:6px;letter-spacing:.03em;vertical-align:middle}
+@keyframes rowflash{0%,100%{box-shadow:inset 0 0 0 0 rgba(255,197,61,0)}
+  30%{box-shadow:inset 0 0 0 3px rgba(255,197,61,.95)}}
+tbody tr.row-flash td{animation:rowflash 1.1s ease-in-out 2}
+.doc-jump{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:11px 16px;background:#1a4f79;color:#fff;border-radius:12px 12px 0 0;font-size:13px}
+.doc-jump b{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.02em}
+.doc-jump button{border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.12);color:#fff;
+  border-radius:9px;padding:7px 12px;font-size:12px;font-weight:700}
+.doc-jump button:hover{background:rgba(255,255,255,.22)}
 tr.row-rejected td{background:#fdf3f2;color:#8c6460;text-decoration:line-through;text-decoration-color:#d9a49e}
 tr.row-rejected td b{text-decoration:line-through}
 tr.row-rejected:hover td{background:#fbe9e7}
+.filterbar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding:12px 14px;background:#fbfcfd;border-bottom:1px solid var(--line)}
+.filterbar select,.filterbar input{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:#fff;font-weight:600;color:var(--ink);max-width:200px}
+.filterbar select:focus,.filterbar input:focus{outline:0;border-color:#73a4e8;box-shadow:0 0 0 3px rgba(23,105,224,.1)}
+.filterbar .fgrp{display:flex;flex-direction:column;gap:3px}
+.filterbar .fgrp label{font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.03em}
+.filterbar select.on{border-color:#1769e0;background:#eef5ff;color:#12508f}
+.filterbar .fspacer{flex:1}
+.btn-clearf{border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 12px;font-size:12px;font-weight:700;color:var(--muted)}
+.btn-clearf.on{border-color:#c44343;color:#c44343;background:#fff5f4}
+@media(max-width:760px){.filterbar select,.filterbar input{max-width:none;flex:1 1 45%}}
 .amended-tag{
   display:inline-flex;align-items:center;gap:4px;background:#fff3cf;color:#8b6300;
   border:1px solid #f0d58d;border-radius:999px;padding:3px 7px;font-size:9px;font-weight:900;margin-left:5px
@@ -588,7 +621,7 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
 </div>
 <div class="app">
   <aside class="sidebar">
-    <div class="brand"><div class="logo">PO</div><div><h1>Portfolio Operations</h1><small>Investment Admin Console</small></div></div>
+    <div class="brand"><div class="logo">PO</div><div><h1>Portfolio Operations</h1><small>Investment Admin Console</small><small id="brandVersion" class="ver-tag"></small></div></div>
     <div class="nav" id="nav">
       <button class="active" data-page="dashboard"><span class="ico">◫</span>Dashboard</button>
       <button data-page="new"><span class="ico">＋</span>New Transaction</button>
@@ -630,7 +663,7 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
 
     <div class="content">
       <section class="page active" id="page-dashboard">
-        <div class="pagehead"><div><h2>Consolidated Statement</h2><p>ภาพรวมพอร์ตแบบรายงานสรุป · แสดงผลตาม Reporting Currency ที่เลือก</p></div><div class="actions"><button class="btn btn-primary" onclick="go('new')">+ New Transaction</button></div></div>
+        <div class="pagehead"><div><h2>Consolidated Statement <span id="dashVersion" class="ver-chip"></span></h2><p>ภาพรวมพอร์ตแบบรายงานสรุป · แสดงผลตาม Reporting Currency ที่เลือก</p></div><div class="actions"><button class="btn btn-primary" onclick="go('new')">+ New Transaction</button></div></div>
         <div class="display-currency-strip">
           <span>Reporting Currency</span>
           <div class="currency-chips" id="dashboardCurrencyChips"></div>
@@ -689,18 +722,19 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
 
       <section class="page" id="page-transactions">
         <div class="pagehead"><div><h2>Transactions</h2><p>Ledger การซื้อขาย เงินเข้า/ออก รายได้ ค่าธรรมเนียม และภาษี</p></div><div class="actions"><button class="btn btn-primary" onclick="go('new')">+ New</button></div></div>
-        <div class="card table-card"><div class="table-tools">
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <input class="search" id="txnSearch" placeholder="ค้นหา Txn ID / Security / Account / Ref..." oninput="renderTransactions()">
-            <select id="txnStatusFilter" onchange="PAGE_LIMIT.txn=PAGE_STEP.txn;renderTransactions()" style="border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-weight:600">
-              <option value="">ทุกสถานะ</option>
-              <option value="DRAFT">ร่าง — ยังไม่ส่งอนุมัติ</option>
-              <option value="PENDING">รออนุมัติ</option>
-              <option value="APPROVED">อนุมัติแล้ว</option>
-              <option value="REJECTED">ไม่อนุมัติ</option>
-            </select>
+        <div class="card table-card">
+          <div class="filterbar">
+            <div class="fgrp" style="flex:1 1 240px"><label>ค้นหา</label>
+              <input class="search" id="txnSearch" style="max-width:none;width:100%" placeholder="Txn ID / Security / Account / Ref / Note" oninput="onTxnFilter()"></div>
+            <div class="fgrp"><label>สถานะ</label><select id="txnStatusFilter" onchange="onTxnFilter()"></select></div>
+            <div class="fgrp"><label>ประเภท</label><select id="txnTypeFilter" onchange="onTxnFilter()"></select></div>
+            <div class="fgrp"><label>Portfolio</label><select id="txnPortFilter" onchange="onTxnFilter()"></select></div>
+            <div class="fgrp"><label>Broker</label><select id="txnBrokerFilter" onchange="onTxnFilter()"></select></div>
+            <div class="fgrp"><label>Account</label><select id="txnAcctFilter" onchange="onTxnFilter()"></select></div>
+            <div class="fgrp"><label>สกุลเงิน</label><select id="txnCcyFilter" onchange="onTxnFilter()"></select></div>
+            <div class="fgrp"><label>&nbsp;</label><button class="btn-clearf" id="txnClearBtn" onclick="clearTxnFilters()">ล้างตัวกรอง</button></div>
           </div>
-          <span class="muted" id="txnCount"></span></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Txn ID</th><th>Type</th><th>Portfolio</th><th>Broker</th><th>Account</th><th>Security</th><th>CCY</th><th class="num">Qty</th><th class="num">Gross</th><th class="num">Cash USD</th><th>Reference</th><th></th></tr></thead><tbody id="txnBody"></tbody></table></div></div>
+          <div class="table-tools"><b>รายการทั้งหมด</b><span class="muted" id="txnCount"></span></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Txn ID</th><th>Type</th><th>Portfolio</th><th>Broker</th><th>Account</th><th>Security</th><th>CCY</th><th class="num">Qty</th><th class="num">Gross</th><th class="num">Cash USD</th><th>Reference</th><th></th></tr></thead><tbody id="txnBody"></tbody></table></div></div>
       </section>
 
       <section class="page" id="page-holdings">
@@ -806,8 +840,18 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
 
       <section class="page" id="page-documents">
         <div class="pagehead"><div><h2>Documents</h2><p>Transaction Record สำหรับพิมพ์และแนบหลักฐาน</p></div></div>
-        <div class="card table-card"><div class="table-tools"><b>Printable Transactions</b><span class="muted">กด View เพื่อ Preview หรือ Print เพื่อเปิดหน้าพิมพ์</span></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Txn ID</th><th>Type</th><th>Security / Cash</th><th>Account</th><th>Reference</th><th></th></tr></thead><tbody id="docBody"></tbody></table></div></div>
-        <div class="card" style="margin-top:16px"><div id="docPreview" class="doc-preview"><div class="empty">เลือก Transaction เพื่อดูเอกสารตัวอย่าง</div></div></div>
+        <div class="card table-card">
+          <div class="filterbar">
+            <div class="fgrp" style="flex:1 1 240px"><label>ค้นหา</label>
+              <input class="search" id="docSearch" style="max-width:none;width:100%" placeholder="Txn ID / Security / Reference" oninput="onDocFilter()"></div>
+            <div class="fgrp"><label>ประเภท</label><select id="docTypeFilter" onchange="onDocFilter()"></select></div>
+            <div class="fgrp"><label>Account</label><select id="docAcctFilter" onchange="onDocFilter()"></select></div>
+            <div class="fgrp"><label>&nbsp;</label><button class="btn-clearf" id="docClearBtn" onclick="clearDocFilters()">ล้างตัวกรอง</button></div>
+          </div>
+          <div class="table-tools"><b>Printable Transactions</b><span class="muted" id="docCount">กด View เพื่อ Preview หรือ Print เพื่อเปิดหน้าพิมพ์</span></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Txn ID</th><th>Type</th><th>Security / Cash</th><th>Account</th><th>Reference</th><th></th></tr></thead><tbody id="docBody"></tbody></table></div></div>
+        <div class="card" style="margin-top:16px;overflow:hidden">
+          <div id="docJump" class="doc-jump" style="display:none"></div>
+          <div id="docPreview" class="doc-preview"><div class="empty">เลือก Transaction เพื่อดูเอกสารตัวอย่าง</div></div></div>
       </section>
 
       <section class="page" id="page-more">
@@ -1343,6 +1387,16 @@ function showStorageWarning(){
   el.innerHTML=`⚠ ${STORAGE_MSG} — ระบบยังใช้งานได้ปกติ แต่รายการที่บันทึกจะหายเมื่อปิดแท็บ กรุณากด <b>Export JSON</b> เพื่อเก็บข้อมูลไว้ <button onclick="this.parentNode.remove()" style="margin-left:10px;border:0;border-radius:6px;padding:4px 9px;cursor:pointer">ปิด</button>`;
   document.body.appendChild(el);
 }
+/* ==================================================================
+   เลขเวอร์ชันของระบบ — ใช้สื่อสารกับทีมว่าใครใช้ตัวไหนอยู่
+   กติกา: แก้เลขนี้ทุกครั้งที่อัปโหลด index.html ขึ้น GitHub
+          X.Y = เพิ่มความสามารถ · X.Y.Z = แก้บั๊ก/ปรับเล็กน้อย
+   ================================================================== */
+const APP_VERSION="1.7.1";
+const APP_BUILD="2026-09-11";
+const APP_VERSION_NOTE="ตัวกรองครบ + ไฮไลต์แถวที่กำลังดูเอกสาร";
+function versionLabel(){return "v"+APP_VERSION}
+function versionFull(){return "v"+APP_VERSION+" · build "+APP_BUILD}
 function byId(id){return document.getElementById(id)}
 function fmt(n,d=2){if(n===null||n===undefined||!isFinite(Number(n)))return "—";return new Intl.NumberFormat("en-US",{minimumFractionDigits:d,maximumFractionDigits:d}).format(Number(n))}
 function usd(n){return (n<0?"-":"")+"$"+fmt(Math.abs(n),2)}
@@ -2145,23 +2199,82 @@ function byNewestCreated(a,b){
   if(!a.createdAt&&b.createdAt)return 1;
   return b.id.localeCompare(a.id);
 }
+/* ==================================================================
+   ตัวกรองของหน้า Transactions และ Documents
+
+   ตัวเลือกในแต่ละช่องสร้างจากข้อมูลจริงที่มีอยู่ ไม่ใช่รายการตายตัว
+   จะได้ไม่มีตัวเลือกที่เลือกแล้วได้ผลว่างเปล่า
+   และช่องที่กำลังกรองอยู่จะถูกไฮไลต์ให้เห็นว่ายังมีตัวกรองค้างอยู่
+   ================================================================== */
+const STATUS_OPTS=[["DRAFT","ร่าง — ยังไม่ส่งอนุมัติ"],["PENDING","รออนุมัติ"],
+                   ["APPROVED","อนุมัติแล้ว"],["REJECTED","ไม่อนุมัติ"]];
+function fillFilter(id,values,blank,labelFn){
+  const el=byId(id); if(!el)return;
+  const cur=el.value;
+  el.innerHTML='<option value="">'+blank+'</option>'
+    +values.map(v=>{
+        const val=Array.isArray(v)?v[0]:v, lab=Array.isArray(v)?v[1]:(labelFn?labelFn(v):v);
+        return '<option value="'+String(val).replace(/"/g,"&quot;")+'">'+lab+'</option>';
+      }).join("");
+  if([...el.options].some(o=>o.value===cur))el.value=cur; else el.value="";
+  el.classList.toggle("on",!!el.value);
+}
+const fval=id=>{const el=byId(id);return el?el.value:""};
+
+/* รวมรายการทั้งหมดที่หน้านั้นมีสิทธิ์เห็น (รวมร่าง รออนุมัติ และไม่อนุมัติ) */
+function allRowsForBrowsing(){
+  const keep=SHOW_APPROVED_ONLY; SHOW_APPROVED_ONLY=false;
+  let v; try{ v=viewData() } finally { SHOW_APPROVED_ONLY=keep; }
+  return [...v.tx,...(v.rejected||[])];
+}
+/* ถ้าไม่ได้กรองสถานะไว้ ให้เคารพสวิตช์ "เฉพาะที่อนุมัติแล้ว" ตามเดิม */
+function rowsRespectingView(){
+  let v=viewData();
+  return [...v.tx,...(v.rejected||[])];
+}
+
+function onTxnFilter(){ PAGE_LIMIT.txn=PAGE_STEP.txn; renderTransactions(); }
+function clearTxnFilters(){
+  ["txnSearch","txnStatusFilter","txnTypeFilter","txnPortFilter","txnBrokerFilter","txnAcctFilter","txnCcyFilter"]
+    .forEach(id=>{const el=byId(id); if(el)el.value=""});
+  onTxnFilter();
+}
 function renderTransactions(){
   const q=(byId("txnSearch")?.value||"").toLowerCase();
-  /* ถ้าผู้ใช้เลือกกรองสถานะไว้ ต้องเห็นสถานะนั้นจริงๆ
-     ไม่ถูกสวิตช์ "เฉพาะที่อนุมัติแล้ว" กรองซ้ำจนได้ตารางว่าง */
-  const fs0=(byId("txnStatusFilter")||{}).value||"";
-  const keep=SHOW_APPROVED_ONLY; if(fs0)SHOW_APPROVED_ONLY=false;
-  let v; try{ v=viewData() } finally { SHOW_APPROVED_ONLY=keep; }
-  /* รวมรายการที่ไม่อนุมัติเข้ามาด้วย เพื่อให้ยังค้นเจอและใช้อ้างอิงได้
-     (ไม่ถูกนับเข้ายอดพอร์ต — มาจากกองแยกของ engine) */
-  let tx=[...v.tx,...(v.rejected||[])].sort(byNewestCreated);
-  if(fs0)tx=tx.filter(t=>txStatus(t)===fs0);
-  if(q)tx=tx.filter(t=>[t.id,t.security,t.account,t.ref,t.note,t.type,t.portfolio,t.broker].join(" ").toLowerCase().includes(q));
+  const fs=fval("txnStatusFilter");
+  /* เลือกสถานะไว้ = ต้องเห็นสถานะนั้นจริง ไม่ให้สวิตช์มุมมองกรองซ้ำจนตารางว่าง */
+  let tx=(fs?allRowsForBrowsing():rowsRespectingView()).sort(byNewestCreated);
+
+  /* ตัวเลือกในแต่ละช่อง สร้างจากชุดข้อมูลทั้งหมดที่เห็นได้ เพื่อให้คงที่ไม่กระพริบ */
+  const pool=allRowsForBrowsing();
+  const uniq=(f)=>[...new Set(pool.map(f).filter(x=>x!==undefined&&x!==null&&x!==""))].sort();
+  fillFilter("txnStatusFilter",STATUS_OPTS,"ทุกสถานะ");
+  fillFilter("txnTypeFilter",uniq(t=>t.type),"ทุกประเภท");
+  fillFilter("txnPortFilter",uniq(t=>t.portfolio),"ทุก Portfolio");
+  fillFilter("txnBrokerFilter",uniq(t=>t.broker),"ทุก Broker");
+  fillFilter("txnAcctFilter",uniq(t=>t.account),"ทุก Account");
+  fillFilter("txnCcyFilter",uniq(t=>t.currency),"ทุกสกุลเงิน");
+
+  const before=tx.length;
+  if(fs)tx=tx.filter(t=>txStatus(t)===fs);
+  const ft=fval("txnTypeFilter");   if(ft)tx=tx.filter(t=>t.type===ft);
+  const fp=fval("txnPortFilter");   if(fp)tx=tx.filter(t=>t.portfolio===fp);
+  const fb=fval("txnBrokerFilter"); if(fb)tx=tx.filter(t=>t.broker===fb);
+  const fa=fval("txnAcctFilter");   if(fa)tx=tx.filter(t=>t.account===fa);
+  const fc=fval("txnCcyFilter");    if(fc)tx=tx.filter(t=>t.currency===fc);
+  if(q)tx=tx.filter(t=>[t.id,t.security,t.account,t.ref,t.note,t.type,t.portfolio,t.broker,t.currency].join(" ").toLowerCase().includes(q));
+
+  const nActive=[q,fs,ft,fp,fb,fa,fc].filter(Boolean).length;
+  const cb=byId("txnClearBtn");
+  if(cb){cb.classList.toggle("on",nActive>0); cb.textContent=nActive?"ล้างตัวกรอง ("+nActive+")":"ล้างตัวกรอง"}
+
   const nRej=tx.filter(t=>t.excluded).length;
-  byId("txnCount").textContent=`${tx.length} transactions`+(nRej?` · ไม่อนุมัติ ${nRej} (ไม่นับเข้าพอร์ต)`:"");
+  byId("txnCount").textContent=`${tx.length} transactions`
+    +(nActive?` (กรองจาก ${before})`:"")
+    +(nRej?` · ไม่อนุมัติ ${nRej} (ไม่นับเข้าพอร์ต)`:"");
   let txTotal=tx.length; if(q)PAGE_LIMIT.txn=Math.max(PAGE_LIMIT.txn,PAGE_STEP.txn);
   tx=tx.slice(0,PAGE_LIMIT.txn);
-  byId("txnBody").innerHTML=tx.map(t=>`<tr${t.excluded?' class="row-rejected"':''}><td>${dmy(t.date)}</td><td><b>${t.id}</b>${(t.version||1)>1?`<span class="amended-tag">v${t.version} AMENDED</span>`:""}</td><td>${typeBadge(t.type)}${statusBadge(t)}</td><td>${t.portfolio}</td><td>${t.broker}</td><td>${t.account}</td><td>${t.security||"CASH"}</td><td>${t.currency}</td><td class="num">${t.qty?fmt(t.qty,2):"—"}</td><td class="num">${fmt(t.gross,2)}</td><td class="num ${t.cashUSD>=0?'pos':'neg'}">${usd(t.cashUSD)}</td><td>${t.ref||"—"}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="editTransaction('${t.id}')">Edit</button> ${(t.version||1)>1?`<button class="btn btn-secondary" style="padding:6px 8px" onclick="showAuditHistory('${t.id}')">History</button>`:""} <button class="btn btn-secondary" style="padding:6px 8px" onclick="previewDocument('${t.id}')">View</button></td></tr>`).join("")+moreRow("txn","renderTransactions",txTotal,tx.length,13)||`<tr><td colspan="13" class="empty">No transactions</td></tr>`;
+  byId("txnBody").innerHTML=tx.map(t=>`<tr class="${t.excluded?"row-rejected ":""}${t.id===previewTxn?"row-selected":""}" data-txn="${t.id}"><td>${dmy(t.date)}</td><td><b>${t.id}</b>${t.id===previewTxn?'<span class="now-tag">กำลังดู</span>':""}${(t.version||1)>1?`<span class="amended-tag">v${t.version} AMENDED</span>`:""}</td><td>${typeBadge(t.type)}${statusBadge(t)}</td><td>${t.portfolio}</td><td>${t.broker}</td><td>${t.account}</td><td>${t.security||"CASH"}</td><td>${t.currency}</td><td class="num">${t.qty?fmt(t.qty,2):"—"}</td><td class="num">${fmt(t.gross,2)}</td><td class="num ${t.cashUSD>=0?'pos':'neg'}">${usd(t.cashUSD)}</td><td>${t.ref||"—"}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="editTransaction('${t.id}')">Edit</button> ${(t.version||1)>1?`<button class="btn btn-secondary" style="padding:6px 8px" onclick="showAuditHistory('${t.id}')">History</button>`:""} <button class="btn btn-secondary" style="padding:6px 8px" onclick="previewDocument('${t.id}')">View</button></td></tr>`).join("")+moreRow("txn","renderTransactions",txTotal,tx.length,13)||`<tr><td colspan="13" class="empty">ไม่พบรายการที่ตรงกับตัวกรอง</td></tr>`;
 }
 function renderHoldings(){
   let h=viewData().holdings.sort((a,b)=>b.mvUSD-a.mvUSD);byId("holdingCount").textContent=`${h.length} open positions`;
@@ -2388,12 +2501,37 @@ function renderMaster(){
   fillSelect(byId("sType"),["Equity","ETF","Mutual Fund","DR/DRx","REIT","Government Bond","Corporate Bond","Perpetual Bond","Fixed Deposit","Structured Note","Other"],x=>x,x=>x,"Instrument");
   fillSelect(byId("sDayCount"),["","ACT/365F","ACT/360","ACT/ACT","30/360 US","30E/360"],x=>x,x=>x||"Day Count","Day Count");
 }
+function onDocFilter(){ PAGE_LIMIT.doc=PAGE_STEP.doc; renderDocuments(); }
+function clearDocFilters(){
+  ["docSearch","docTypeFilter","docAcctFilter"].forEach(id=>{const el=byId(id); if(el)el.value=""});
+  onDocFilter();
+}
 function renderDocuments(){
-  const vd=viewData();
-  let tx=[...vd.tx,...(vd.rejected||[])].sort(byNewestCreated);
+  let tx=rowsRespectingView().sort(byNewestCreated);
+  const pool=allRowsForBrowsing();
+  const uniq=f=>[...new Set(pool.map(f).filter(Boolean))].sort();
+  fillFilter("docTypeFilter",uniq(t=>t.type),"ทุกประเภท");
+  fillFilter("docAcctFilter",uniq(t=>t.account),"ทุก Account");
+
+  const before=tx.length;
+  const q=(byId("docSearch")?.value||"").toLowerCase();
+  const ft=fval("docTypeFilter"); if(ft)tx=tx.filter(t=>t.type===ft);
+  const fa=fval("docAcctFilter"); if(fa)tx=tx.filter(t=>t.account===fa);
+  if(q)tx=tx.filter(t=>[t.id,t.security,t.ref,t.note,t.type,t.account].join(" ").toLowerCase().includes(q));
+
+  const nActive=[q,ft,fa].filter(Boolean).length;
+  const cb=byId("docClearBtn");
+  if(cb){cb.classList.toggle("on",nActive>0); cb.textContent=nActive?"ล้างตัวกรอง ("+nActive+")":"ล้างตัวกรอง"}
+  const cnt=byId("docCount");
+  if(cnt)cnt.textContent=nActive
+    ? tx.length+" เอกสาร (กรองจาก "+before+")"
+    : "กด View เพื่อ Preview หรือ Print เพื่อเปิดหน้าพิมพ์";
+
   let docTotal=tx.length; tx=tx.slice(0,PAGE_LIMIT.doc);
-  byId("docBody").innerHTML=tx.map(t=>`<tr><td>${dmy(t.date)}</td><td><b>${t.id}</b>${(t.version||1)>1?`<span class="amended-tag">v${t.version}</span>`:""}</td><td>${typeBadge(t.type)}</td><td>${t.security||"CASH"}</td><td>${t.account}</td><td>${t.ref||"—"}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="previewDocument('${t.id}')">View</button> <button class="btn btn-dark" style="padding:6px 8px" onclick="printTransaction('${t.id}')">Print</button></td></tr>`).join("")+moreRow("doc","renderDocuments",docTotal,tx.length,7);
-  if(previewTxn)drawDoc(previewTxn);
+  byId("docBody").innerHTML=tx.map(t=>`<tr class="${t.excluded?"row-rejected ":""}${t.id===previewTxn?"row-selected":""}" data-txn="${t.id}"><td>${dmy(t.date)}</td><td><b>${t.id}</b>${t.id===previewTxn?'<span class="now-tag">กำลังดู</span>':""}${(t.version||1)>1?`<span class="amended-tag">v${t.version}</span>`:""}</td><td>${typeBadge(t.type)}${statusBadge(t)}</td><td>${t.security||"CASH"}</td><td>${t.account}</td><td>${t.ref||"—"}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="previewDocument('${t.id}')">View</button> <button class="btn btn-dark" style="padding:6px 8px" onclick="printTransaction('${t.id}')">Print</button></td></tr>`).join("")
+    +moreRow("doc","renderDocuments",docTotal,tx.length,7)
+    ||`<tr><td colspan="7" class="empty">ไม่พบเอกสารที่ตรงกับตัวกรอง</td></tr>`;
+  if(previewTxn)drawDoc(previewTxn); else renderDocJump();
 }
 /* ค้นเอกสารให้เจอทุกสถานะ
    เดิมอ่านจาก engine().txDetails ตรงๆ ซึ่งกรองตามสวิตช์ "เฉพาะที่อนุมัติแล้ว"
@@ -2403,18 +2541,57 @@ function findTxDetail(id){
   let e; try{ e=engine() } finally { SHOW_APPROVED_ONLY=keep; }
   return e.txDetails.find(x=>x.id===id) || (e.rejected||[]).find(x=>x.id===id) || null;
 }
+/* ==================================================================
+   หาแถวที่กำลังดูอยู่ให้เจอเสมอ
+
+   ปัญหาเดิม: กด View แล้วต้องเลื่อนลงไปอ่านเอกสาร พอเลื่อนกลับขึ้นมา
+   หาไม่เจอว่าเมื่อกี้กดแถวไหน เพราะไม่มีการไฮไลต์เลย
+   แก้สองทาง: ไฮไลต์แถวด้วยพื้นเข้ม + มีปุ่มกระโดดกลับไปที่แถวนั้น
+   ================================================================== */
+function scrollToSelectedRow(){
+  const id=previewTxn; if(!id)return;
+  const row=document.querySelector('#page-'+currentPage+' tr[data-txn="'+CSS.escape(id)+'"]');
+  if(!row){
+    toast("แถวนี้ถูกตัวกรองซ่อนอยู่ — กด \"ล้างตัวกรอง\" เพื่อให้กลับมาเห็น");
+    return;
+  }
+  row.scrollIntoView({behavior:"smooth",block:"center"});
+  row.classList.remove("row-flash");
+  void row.offsetWidth;            /* บังคับให้ animation เริ่มใหม่ */
+  row.classList.add("row-flash");
+  setTimeout(()=>row.classList.remove("row-flash"),2600);
+}
+function renderDocJump(){
+  const el=byId("docJump"); if(!el)return;
+  if(!previewTxn){el.style.display="none";el.innerHTML="";return}
+  const t=findTxDetail(previewTxn);
+  el.style.display="";
+  el.innerHTML='<div>กำลังดูเอกสาร <b>'+previewTxn+'</b>'
+    +(t?' <span style="opacity:.8">· '+t.type+' '+(t.security||"CASH")+' · '+dmy(t.date)+'</span>':'')+'</div>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button onclick="scrollToSelectedRow()">↑ กลับไปที่แถวในตาราง</button>'
+    +'<button onclick="printTransaction(\''+previewTxn+'\')">พิมพ์</button>'
+    +'<button onclick="closePreview()">ปิด</button></div>';
+}
+function closePreview(){
+  previewTxn="";
+  const el=byId("docPreview");
+  if(el)el.innerHTML='<div class="empty">เลือก Transaction เพื่อดูเอกสารตัวอย่าง</div>';
+  renderAll();
+}
 function drawDoc(id){
   const t=findTxDetail(id);
   const el=byId("docPreview"); if(!el)return;
-  if(!t){el.innerHTML='<div class="empty">ไม่พบเอกสาร '+id+'</div>';return}
+  if(!t){el.innerHTML='<div class="empty">ไม่พบเอกสาร '+id+'</div>';renderDocJump();return}
   previewTxn=id; goNoRender("documents");
   el.innerHTML=transactionDocument(t,false);
+  renderDocJump();
 }
 function previewDocument(id){
   previewTxn=id; go("documents"); drawDoc(id);
   /* เลื่อนเอกสารขึ้นมาให้เห็นทันที ไม่ต้องไล่หาเอง */
   setTimeout(()=>{
-    const el=byId("docPreview");
+    const el=byId("docJump")||byId("docPreview");
     if(el&&el.scrollIntoView)el.scrollIntoView({behavior:"smooth",block:"start"});
   },60);
 }
@@ -2471,7 +2648,7 @@ function transactionDocument(t,printing){
     <div class="doc-row"><span>Transaction Type</span><b>${t.type}</b></div><div class="doc-row"><span>Market / Exchange</span><b>${marketOf(s)}</b></div>
     <div class="doc-row"><span>Security</span><b>${s?`${s.id} — ${s.name}`:"CASH"}</b></div><div class="doc-row"><span>ISIN / Security Code</span><b>${s?.isin||"—"}</b></div>
     <div class="doc-row"><span>Symbol</span><b>${s?.id||"—"}</b></div><div class="doc-row"><span>Currency</span><b>${t.currency}</b></div>
-    <div class="doc-row"><span>Trade Date</span><b>${dmy(t.date)}</b></div><div class="doc-row"><span>Settlement Date (T+2)</span><b>${dmy(settle)}</b></div>
+    <div class="doc-row"><span>Trade Date</span><b>${dmy(t.date)}</b></div><div class="doc-row"><span>Settlement Date</span><b>${dmy(settle)}</b></div>
     <div class="doc-row"><span>Quantity</span><b>${t.qty?fmt(t.qty,4):"—"}</b></div><div class="doc-row"><span>Price / % Par</span><b>${t.price?fmt(t.price,4):"—"}</b></div>
     ${sect("AMOUNTS & FEES / จำนวนเงินและค่าธรรมเนียม")}
     <div class="doc-row"><span>Gross / Principal (Local)</span><b>${fmt(t.gross,2)}</b></div><div class="doc-row"><span>FX Rate (Local / USD)</span><b>${fmt(t.fx,6)}</b></div>
@@ -2490,21 +2667,32 @@ function transactionDocument(t,printing){
   </div>
   <div style="margin-top:22px;border-top:1px solid #dfe5eb;padding-top:15px"><b>ATTACHMENT CHECKLIST</b><p>☐ Broker / Fund Confirmation &nbsp;&nbsp; ☐ Bank / Settlement Slip &nbsp;&nbsp; ☐ FX Evidence &nbsp;&nbsp; ☐ Tax / WHT Certificate &nbsp;&nbsp; ☐ Other</p></div>
   ${(function(){
-    const sig=(label,mem,stamp)=>{
+    /* วันที่ในช่องลายเซ็นต้องเป็นวันเวลาจริงที่ระบบบันทึกไว้
+       ไม่ใช่เส้นว่างให้เขียนเอง เพราะเวลาที่แท้จริงคือหลักฐานประกอบการตรวจสอบ */
+    const stampOfIso=iso=>iso
+      ? new Date(iso).toLocaleString("th-TH",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})+" น."
+      : "";
+    const sig=(label,mem,stamp,dateLine)=>{
       const nm=mem&&mem.name?mem.name:"____________________";
       const ti=mem&&mem.title?mem.title:"";
+      const dl=dateLine?'<span class="muted" style="font-size:11px">Date: '+dateLine+'</span>'
+                       :'Date: ____________';
       return '<div>'+label+'<br><span class="muted">'+ti+'</span><br><br>'
-        +(stamp?'<b>'+nm+'</b><br><span class="muted">'+stamp+'</span>':nm+'<br>Date: ____________')+'</div>';
+        +(mem&&mem.name?'<b>'+nm+'</b>':nm)
+        +(stamp?'<br><span class="muted" style="font-size:11px">'+stamp+'</span>':'')
+        +'<br>'+dl+'</div>';
     };
     const fin=teamOf().find(m=>m.role==="editor");
     const im=teamOf().find(m=>m.role==="approver");
     const ceo=teamOf().find(m=>m.id==="CEO");
-    const approvedStamp=(t.status==="APPROVED"&&t.approvedAt)
-      ? "อนุมัติ "+new Date(t.approvedAt).toLocaleString("th-TH",{dateStyle:"medium",timeStyle:"short"}) : "";
+    const approvedStamp=(t.status==="APPROVED"&&t.approvedAt)?"อนุมัติแล้ว":"";
+    const preparedDate=stampOfIso(t.createdAt);
+    const approvedDate=(t.status==="APPROVED"||t.status==="REJECTED")?stampOfIso(t.approvedAt):"";
     return '<div style="margin-top:32px;display:grid;grid-template-columns:repeat(3,1fr);gap:35px;text-align:center">'
-      +sig("ผู้จัดทำ (Prepared by)",fin,"")
-      +sig("ผู้อนุมัติ (Approved by)",(t.approvedBy?{name:t.approvedBy,title:im?im.title:approverTitle()}:im),approvedStamp)
-      +sig("รับทราบ (Acknowledged)",ceo,"")+'</div>';
+      +sig("ผู้จัดทำ (Prepared by)",fin,"",preparedDate)
+      +sig("ผู้อนุมัติ (Approved by)",(t.approvedBy?{name:t.approvedBy,title:im?im.title:approverTitle()}:im),
+           (t.status==="REJECTED"?"ไม่อนุมัติ":approvedStamp),approvedDate)
+      +sig("รับทราบ (Acknowledged)",ceo,"","")+'</div>';
   })()}`;
 }
 function printTransaction(id){
@@ -3097,6 +3285,7 @@ async function publishData(){
   delete out.__basedOn; delete out.__baseIndex;
   out.publishedAt=new Date().toISOString();
   out.publishedBy=who;
+  out.publishedByVersion=APP_VERSION;
   /* บันทึกประวัติการเผยแพร่ไว้ในไฟล์ แบบต่อท้ายอย่างเดียว */
   out.publishLog=[...(out.publishLog||[]).slice(-49),
     {at:out.publishedAt,by:who,transactions:out.transactions.length}];
@@ -3259,18 +3448,44 @@ function decide(id,decision){
 }
 function undecide(id){ delete LOCAL_DECISIONS[id]; saveGovPrefs(); renderAll(); }
 
+/* ล้างผลตัดสินใจที่ "หมดอายุ" ออกเสมอ
+   หมดอายุ = รายการถูกลบไปแล้ว หรือไม่ได้อยู่สถานะรออนุมัติแล้ว
+   (ฝ่ายการเงินลงผลรอบก่อนไปแล้ว รายการจึงเป็น APPROVED/REJECTED)
+   ถ้าไม่ล้าง ผลรอบเก่าจะถูกส่งซ้ำไปกับอีเมลรอบใหม่ */
+function pruneDecisions(){
+  let dropped=0;
+  Object.keys(LOCAL_DECISIONS).forEach(id=>{
+    const t=state.transactions.find(x=>x.id===id);
+    if(!t||txStatus(t)!=="PENDING"){delete LOCAL_DECISIONS[id];dropped++}
+  });
+  if(dropped)saveGovPrefs();
+  return dropped;
+}
+/* ล้างผลทั้งหมดเพื่อเริ่มรอบใหม่ */
+function clearDecisions(){
+  const nn=Object.keys(LOCAL_DECISIONS).length;
+  if(!nn){alert("ไม่มีผลอนุมัติค้างอยู่");return}
+  const nSent=Object.values(LOCAL_DECISIONS).filter(d=>d.sentAt).length;
+  if(!confirm("ล้างผลอนุมัติที่ตัดสินไว้ทั้งหมด "+nn+" รายการ?\n\n"
+    +(nSent?"ส่งอีเมลไปแล้ว "+nSent+" รายการ — ล้างได้ปลอดภัย\n":"⚠ ยังไม่ได้ส่งอีเมล "+nn+" รายการ — ล้างแล้วต้องตัดสินใหม่\n")
+    +"\nรายการจะกลับไปรอการพิจารณาเหมือนเดิม"))return;
+  LOCAL_DECISIONS={}; saveGovPrefs(); renderAll(); toast("ล้างผลอนุมัติแล้ว เริ่มรอบใหม่ได้");
+}
+
 /* ผู้อนุมัติส่งไฟล์เล็กๆ กลับให้เครื่องหลัก แทนการเผยแพร่ทั้งชุด */
-function exportDecisions(){
+function exportDecisions(quiet){
   const ids=Object.keys(LOCAL_DECISIONS);
-  if(!ids.length){alert("ยังไม่มีผลอนุมัติที่จะส่ง");return}
+  if(!ids.length){alert("ยังไม่มีผลอนุมัติที่จะส่ง");return""}
   const out={type:"portfolio-approvals",v:1,createdAt:new Date().toISOString(),
     basedOn:PUBLISHED_STAMP||"",decisions:LOCAL_DECISIONS};
   const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
-  a.download="approvals-"+new Date().toISOString().slice(0,10)+".json";
+  const fname="approvals-"+new Date().toISOString().slice(0,16).replace(/[:T]/g,"-")+".json";
+  a.download=fname;
   a.click(); URL.revokeObjectURL(a.href);
-  alert("ดาวน์โหลดไฟล์ผลอนุมัติแล้ว ("+ids.length+" รายการ)\n\nส่งไฟล์นี้ให้เครื่องหลักทาง Teams/อีเมล\nเครื่องหลักกด \"รับผลอนุมัติ\" เพื่อนำเข้า");
+  if(!quiet)alert("ดาวน์โหลดไฟล์ผลอนุมัติแล้ว ("+ids.length+" รายการ)\n\nแนบไฟล์นี้ไปกับอีเมล\nฝ่ายการเงินกด \"นำเข้าไฟล์ผลอนุมัติ\" แล้วเลือกไฟล์");
+  return fname;
 }
 
 /* ---------- เครื่องหลัก: รับผลอนุมัติมาลงระบบ ---------- */
@@ -3368,7 +3583,22 @@ function expandDecisions(c){
 }
 function decisionLink(){
   const base=location.origin+location.pathname;
-  return base+"#ap="+b64urlEncode(JSON.stringify(compactDecisions()));
+  /* ใช้ ?ap= ไม่ใช่ #ap= เพราะระบบกรองลิงก์ขององค์กร (เช่น Safe Links)
+     จะ redirect ผ่านตัวกลาง แล้วส่วนหลัง # จะหายไป ส่วน query string รอด */
+  return base+"?ap="+b64urlEncode(JSON.stringify(compactDecisions()));
+}
+/* หาโค้ดผลอนุมัติจาก URL — รองรับทั้งแบบเก่า (#ap=) และแบบใหม่ (?ap=) */
+function readApCode(){
+  try{
+    const q=new URLSearchParams(location.search).get("ap");
+    if(q)return q;
+  }catch(e){}
+  const h=location.hash||"";
+  const i=h.indexOf("#ap=");
+  if(i>=0)return h.slice(i+4);
+  const j=h.indexOf("ap=");          /* เผื่อ ?ap= ถูกดันไปอยู่หลัง # */
+  if(j>=0)return h.slice(j+3);
+  return "";
 }
 /* เครื่องผู้บันทึก: อ่านผลอนุมัติจากลิงก์ที่เปิดมา แล้วลงระบบให้เลย */
 /* ผลอนุมัติที่มาถึงแล้วแต่ยังลงไม่ได้ (ยังไม่ได้เข้าสู่ระบบ)
@@ -3404,22 +3634,39 @@ function offerDecisions(d){
   applyDecisions(d);
 }
 function consumeDecisionLink(){
-  const h=location.hash||"";
-  const i=h.indexOf("#ap=");
-  if(i<0){
+  const raw=readApCode();
+  if(!raw){
     const st=takeStashedDecisions();
     if(st&&canEdit()){offerDecisions(st);return true}
     return false;
   }
-  const raw=h.slice(i+4);
-  history.replaceState(null,"",location.pathname+location.search);   /* ล้างลิงก์ออกจากแถบที่อยู่ */
-  let c; try{ c=JSON.parse(b64urlDecode(raw)) }
-  catch(e){ alert("ลิงก์ผลอนุมัตินี้อ่านไม่ได้ อาจถูกตัดตอนส่งอีเมล\n\n"+e.message
-    +"\n\nให้ผู้อนุมัติกดส่งใหม่ หรือส่งเป็นไฟล์แนบแทน"); return true; }
+  history.replaceState(null,"",location.pathname);   /* ล้างโค้ดออกจากแถบที่อยู่ */
+  return applyApCode(raw);
+}
+/* ใช้ร่วมกันทั้งตอนเปิดลิงก์ และตอนวางลิงก์เองเมื่อกดลิงก์ไม่ได้ */
+function applyApCode(raw){
+  let c; try{ c=JSON.parse(b64urlDecode(String(raw).trim())) }
+  catch(e){ alert("โค้ดผลอนุมัตินี้อ่านไม่ได้ อาจถูกตัดตอนส่งอีเมล\n\n"+e.message
+    +"\n\nวิธีแก้: ให้ผู้อนุมัติกดส่งใหม่ แล้วใช้\"ไฟล์แนบ\"แทนลิงก์"); return true; }
   const d=expandDecisions(c);
-  if(!d){alert("ลิงก์นี้ไม่ใช่ผลอนุมัติของระบบนี้");return true}
+  if(!d){alert("โค้ดนี้ไม่ใช่ผลอนุมัติของระบบนี้");return true}
   offerDecisions(d);
   return true;
+}
+/* ทางกู้: กดลิงก์ในอีเมลไม่ได้ ให้วางลิงก์ (แค่ URL ไม่ใช่ทั้งอีเมล) */
+function pasteApLink(){
+  if(!guard("edit"))return;
+  const raw=prompt("กดลิงก์ในอีเมลไม่ได้ใช่ไหม?\n\n"
+    +"ให้คลิกขวาที่ลิงก์ในอีเมล → Copy Link (หรือลากคลุมลิงก์แล้วกด Ctrl+C)\n"
+    +"แล้ววางลงช่องนี้","");
+  if(raw===null)return;
+  const t=raw.trim(); if(!t)return;
+  let code="";
+  const m=t.match(/[?#&]ap=([A-Za-z0-9\-_]+)/);
+  if(m)code=m[1];
+  else if(/^[A-Za-z0-9\-_]+$/.test(t))code=t;    /* วางเฉพาะโค้ดมาก็รับ */
+  if(!code){alert("ไม่พบโค้ดผลอนุมัติในลิงก์ที่วางมา\n\nลิงก์ที่ถูกต้องต้องมีคำว่า ap= อยู่ด้วย\nถ้าหาไม่เจอ ให้ใช้วิธีไฟล์แนบแทน");return}
+  applyApCode(code);
 }
 function decisionPayload(){
   return {type:"portfolio-approvals",v:1,createdAt:new Date().toISOString(),
@@ -3433,6 +3680,9 @@ function emailDecisions(){
   const to=approvalRecipient(); if(to===null)return;
 
   const link=decisionLink();
+  /* ดาวน์โหลดไฟล์เสมอ เพราะไฟล์แนบเป็นทางเดียวที่ไม่มีวันถูกระบบกรองอีเมลตัด
+     ส่วนลิงก์เป็นทางลัดที่สะดวกกว่า แต่บางองค์กรกดไม่ได้ */
+  const fname=exportDecisions(true);
   const who=(ids.length&&LOCAL_DECISIONS[ids[0]].by)||"";
   const ok=ids.filter(i=>LOCAL_DECISIONS[i].decision==="APPROVED");
   const no=ids.filter(i=>LOCAL_DECISIONS[i].decision==="REJECTED");
@@ -3454,30 +3704,46 @@ function emailDecisions(){
   lines.push("ผู้อนุมัติ: "+who);
   lines.push("วันที่: "+new Date().toLocaleString("th-TH",{dateStyle:"long",timeStyle:"short"}));
   lines.push("");
-  lines.push("--------------------------------------------------");
-  lines.push("กดลิงก์ข้างล่างนี้เพื่อลงผลอนุมัติเข้าระบบอัตโนมัติ");
-  lines.push("(ไม่ต้องคัดลอกอะไร ระบบจะอ่านผลจากลิงก์ให้เอง)");
+  lines.push("==================================================");
+  lines.push("วิธีลงผลเข้าระบบ - เลือกทางใดทางหนึ่ง");
+  lines.push("");
+  lines.push("ทาง ก) ไฟล์แนบ  "+fname+"  <- ใช้ได้แน่นอน");
+  lines.push("      เปิดระบบ > Approvals > กด \"นำเข้าไฟล์ผลอนุมัติ\" > เลือกไฟล์นี้");
+  lines.push("");
+  lines.push("ทาง ข) กดลิงก์ข้างล่าง (ถ้ากดได้)");
   lines.push("");
   lines.push(link);
-  lines.push("--------------------------------------------------");
+  lines.push("");
+  lines.push("      ถ้าลิงก์กดไม่ได้ ให้คลิกขวาที่ลิงก์ > Copy Link");
+  lines.push("      แล้วกด \"วางลิงก์ผลอนุมัติ\" ในระบบ");
+  lines.push("==================================================");
 
   const subject="ผลอนุมัติรายการลงทุน "+ids.length+" รายการ · "+new Date().toISOString().slice(0,10);
   const body=lines.join("\n");
   const url="mailto:"+encodeURIComponent(to)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(body);
 
+  /* ลิงก์ยาวเกินกว่าที่โปรแกรมอีเมลรับไหว → ตัดลิงก์ออก เหลือทางไฟล์แนบอย่างเดียว */
+  let finalUrl=url;
   if(url.length>MAILTO_LIMIT*4||link.length>LINK_LIMIT){
-    /* ลิงก์ยาวเกินกว่าที่โปรแกรมอีเมลรับไหว → ถอยไปใช้ไฟล์แนบ ซึ่งก็ยังไม่ต้อง copy */
-    if(!confirm("มี "+ids.length+" รายการ ลิงก์จะยาวเกินกว่าที่โปรแกรมอีเมลรับได้\n\n"+
-      "ระบบจะดาวน์โหลดผลเป็นไฟล์ให้แทน แล้วเปิดอีเมล — กรุณาแนบไฟล์นั้นไปกับเมล\n"+
-      "ฝ่ายการเงินจะกด \"นำเข้าไฟล์ผลอนุมัติ\" แล้วเลือกไฟล์ (ไม่ต้องคัดลอกข้อความ)\n\nดำเนินการต่อ?"))return;
-    exportDecisions();
-    const shortBody=lines.slice(0,lines.indexOf("--------------------------------------------------")).join("\n")
-      +"\n\n** กรุณาแนบไฟล์ approvals-"+new Date().toISOString().slice(0,10)+".json ที่เพิ่งดาวน์โหลด **";
-    openMailto("mailto:"+encodeURIComponent(to)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(shortBody));
-    return;
+    const cut=lines.indexOf("ทาง ข) กดลิงก์ข้างล่าง (ถ้ากดได้)");
+    const shortBody=lines.slice(0,cut>0?cut:lines.length).join("\n")
+      +"\n(รายการเยอะ ลิงก์ยาวเกินกว่าอีเมลจะรับได้ จึงใช้ไฟล์แนบอย่างเดียว)\n"
+      +"==================================================";
+    finalUrl="mailto:"+encodeURIComponent(to)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(shortBody);
   }
-  openMailto(url);
-  SENT_AT=Date.now(); renderApprovals();
+  openMailto(finalUrl);
+
+  /* ปัญหาเดิม: กดส่งแล้วหน้าจอนิ่งสนิท ผู้อนุมัติไม่รู้ว่าเกิดอะไรขึ้น
+     ตอนนี้ประทับเวลาไว้ทุกรายการ แล้วหน้าจอเปลี่ยนสถานะให้เห็นชัด */
+  const stamp=new Date().toISOString();
+  ids.forEach(id=>{ if(LOCAL_DECISIONS[id])LOCAL_DECISIONS[id].sentAt=stamp });
+  SENT_AT=Date.now(); saveGovPrefs(); renderAll();
+  setTimeout(()=>alert("เปิดโปรแกรมอีเมลแล้ว — ยังไม่ได้ส่งจนกว่าจะกด Send\n\n"
+    +"ในอีเมลมี 2 ทางให้ฝ่ายการเงินเลือก:\n"
+    +"  ก) ไฟล์แนบ "+(fname||"approvals-....json")+" — ใช้ได้แน่นอน\n"
+    +"     ⚠ ไฟล์อยู่ในโฟลเดอร์ Downloads กรุณาแนบไปกับอีเมลด้วย\n"
+    +"  ข) ลิงก์ในเนื้ออีเมล — สะดวกกว่า แต่บางองค์กรกดไม่ได้\n\n"
+    +"แนบไฟล์แล้วกด Send ได้เลย"),300);
 }
 
 /* เดิมมีปุ่ม "วางผลอนุมัติ" ให้ผู้บันทึกคัดลอกข้อความจากอีเมลมาวางเอง
@@ -3517,7 +3783,8 @@ function renderWorkflow(){
   const tx=state.transactions;
   const nDraft=tx.filter(t=>txStatus(t)==="DRAFT").length;
   const nPending=tx.filter(t=>txStatus(t)==="PENDING").length;
-  const nDecided=Object.keys(LOCAL_DECISIONS).length;
+  const nDecided=Object.keys(LOCAL_DECISIONS).filter(id=>{
+    const t=state.transactions.find(x=>x.id===id); return t&&txStatus(t)==="PENDING"}).length;
   const nUnpub=unpublishedCount();
 
   /* แต่ละขั้น: ใครทำ / ทำอะไร / ตอนนี้ถึงคิวหรือยัง */
@@ -3531,7 +3798,7 @@ function renderWorkflow(){
     {who:"approver",t:"พิจารณา แล้วส่งผลทางอีเมล", d:"เปิดลิงก์เดิม → หน้า Approvals → กดอนุมัติ/ไม่อนุมัติ → กด \"ส่งผลทางอีเมล\" ปุ่มเดียวจบ",
      active:canApprove()&&nPending>0, done:canApprove()&&nDecided>0&&nDecided>=nPending,
      hint:canApprove()&&nPending?"ตัดสินใจแล้ว "+nDecided+" จาก "+nPending:""},
-    {who:"editor",  t:"เปิดลิงก์ในอีเมล", d:"กดลิงก์ในอีเมลของผู้อนุมัติ ระบบจะลงผลให้เองทั้งหมด แล้วบอกให้เผยแพร่อีกครั้ง",
+    {who:"editor",  t:"รับผลอนุมัติจากอีเมล", d:"กดลิงก์ในอีเมลได้เลย — หรือถ้ากดไม่ได้ ใช้ปุ่ม \"นำเข้าไฟล์ผลอนุมัติ\" เลือกไฟล์แนบในอีเมล",
      active:canEdit()&&nPending>0, done:false,
      hint:nPending?nPending+" รายการรอผลอนุมัติ":""}
   ];
@@ -3619,6 +3886,7 @@ function deleteDraft(id){
 
 /* ---------- หน้า Approval Queue ---------- */
 function renderApprovals(){
+  pruneDecisions();          /* กันผลรอบเก่าค้างมาปนรอบใหม่ */
   renderWorkflow();
   renderDraftReview();
   const sub=byId("apprSubtitle");
@@ -3638,29 +3906,57 @@ function renderApprovals(){
     const ed0=teamOf().find(m=>m.role==="editor"&&m.email);
     let to=ed0?ed0.email:"";
     if(!to){try{to=localStorage.getItem("po_finance_email")||""}catch(e){}}
-    const sentJustNow=SENT_AT&&(Date.now()-SENT_AT<600000);
+    const dids=Object.keys(LOCAL_DECISIONS);
+    const nSent=dids.filter(id=>LOCAL_DECISIONS[id].sentAt).length;
+    const nNew=decided-nSent;
+    const lastSent=dids.map(id=>LOCAL_DECISIONS[id].sentAt).filter(Boolean).sort().pop();
+    const listOf=arr=>arr.slice(0,8).map(id=>{
+        const d=LOCAL_DECISIONS[id];
+        return '<div style="font-size:11.5px;margin-top:3px">'
+          +'<span class="'+(d.decision==="APPROVED"?"pos":"neg")+'"><b>'
+          +(d.decision==="APPROVED"?"อนุมัติ":"ไม่อนุมัติ")+'</b></span> '+id
+          +(d.note?' <span class="muted">· '+d.note+'</span>':'')+'</div>';
+      }).join("")+(arr.length>8?'<div class="muted" style="font-size:11px">… และอีก '+(arr.length-8)+' รายการ</div>':"");
+
     bar.innerHTML = canApprove()
       ? (decided
-          ? '<b>ตัดสินใจแล้ว '+decided+' รายการ</b> — เหลือขั้นตอนเดียว<br>'
-            +'<button class="btn btn-primary" style="margin-top:8px" onclick="emailDecisions()">'
-              +(sentJustNow?"ส่งผลทางอีเมลอีกครั้ง":"ส่งผลทางอีเมล")+'</button>'
-            +'<div class="small-note" style="margin-top:8px">ส่งไปที่ '+(to?'<b>'+to+'</b>':'<i>ยังไม่ได้ตั้งอีเมลปลายทาง</i>')
-            +' <a href="#" onclick="changeRecipient();return false" style="color:#1769e0">เปลี่ยน</a>'
-            +'<br>อีเมลจะมีลิงก์ให้ฝ่ายการเงินกดเพียงครั้งเดียว ระบบลงผลให้เอง ไม่ต้องคัดลอกอะไร</div>'
-            +(sentJustNow?'<div class="small-note" style="margin-top:6px;color:#12805c"><b>✓ เปิดโปรแกรมอีเมลแล้ว</b> — อย่าลืมกด Send</div>':'')
+          ? (nNew
+              ? '<b>กำลังจะส่ง '+nNew+' รายการ</b>'+(nSent?' <span class="muted">(ส่งไปแล้วก่อนหน้า '+nSent+' รายการ)</span>':'')
+                +listOf(dids.filter(id=>!LOCAL_DECISIONS[id].sentAt))
+                +'<button class="btn btn-primary" style="margin-top:10px" onclick="emailDecisions()">ส่งผลทางอีเมล</button> '
+                +'<button class="btn btn-secondary" onclick="clearDecisions()">ล้าง เริ่มรอบใหม่</button>'
+                +'<div class="small-note" style="margin-top:8px">ส่งไปที่ '+(to?'<b>'+to+'</b>':'<i>ยังไม่ได้ตั้งอีเมลปลายทาง</i>')
+                +' <a href="#" onclick="changeRecipient();return false" style="color:#1769e0">เปลี่ยน</a></div>'
+              : '<div style="color:#12805c"><b>✓ ส่งผลอนุมัติแล้ว '+nSent+' รายการ</b>'
+                +(lastSent?' <span class="muted">เมื่อ '+new Date(lastSent).toLocaleString("th-TH",{dateStyle:"medium",timeStyle:"short"})+'</span>':'')+'</div>'
+                +listOf(dids)
+                +'<div class="notice" style="margin-top:10px;background:#f2f7fd;border-color:#c9dff5;color:#31557d">'
+                +'<b>ขั้นต่อไปเป็นของฝ่ายการเงิน</b> — เปิดอีเมลแล้วลงผลเข้าระบบ<br>'
+                +'รายการจะยังค้างอยู่ในคิวนี้จนกว่าฝ่ายการเงินจะลงผลและเผยแพร่ชุดข้อมูลใหม่ ถือว่าปกติ</div>'
+                +'<button class="btn btn-secondary" style="margin-top:8px" onclick="emailDecisions()">ส่งอีเมลซ้ำ</button> '
+                +'<button class="btn btn-secondary" onclick="clearDecisions()">ล้าง เริ่มรอบใหม่</button>')
           : '<span class="muted">กดอนุมัติหรือไม่อนุมัติในตารางด้านล่าง แล้วจึงส่งผลกลับทางอีเมล</span>')
       : canEdit()
-        ? '<button class="btn btn-primary" onclick="submitAndPublish()">ส่งเข้าอนุมัติ + เผยแพร่ (ปุ่มเดียว)</button> '
-          +'<button class="btn btn-secondary" onclick="importDecisions()">นำเข้าไฟล์ผลอนุมัติ</button>'
-          +'<div class="small-note" style="margin-top:8px">ผลอนุมัติปกติจะมาทาง<b>ลิงก์ในอีเมล</b> — กดลิงก์แล้วระบบลงผลให้เอง'
-          +'<br>ปุ่ม "นำเข้าไฟล์" ใช้เฉพาะกรณีรายการเยอะจนผู้อนุมัติต้องส่งเป็นไฟล์แนบ</div>'
+        ? '<button class="btn btn-primary" onclick="submitAndPublish()">ส่งเข้าอนุมัติ + เผยแพร่ (ปุ่มเดียว)</button>'
+          +'<div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">'
+          +'<b>ได้รับอีเมลผลอนุมัติแล้ว?</b> เลือกวิธีที่ตรงกับอีเมลที่ได้รับ<br>'
+          +'<button class="btn btn-primary" style="margin-top:8px" onclick="importDecisions()">① นำเข้าไฟล์ผลอนุมัติ</button> '
+          +'<button class="btn btn-secondary" onclick="pasteApLink()">② วางลิงก์ผลอนุมัติ</button>'
+          +'<div class="small-note" style="margin-top:8px">'
+          +'<b>①</b> ถ้าอีเมลมีไฟล์แนบ approvals-....json → บันทึกไฟล์แล้วกดปุ่มนี้ <b>(แนะนำ ใช้ได้เสมอ)</b><br>'
+          +'<b>②</b> ถ้าอีเมลมีลิงก์แต่กดไม่ได้ → คลิกขวาที่ลิงก์ เลือก Copy Link แล้วกดปุ่มนี้<br>'
+          +'ถ้ากดลิงก์ในอีเมลได้เลย ระบบจะลงผลให้เองโดยไม่ต้องกดปุ่มไหน</div></div>'
         : '<span class="muted">โหมดดูอย่างเดียว — ดูสถานะได้ แต่แก้ไขไม่ได้</span>';
   }
   if(!pending.length){el.innerHTML='<tr><td colspan="9" class="empty">ไม่มีรายการรออนุมัติ</td></tr>';return}
   el.innerHTML=pending.map(t=>{
     const d=LOCAL_DECISIONS[t.id];
     const act = canApprove()
-      ? (d ? '<span class="'+(d.decision==="APPROVED"?"pos":"neg")+'"><b>'+(d.decision==="APPROVED"?"อนุมัติ":"ไม่อนุมัติ")+'</b></span> <button class="btn btn-secondary" style="padding:5px 8px" onclick="undecide(\''+t.id+'\')">แก้</button>'
+      ? (d ? '<span class="'+(d.decision==="APPROVED"?"pos":"neg")+'"><b>'+(d.decision==="APPROVED"?"อนุมัติ":"ไม่อนุมัติ")+'</b></span>'
+              +(d.sentAt
+                 ? '<br><span class="muted" style="font-size:10px">✓ ส่งอีเมลแล้ว '+new Date(d.sentAt).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})+'</span>'
+                 : '<br><span style="font-size:10px;color:#b7791f">● ยังไม่ได้ส่ง</span>')
+              +' <button class="btn btn-secondary" style="padding:5px 8px" onclick="undecide(\''+t.id+'\')">แก้</button>'
               : '<button class="btn btn-primary" style="padding:6px 10px" onclick="decide(\''+t.id+'\',\'APPROVED\')">อนุมัติ</button> <button class="btn btn-danger" style="padding:6px 10px" onclick="decide(\''+t.id+'\',\'REJECTED\')">ไม่อนุมัติ</button>')
       : '<span class="muted">—</span>';
     return '<tr><td>'+dmy(t.date)+'</td><td><b>'+t.id+'</b></td><td>'+typeBadge(t.type)+'</td>'
@@ -3889,7 +4185,15 @@ window.addEventListener("beforeunload",function(e){
   if(canEdit()&&unpublishedCount()>0){e.preventDefault();e.returnValue=""}
 });
 
+function renderVersion(){
+  const b=byId("brandVersion");
+  if(b)b.textContent=versionFull();
+  const d=byId("dashVersion");
+  if(d)d.innerHTML='<b>'+versionLabel()+'</b> <span style="opacity:.7">build '+APP_BUILD+'</span>';
+  if(d)d.title=APP_VERSION_NOTE;
+}
 function renderDataStatus(){
+  renderVersion();
   let el=document.getElementById("dataStatus"); if(!el)return;
   let when=PUBLISHED_STAMP?new Date(PUBLISHED_STAMP).toLocaleString("th-TH",{dateStyle:"medium",timeStyle:"short"}):"";
   let html="";
@@ -4027,6 +4331,7 @@ function renderAll(){
     : state.transactions.filter(t=>txStatus(t)==="PENDING").length;
   const dot=byId("navPendingDot"); if(dot){dot.textContent=pend?pend:"";dot.style.display=pend?"inline-block":"none"}
   byId("approvalView").value=SHOW_APPROVED_ONLY?"1":"0";
+  renderVersion();
   renderGovPanel();
   initForm();
   enhanceMobileTables();
@@ -4046,6 +4351,7 @@ async function boot(){
        เพื่อให้การเปลี่ยนตำแหน่งในทะเบียนมีผลกับทุกเครื่องทันทีที่เผยแพร่ */
     restoreSession();
     applyRole();
+    try{pruneDecisions()}catch(e){}
 
     bootStep("เตรียมเมนูและตัวกรอง",35);
     navInit();
