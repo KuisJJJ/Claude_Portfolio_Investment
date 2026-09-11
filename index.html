@@ -696,6 +696,7 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
 
       <section class="page" id="page-cashfx">
         <div class="pagehead"><div><h2>Cash & FX</h2><p>เงินสดหลายสกุล, Book Cost USD, Unrealized/Realized FX P/L และ Exposure</p></div></div>
+        <div id="cashWarn" class="notice warn" style="display:none;border-color:#e9b7b1;background:#fdf1ef;color:#8c3a30"></div>
         <div class="grid2 equal">
           <div class="card table-card"><div class="table-tools"><b>Cash by Currency</b></div><div class="table-wrap"><table><thead><tr><th>CCY</th><th class="num">Cash Local</th><th class="num">FX</th><th class="num">MV USD</th><th class="num">Unreal. FX</th><th class="num">Real. FX</th></tr></thead><tbody id="cashBody"></tbody></table></div></div>
           <div class="card panel"><h3>Total Currency Exposure</h3><div id="fxExposureDetail"></div></div>
@@ -749,6 +750,14 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
               · ด่านที่บังคับได้จริงคือ<b>สิทธิ์เขียน repo บน GitHub</b> ต่อให้ปลดล็อกหน้าจอได้ ก็อัปโหลดทับข้อมูลไม่ได้
               · เก็บเฉพาะค่าที่แปลงแล้ว (PBKDF2-SHA256 250,000 รอบ พร้อม salt เฉพาะคน) ไม่เก็บรหัสจริง
             </div>
+            <div id="setupBanner" class="notice" style="display:none;border-color:#a7d3f5;background:#e8f4ff">
+              <b>🔑 โหมดตั้งค่าครั้งแรก — ยังไม่มีใครตั้งรหัสผ่าน</b><br>
+              ตอนนี้ระบบยังไม่มีเจ้าของ จึงเปิดให้แก้ทะเบียนทีมและตั้งรหัสผ่านได้โดยไม่ต้องเข้าสู่ระบบก่อน<br>
+              <b>สิ่งที่ต้องทำ:</b> ตรวจชื่อ–อีเมล–สิทธิ์ในตารางด้านล่างให้ถูก → กด <b>บันทึกทะเบียนทีม</b> →
+              กด <b>ตั้งรหัสผ่าน</b> ที่แถวของตัวเอง → แล้วกด <b>เผยแพร่ให้ทีม</b><br>
+              เมื่อมีรหัสผ่านแรกแล้ว โหมดนี้จะปิดเอง และการแก้ทะเบียนจะทำได้เฉพาะผู้บันทึกรายการที่ล็อกอินแล้วเท่านั้น<br>
+              <span class="small-note">รหัสผ่านควรยาวอย่างน้อย 8 ตัวอักษร และไม่ควรเป็นตัวเลขล้วนสั้นๆ เพราะไฟล์ข้อมูลเดินทางไปพร้อมเว็บ ใครดาวน์โหลดไปก็ลองเดารหัสแบบออฟไลน์ได้</span>
+            </div>
             <div class="table-wrap"><table><thead><tr><th style="min-width:180px">ตำแหน่ง</th><th>ชื่อ-นามสกุล</th><th>อีเมล</th><th>สิทธิ์ในระบบ</th><th>รหัสผ่าน</th><th></th></tr></thead><tbody id="teamBody"></tbody></table></div>
             <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
               <button class="btn btn-primary" onclick="saveTeam()">บันทึกทะเบียนทีม</button>
@@ -765,7 +774,7 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
       </section>
 
       <section class="page" id="page-approvals">
-        <div class="pagehead"><div><h2>Approval Queue</h2><p>รายการที่รอการอนุมัติจาก Investment Manager ก่อนนับเข้าตัวเลขทางการ</p></div></div>
+        <div class="pagehead"><div><h2>Approval Queue</h2><p id="apprSubtitle">รายการที่รออนุมัติ ก่อนนับเข้าตัวเลขทางการ</p></div></div>
         <div id="wfPanel"></div>
         <div class="notice" id="approvalActions"></div>
         <div class="card table-card"><div class="table-tools"><b>รออนุมัติ</b><span class="muted" id="approvalCount"></span></div>
@@ -986,13 +995,26 @@ function simBuildState(){
     "CORE-KKP":{THB:250000},
     "INCOME-SCB":{THB:110000}
   };
+  /* กันการแจกเงินเกินยอดที่บัญชีมีจริง
+     เคยเกิดจริง: CORE-IBKR ได้ทุน 1,000,000 แต่ถูกโอนออก 660,000
+     แล้วยังตั้งแปลงค่าเงินอีก 350,000 → ติดลบ 10,000 USD อยู่ 8 วัน
+     ตอนนี้จึงกันเงินสำรองไว้ และตัดยอดแปลงค่าให้พอดีกับที่เหลือเสมอ */
+  const FX_BUFFER=20000;
   Object.entries(fund).forEach(([acc,m])=>{
-    Object.entries(m).forEach(([ccy,usdAmt],i)=>{
+    Object.entries(m).forEach(([ccy,want],i)=>{
+      const avail=getCash(acc,"USD")-FX_BUFFER;
+      const usdAmt=Math.min(want,Math.max(0,Math.floor(avail/1000)*1000));
+      if(usdAmt<=0)return;
       const rTo=fxAt(ccy,d0),toAmt=simRound(usdAmt*rTo,2);
       push(d0,{type:"FX CONVERSION",account:acc,ccy:"USD",fxFrom:"USD",fxFromAmount:usdAmt,fxTo:ccy,fxToAmount:toAmt,dealRate:simRound(rTo,6),amount:usdAmt,fxOverride:1,
                ref:`FX-${acc}-${ccy}`,note:`Convert USD ${usdAmt.toLocaleString()} to ${ccy} @ ${simRound(rTo,6)}`});
       addCash(acc,"USD",-usdAmt);addCash(acc,ccy,toAmt);
     });
+  });
+
+  /* ยืนยันว่าจบวันที่ 1 แล้วไม่มีบัญชี/สกุลไหนติดลบ — ถ้าติดลบคือสูตรแจกเงินผิด */
+  Object.entries(cash).forEach(([k,v])=>{
+    if(v<-0.005)console.error("simgen: เงินสดติดลบตั้งแต่วันแรกที่",k,v);
   });
 
   /* ---------- 5. Daily random activity ---------- */
@@ -1226,6 +1248,15 @@ async function resolveState(){
   try{draft=JSON.parse(STORE.get(KEY)||"null")}catch(e){draft=null}
 
   const pub=await fetchPublished();
+
+  /* ถ้าไฟล์ที่เผยแพร่ไม่มีทะเบียนทีมติดมา ให้ยืมของเดิมในเครื่องนี้ไว้ก่อน
+     ไม่อย่างนั้นทุกเครื่องจะตกกลับไปเป็นทะเบียนตั้งต้นที่ไม่มีรหัสผ่าน
+     ซึ่งเท่ากับเปิดให้ใครก็ได้สวมสิทธิ์ผู้บันทึกรายการ */
+  if(pub&&!Array.isArray(pub.team)&&draft&&Array.isArray(draft.team)&&draft.team.length){
+    pub.team=draft.team;
+    console.warn("data.json ที่เผยแพร่ไม่มีทะเบียนทีม — ใช้ทะเบียนเดิมในเครื่องนี้แทน");
+  }
+  if(pub&&!pub.entity&&draft&&draft.entity)pub.entity=draft.entity;
 
   if(pub){
     PUBLISHED_STAMP=stampOf(pub);
@@ -2081,6 +2112,7 @@ function renderHoldings(){
   byId("holdBody").innerHTML=h.map(x=>`<tr><td><b>${x.s.id}</b></td><td>${x.s.name}</td><td>${x.s.assetClass}</td><td>${x.s.currency}</td><td class="num">${fmt(x.qty,2)}</td><td class="num">${fmt(x.qty?x.costLocal/x.qty:0,2)}</td><td class="num">${fmt(x.price,2)}</td><td class="num">${usd(x.mvUSD)}</td><td class="num ${x.assetPL>=0?'pos':'neg'}">${usd(x.assetPL)}</td><td class="num ${x.fxPL+x.realizedFx>=0?'pos':'neg'}">${usd(x.fxPL+x.realizedFx)}</td><td class="num">${usd(x.accruedUSD)}</td><td class="num ${x.totalPL>=0?'pos':'neg'}"><b>${usd(x.totalPL)}</b></td></tr>`).join("")||`<tr><td colspan="12" class="empty">No positions</td></tr>`;
 }
 function renderCashFx(){
+  renderCashWarning();
   let v=viewData(),c=v.cash.filter(x=>Math.abs(x.local)>1e-8||Math.abs(x.costUSD)>1e-8);
   byId("cashBody").innerHTML=c.map(x=>`<tr><td><b>${x.currency}</b></td><td class="num">${fmt(x.local,2)}</td><td class="num">${fmt(x.rate,4)}</td><td class="num">${usd(x.mvUSD)}</td><td class="num ${x.unrealFx>=0?'pos':'neg'}">${usd(x.unrealFx)}</td><td class="num ${x.realizedFx>=0?'pos':'neg'}">${usd(x.realizedFx)}</td></tr>`).join("")||`<tr><td colspan="6" class="empty">No cash balances</td></tr>`;
   let exposure={};v.holdings.forEach(h=>exposure[h.s.currency]=(exposure[h.s.currency]||0)+h.mvUSD);v.cash.forEach(x=>exposure[x.currency]=(exposure[x.currency]||0)+x.mvUSD);
@@ -2110,6 +2142,54 @@ function renderMarket(){
     +`<tr class="more-row"><td colspan="4" style="text-align:center;background:#fbfcfd;padding:14px"><button class="btn btn-secondary" onclick="toggleMarketHistory()">${marketShowAll?"แสดงเฉพาะราคาล่าสุด":"แสดงประวัติราคาทั้งหมด"}</button> <span class="muted" style="margin-left:8px">${note}</span></td></tr>`
     +(marketShowAll?moreRow("market","renderMarket",total,rows.length,4):"");
   byId("fxDailyBody").innerHTML=[...state.fx].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,30).map(x=>`<tr><td>${dmy(x.date)}</td><td class="num">${fmt(x.THB,4)}</td><td class="num">${fmt(x.HKD,4)}</td><td class="num">${fmt(x.JPY,4)}</td><td class="num">${fmt(x.EUR,4)}</td></tr>`).join("");
+}
+/* ==================================================================
+   ตรวจเงินสดติดลบ
+   เงินสดติดลบ = จ่ายเกินยอดคงเหลือ ซึ่งในทางบัญชีแปลว่ามีรายการหาย
+   ตกหล่น หรือลงวันที่ผิด ระบบจึงต้องส่งเสียงเตือน ไม่ใช่เงียบ
+   ================================================================== */
+function negativeCashScan(uptoDate){
+  const end=uptoDate||state.valuationDate;
+  const days=[...new Set((state.transactions||[]).map(t=>t.date))].filter(d=>d<=end).sort();
+  const hits=[]; const seen=new Set();
+  /* ต้องนับรายการร่างและรายการที่รออนุมัติด้วย
+     เพราะผู้บันทึกต้องเห็นผลของสิ่งที่เพิ่งคีย์ ไม่ใช่รอจนอนุมัติแล้วค่อยรู้
+     (engine() ปกติกรองตามสวิตช์ "เฉพาะที่อนุมัติแล้ว" จึงต้องปิดชั่วคราว) */
+  const keep=SHOW_APPROVED_ONLY; SHOW_APPROVED_ONLY=false;
+  try{
+  for(const d of days){
+    let e; try{e=engine(d)}catch(err){continue}
+    for(const c of e.cash){
+      if(c.local<-0.005){
+        const k=c.account+"|"+c.currency;
+        if(!seen.has(k)){seen.add(k);hits.push({key:k,account:c.account,currency:c.currency,from:d,worst:c.local,lastDate:d});}
+        else{const h=hits.find(x=>x.key===k); if(c.local<h.worst)h.worst=c.local; h.lastDate=d;}
+      }
+    }
+  }
+  }finally{ SHOW_APPROVED_ONLY=keep; }
+  return hits;
+}
+function renderCashWarning(){
+  const el=byId("cashWarn"); if(!el)return;
+  const hits=negativeCashScan();
+  if(!hits.length){el.style.display="none";el.innerHTML="";return}
+  el.style.display="";
+  el.innerHTML='<b>⚠ พบเงินสดติดลบ '+hits.length+' บัญชี/สกุลเงิน</b><br>'
+    +'เงินสดติดลบแปลว่ามีการจ่ายเกินยอดคงเหลือ — มักเกิดจากรายการรับเงินตกหล่น ลงวันที่ผิด หรือลงยอดผิด<br>'
+    +'<span class="small-note">นับรวมรายการร่างและรายการที่รออนุมัติด้วย</span><br>'
+    +hits.map(h=>'• <b>'+h.account+' '+h.currency+'</b> ติดลบตั้งแต่ '+dmy(h.from)
+        +' ต่ำสุด '+fmt(h.worst,2)+' '+h.currency
+        +(h.lastDate!==h.from?' (ล่าสุด '+dmy(h.lastDate)+')':'')).join("<br>");
+}
+/* เรียกตอนบันทึกรายการใหม่ เพื่อเตือนทันทีที่เกิด ไม่ใช่มารู้ทีหลัง */
+function warnIfGoesNegative(){
+  const hits=negativeCashScan();
+  if(!hits.length)return;
+  const lines=hits.map(h=>"  • "+h.account+" "+h.currency+" ต่ำสุด "+fmt(h.worst,2)+" ตั้งแต่ "+dmy(h.from));
+  alert("⚠ เงินสดติดลบหลังบันทึกรายการนี้\n\n"+lines.join("\n")
+    +"\n\nเงินสดติดลบแปลว่าจ่ายเกินยอดคงเหลือ\nกรุณาตรวจว่ามีรายการรับเงินตกหล่น หรือลงวันที่/ยอดผิดหรือไม่"
+    +"\n\n(ระบบบันทึกรายการให้แล้ว ไม่ได้ยกเลิก — แต่ควรแก้ก่อนส่งอนุมัติ)");
 }
 function saveEntity(){
   if(!guard("edit"))return;
@@ -2144,14 +2224,14 @@ function newMemberId(){
   return "M"+Date.now().toString(36).toUpperCase();
 }
 function addMember(){
-  if(!guard("edit"))return;
+  if(!guardTeam())return;
   syncTeamInputs().push({id:newMemberId(),name:"",title:"",role:"viewer",email:""});
   renderTeam();
   const rows=teamEdit(); const last=rows[rows.length-1];
   const el=byId("tm_"+last.id+"_title"); if(el)el.focus();
 }
 function removeMember(id){
-  if(!guard("edit"))return;
+  if(!guardTeam())return;
   const d=syncTeamInputs(); const m=d.find(x=>x.id===id); if(!m)return;
   if(id===meId()){alert("ลบตำแหน่งที่เครื่องนี้กำลังใช้งานอยู่ไม่ได้\n\nถ้าต้องการลบจริง ให้กด \"ออกจากระบบ\" หรือสลับไปเป็นตำแหน่งอื่นก่อน");return}
   let w="ลบตำแหน่ง \""+(m.title||m.id)+"\" ออกจากทะเบียน?";
@@ -2167,8 +2247,12 @@ function cancelTeamEdit(){
   if(teamDirty()&&!confirm("ยกเลิกการแก้ไขทะเบียนทีมทั้งหมด และกลับไปใช้ค่าที่บันทึกไว้ล่าสุด?"))return;
   resetTeamEdit(); renderTeam(); toast("ยกเลิกการแก้ไขแล้ว");
 }
+function guardTeam(){
+  if(canEditTeam())return true;
+  return guard("edit");
+}
 function saveTeam(){
-  if(!guard("edit"))return;
+  if(!guardTeam())return;
   const t=syncTeamInputs().map(m=>({...m}));   /* คง pwHash/pwSalt เดิมไว้เสมอ */
   if(!t.length){alert("ต้องมีอย่างน้อย 1 ตำแหน่งในทะเบียน");return}
   const blank=t.find(m=>!m.title);
@@ -2201,9 +2285,9 @@ function saveTeam(){
 }
 function renderTeam(){
   const el=byId("teamBody"); if(!el)return;
-  const dis=canEdit()?"":" disabled";
+  const dis=canEditTeam()?"":" disabled";
   const saved=teamOf();
-  const rows=canEdit()?teamEdit():saved;      /* ผู้ที่แก้ไม่ได้ ให้เห็นค่าที่บันทึกไว้จริง */
+  const rows=canEditTeam()?teamEdit():saved;      /* ผู้ที่แก้ไม่ได้ ให้เห็นค่าที่บันทึกไว้จริง */
   const inp='style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px"';
   el.innerHTML=rows.map(m=>{
     const isNew=!saved.some(x=>x.id===m.id);
@@ -2219,17 +2303,19 @@ function renderTeam(){
         : (hasPassword(m)
             ? '<span class="pos" style="font-weight:700">ตั้งแล้ว</span>'
               +'<br><span class="muted" style="font-size:10px">'+(m.pwSetAt?new Date(m.pwSetAt).toLocaleDateString("th-TH"):"")+'</span>'
-              +(canEdit()||meId()===m.id?'<br><button class="btn btn-secondary" style="padding:4px 8px;font-size:10px;margin-top:4px" onclick="setMemberPassword(\''+m.id+'\')">เปลี่ยน</button>':'')
+              +(canEditTeam()||meId()===m.id?'<br><button class="btn btn-secondary" style="padding:4px 8px;font-size:10px;margin-top:4px" onclick="setMemberPassword(\''+m.id+'\')">เปลี่ยน</button>':'')
               +(canEdit()?' <button class="btn btn-danger" style="padding:4px 8px;font-size:10px" onclick="clearMemberPassword(\''+m.id+'\')">ลบ</button>':'')
             : '<span class="neg" style="font-weight:700">ยังไม่ตั้ง</span>'
-              +(canEdit()?'<br><button class="btn btn-primary" style="padding:4px 8px;font-size:10px;margin-top:4px" onclick="setMemberPassword(\''+m.id+'\')">ตั้งรหัสผ่าน</button>':'')))
+              +(canEditTeam()?'<br><button class="btn btn-primary" style="padding:4px 8px;font-size:10px;margin-top:4px" onclick="setMemberPassword(\''+m.id+'\')">ตั้งรหัสผ่าน</button>':'')))
     +'</td>'
-    +'<td style="text-align:center">'+(canEdit()
+    +'<td style="text-align:center">'+(canEditTeam()
         ? '<button class="btn btn-danger" style="padding:4px 9px;font-size:11px" onclick="removeMember(\''+m.id+'\')" title="ลบตำแหน่งนี้">ลบ</button>'
         : '')+'</td>'
     +'</tr>'}).join("");
   const dn=byId("teamDirty");
   if(dn)dn.innerHTML=teamDirty()?'<b class="neg">● มีการแก้ไขที่ยังไม่ได้บันทึก</b>':'';
+  const sb=byId("setupBanner");
+  if(sb)sb.style.display=setupMode()?"":"none";
   const e=entityOf();
   if(byId("entName")){byId("entName").value=e.name;byId("entTax").value=e.taxId;
     byId("entAddr").value=e.address;byId("entIc").value=e.ic;
@@ -2261,7 +2347,7 @@ function previewDocument(id){previewTxn=id;go("documents");drawDoc(id)}
    ทำให้ชื่อในเอกสารและชื่อผู้อนุมัติมาจากทะเบียนกลาง ไม่ใช่สิ่งที่แต่ละคนพิมพ์เอง */
 function defaultEntity(){return {name:"",taxId:"",address:"",ic:""}}
 function defaultTeam(){return [
-  {id:"FIN", name:"", title:"Finance Manager",     role:"editor",   email:""},
+  {id:"FIN", name:"Jayawat Suwannao", title:"Finance Manager", role:"editor", email:"Jayawat.s@monta.co.th"},
   {id:"IM",  name:"", title:"Investment Manager",  role:"approver", email:""},
   {id:"CEO", name:"", title:"Chief Executive Officer", role:"viewer", email:""},
   {id:"SEC", name:"", title:"Secretary",           role:"viewer",   email:""}
@@ -2342,7 +2428,7 @@ function transactionDocument(t,printing){
       ? "อนุมัติ "+new Date(t.approvedAt).toLocaleString("th-TH",{dateStyle:"medium",timeStyle:"short"}) : "";
     return '<div style="margin-top:32px;display:grid;grid-template-columns:repeat(3,1fr);gap:35px;text-align:center">'
       +sig("ผู้จัดทำ (Prepared by)",fin,"")
-      +sig("ผู้อนุมัติ (Approved by)",(t.approvedBy?{name:t.approvedBy,title:im?im.title:"Investment Manager"}:im),approvedStamp)
+      +sig("ผู้อนุมัติ (Approved by)",(t.approvedBy?{name:t.approvedBy,title:im?im.title:approverTitle()}:im),approvedStamp)
       +sig("รับทราบ (Acknowledged)",ceo,"")+'</div>';
   })()}`;
 }
@@ -2744,7 +2830,9 @@ function saveTransaction(){
   let newTxn={id,date,type:currentType,account:a.id,security:trade?s.id:"",qty,price,amount,fxOverride:Number(byId("fFxOverride").value)||0,accrued:Number(byId("fAccrued").value)||0,fee:Number(byId("fFee").value)||0,tax:Number(byId("fTax").value)||0,ref:byId("fRef").value.trim(),note:byId("fNote").value.trim(),version:1,status:"DRAFT"};
   let err=validateTransactionSet([...state.transactions,newTxn]);if(err){alert(err);return}
   state.transactions.push(newTxn);
-  save();alert(`Saved ${id}`);previewTxn=id;clearTransaction();renderAll();previewDocument(id);
+  save();alert(`Saved ${id}`);
+  warnIfGoesNegative();
+  previewTxn=id;clearTransaction();renderAll();previewDocument(id);
 }
 function clearTransaction(){["fSecurity","fQty","fPrice","fAmount","fFxOverride","fRef","fNote","fFxFromAmount","fDealRate"].forEach(id=>byId(id).value="");["fAccrued","fFee","fTax"].forEach(id=>byId(id).value="0");updateForm();syncEditUi()}
 function saveMarketPrice(){let s=byId("mSec").value,d=byId("mDate").value,p=Number(byId("mPrice").value);if(!s||!d||!p){alert("กรอก Security, Date และ Price");return}state.prices=state.prices.filter(x=>!(x.security===s&&x.date===d));state.prices.push({security:s,date:d,price:p,source:byId("mSource").value});save();renderAll()}
@@ -2975,7 +3063,25 @@ async function publishData(){
    ผู้อนุมัติจึงไม่เผยแพร่เอง แต่ส่ง "ไฟล์ผลอนุมัติ" ขนาดเล็กกลับมาแทน
    ================================================================== */
 
-const ROLE_LABEL={editor:"ผู้บันทึกรายการ (เครื่องหลัก)",approver:"ผู้อนุมัติ — Investment Manager",viewer:"ดูอย่างเดียว"};
+/* ชื่อตำแหน่งผู้อนุมัติ — อ่านจากทะเบียนทีมเสมอ
+   (เคยฝังคำว่า "Investment Manager" ไว้ตายตัว พอผู้ใช้ย้ายสิทธิ์อนุมัติ
+    ไปตำแหน่งอื่น ข้อความบนหน้าจอก็ผิดทันที) */
+function approverTitle(){
+  const a=(typeof teamOf==="function"?teamOf():[]).filter(m=>m.role==="approver");
+  if(!a.length)return "ผู้อนุมัติ";
+  if(a.length===1)return a[0].title||"ผู้อนุมัติ";
+  return a.map(m=>m.title).filter(Boolean).join(" / ")||"ผู้อนุมัติ";
+}
+function editorTitle(){
+  const e=(typeof teamOf==="function"?teamOf():[]).find(m=>m.role==="editor");
+  return (e&&e.title)||"ผู้บันทึกรายการ";
+}
+const ROLE_LABEL_BASE={editor:"ผู้บันทึกรายการ (เครื่องหลัก)",approver:"ผู้อนุมัติ",viewer:"ดูอย่างเดียว"};
+const ROLE_LABEL=new Proxy(ROLE_LABEL_BASE,{
+  get:(t,k)=>k==="approver"?("ผู้อนุมัติ — "+approverTitle()):t[k],
+  has:(t,k)=>k in t, ownKeys:t=>Reflect.ownKeys(t),
+  getOwnPropertyDescriptor:(t,k)=>({enumerable:true,configurable:true,value:t[k]})
+});
 let ROLE="viewer";                 /* ค่าเริ่มต้นปลอดภัยที่สุด */
 let SHOW_APPROVED_ONLY=true;       /* ตัวเลขทางการนับเฉพาะรายการที่อนุมัติแล้ว */
 let LOCAL_DECISIONS={};            /* ผลอนุมัติที่ยังไม่ได้ส่งกลับ {txnId:{decision,by,at,note,hash}} */
@@ -3003,7 +3109,7 @@ function guard(what){
     return false;
   }
   if(what==="approve"&&!canApprove()){
-    alert("โหมดปัจจุบัน: "+ROLE_LABEL[ROLE]+"\n\nการอนุมัติทำได้เฉพาะผู้อนุมัติ (Investment Manager)");
+    alert("โหมดปัจจุบัน: "+ROLE_LABEL[ROLE]+"\n\nการอนุมัติทำได้เฉพาะ "+approverTitle());
     return false;
   }
   return true;
@@ -3291,6 +3397,8 @@ function renderWorkflow(){
 /* ---------- หน้า Approval Queue ---------- */
 function renderApprovals(){
   renderWorkflow();
+  const sub=byId("apprSubtitle");
+  if(sub)sub.textContent="รายการที่รอการอนุมัติจาก "+approverTitle()+" ก่อนนับเข้าตัวเลขทางการ";
   const el=byId("approvalBody"); if(!el)return;
   /* คิวอนุมัติต้องเห็นรายการที่ "รออนุมัติ" เสมอ
      ไม่ว่าผู้ใช้จะตั้งมุมมองเป็น "เฉพาะที่อนุมัติแล้ว" อยู่หรือไม่
@@ -3385,6 +3493,13 @@ function safeEqual(a,b){
 }
 const needsPassword = role => role==="editor"||role==="approver";
 const hasPassword = m => !!(m&&m.pwHash&&m.pwSalt);
+/* ── โหมดตั้งค่าครั้งแรก ──────────────────────────────────────────
+   ตราบใดที่ยังไม่มีใครในทะเบียนตั้งรหัสผ่านเลย ระบบยังไม่มีเจ้าของ
+   จึงเปิดให้ "คนแรก" จัดทะเบียนทีมและตั้งรหัสผ่านของตัวเองได้
+   พอมีรหัสผ่านแรกเกิดขึ้น โหมดนี้จะปิดทันทีและกลับไปใช้กฎปกติ
+   (ตรงนี้ไม่ได้ทำให้อ่อนแอลง เพราะด่านจริงคือสิทธิ์เขียน repo อยู่ดี) */
+const setupMode = ()=>!teamOf().some(hasPassword);
+const canEditTeam = ()=>canEdit()||setupMode();
 
 /* ---------- ตั้ง / เปลี่ยนรหัสผ่าน ---------- */
 async function setMemberPassword(id){
@@ -3392,7 +3507,9 @@ async function setMemberPassword(id){
   const m=memberById(id); if(!m){alert("ไม่พบสมาชิก");return}
   /* เจ้าตัวเปลี่ยนรหัสของตัวเองได้ หรือผู้บันทึกรายการรีเซ็ตให้ได้ */
   const self=meId()===id;
-  if(!self&&!canEdit()){alert("เปลี่ยนรหัสผ่านของผู้อื่นได้เฉพาะผู้บันทึกรายการ");return}
+  if(!self&&!canEditTeam()){alert("เปลี่ยนรหัสผ่านของผู้อื่นได้เฉพาะผู้บันทึกรายการ");return}
+  const first=setupMode();
+  if(first&&!needsPassword(m.role)){alert("ตำแหน่งนี้ดูอย่างเดียว จึงไม่ต้องใช้รหัสผ่าน");return}
   if(self&&hasPassword(m)){
     const old=prompt("รหัสผ่านเดิมของ "+m.name,"");
     if(old===null)return;
@@ -3411,7 +3528,19 @@ async function setMemberPassword(id){
   state.team=teamOf().map(x=>x.id===id?m:x);
   if(TEAM_EDIT){const d=TEAM_EDIT.find(x=>x.id===id);
     if(d){d.pwSalt=m.pwSalt;d.pwIter=m.pwIter;d.pwHash=m.pwHash;d.pwSetAt=m.pwSetAt}}
-  save(); renderAll();
+  save();
+  if(first){                       /* รหัสแรกของระบบ = เจ้าของเครื่องหลัก */
+    try{localStorage.setItem("po_me",id)}catch(e){}
+    writeSession({id,at:Date.now()});
+    ROLE=m.role; saveGovPrefs(); applyRole();
+    renderAll();
+    alert("ตั้งรหัสผ่านให้ "+(m.name||m.title)+" เรียบร้อย\n\n"
+      +"เครื่องนี้เข้าใช้งานในตำแหน่ง \""+m.title+"\" แล้ว\n"
+      +"ต่อไปเมื่อเปิดหน้าใหม่ ระบบจะถามรหัสผ่านนี้ทุกครั้ง\n\n"
+      +"อย่าลืมกด \"เผยแพร่ให้ทีม\" เพื่อให้รหัสนี้ใช้ได้บนเครื่องอื่น");
+    return;
+  }
+  renderAll();
   alert("ตั้งรหัสผ่านให้ "+m.name+" เรียบร้อย\n\nอย่าลืมกด \"เผยแพร่ให้ทีม\" เพื่อให้รหัสนี้ใช้ได้บนเครื่องอื่น");
 }
 function clearMemberPassword(id){
@@ -3582,7 +3711,13 @@ function importData(){
                   "รายการปัจจุบันในเครื่องนี้: "+cur+" รายการ\n\n"+
                   "ข้อมูลปัจจุบันจะถูกแทนที่ทั้งหมด ดำเนินการต่อ?"))return;
 
+      /* ถ้าไฟล์ที่นำเข้าไม่มีทะเบียนทีมมาด้วย ให้คงของเดิมไว้
+         ไม่อย่างนั้นรหัสผ่านของทุกตำแหน่งจะหายไปพร้อมการนำเข้า */
+      const keepTeam=Array.isArray(state.team)?state.team:null;
+      const keepEntity=state.entity||null;
       state=data;
+      if(!Array.isArray(state.team)&&keepTeam)state.team=keepTeam;
+      if(!state.entity&&keepEntity)state.entity=keepEntity;
       state.auditTrail=state.auditTrail||[];
       dashboardCurrency=state.dashboardCurrency||dashboardCurrency||"THB";
       filterPortfolio="";filterAccount="";previewTxn="";
@@ -3597,7 +3732,23 @@ function importData(){
   inp.click();
 }
 function exportData(){let blob=new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="portfolio-data-"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(a.href)}
-function resetDemo(){if(confirm("ล้างข้อมูลทั้งหมด และสร้าง Simulation ใหม่ (1 มิ.ย. - 31 ส.ค. 2569, ทุนเริ่มต้น USD 1,000,000)?")){state=demoState();filterPortfolio="";filterAccount="";previewTxn="";save();initSelectors();renderAll()}}
+/* สร้างข้อมูลจำลองใหม่ — ต้องเก็บทะเบียนทีม รหัสผ่าน และข้อมูลองค์กรไว้เสมอ
+   (เดิมเขียน state=demoState() ตรงๆ ซึ่งล้างรหัสผ่านทิ้งไปด้วย
+    ผู้ใช้จะล็อกตัวเองออกจากระบบโดยไม่รู้ตัว) */
+function resetDemo(){
+  const keepTeam=Array.isArray(state.team)?JSON.parse(JSON.stringify(state.team)):null;
+  const keepEntity=state.entity?JSON.parse(JSON.stringify(state.entity)):null;
+  const withPw=(keepTeam||[]).filter(hasPassword).length;
+  if(!confirm("ล้างรายการทั้งหมด และสร้าง Simulation ใหม่ (1 มิ.ย. - 31 ส.ค. 2569, ทุนเริ่มต้น USD 1,000,000)?\n\n"
+    +"สิ่งที่จะถูกล้าง: รายการ ราคา อัตราแลกเปลี่ยน และประวัติการอนุมัติ\n"
+    +"สิ่งที่จะเก็บไว้: ทะเบียนทีม"+(withPw?" (รวมรหัสผ่าน "+withPw+" ตำแหน่ง)":"")+" และข้อมูลองค์กร"))return;
+  state=demoState();
+  if(keepTeam)state.team=keepTeam;
+  if(keepEntity)state.entity=keepEntity;
+  filterPortfolio="";filterAccount="";previewTxn="";
+  save();initSelectors();restoreSession();applyRole();renderAll();
+  toast("สร้างข้อมูลจำลองใหม่แล้ว · ทะเบียนทีมและรหัสผ่านยังอยู่ครบ");
+}
 
 
 function enhanceMobileTables(){
