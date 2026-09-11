@@ -464,6 +464,9 @@ body.role-approver [data-page="new"]{display:none!important}
 .edit-banner.active{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .edit-banner b{color:#5c430d}
 .edit-banner .btn{min-height:34px;padding:7px 10px;font-size:10px}
+tr.row-rejected td{background:#fdf3f2;color:#8c6460;text-decoration:line-through;text-decoration-color:#d9a49e}
+tr.row-rejected td b{text-decoration:line-through}
+tr.row-rejected:hover td{background:#fbe9e7}
 .amended-tag{
   display:inline-flex;align-items:center;gap:4px;background:#fff3cf;color:#8b6300;
   border:1px solid #f0d58d;border-radius:999px;padding:3px 7px;font-size:9px;font-weight:900;margin-left:5px
@@ -1468,7 +1471,20 @@ function engine(asOf){
     }
     txDetails.push({...t,portfolio:a.portfolioId,broker:a.brokerId,currency:ccy,fx:rate,gross,cashLocal:impact,cashUSD:netUsd,realizedAsset,realizedFx,cashRealFx});
   }
-  return {positions:Object.values(positions),cash:Object.values(cash),txDetails};
+  /* รายการที่ไม่อนุมัติ: เก็บเป็นหลักฐานไว้ให้ค้นได้ แต่ไม่นับเข้าพอร์ต
+     จึงคำนวณเฉพาะตัวเลขที่ใช้แสดงผล แล้วแยกเก็บคนละกองกับ txDetails */
+  const rejected=[];
+  for(const t of state.transactions){
+    if(txStatus(t)!=="REJECTED")continue;
+    if(asOf&&t.date>asOf)continue;
+    const a=acct(t.account); if(!a)continue;
+    const s2=sec(t.security),ccy=txnCurrency(t),rate=Number(t.fxOverride)||getFx(ccy,t.date)||0;
+    const gross=tradeGross(t,s2),impact=cashImpact(t,gross);
+    rejected.push({...t,portfolio:a.portfolioId,broker:a.brokerId,currency:ccy,fx:rate,gross,
+      cashLocal:impact,cashUSD:rate?impact/rate:0,realizedAsset:0,realizedFx:0,cashRealFx:0,excluded:true});
+  }
+  rejected.sort((x,y)=>x.date.localeCompare(y.date)||x.id.localeCompare(y.id));
+  return {positions:Object.values(positions),cash:Object.values(cash),txDetails,rejected};
 }
 function accountVisible(id){
   let a=acct(id); if(!a)return false;
@@ -1490,6 +1506,7 @@ function fixedValuation(s,qty,date){
 }
 function viewData(asOf){
   let date=asOf||state.valuationDate,e=engine(asOf?date:undefined);
+  const rejectedView=(e.rejected||[]).filter(t=>accountVisible(t.account));
   let holdings=[];
   for(const p of e.positions){
     if(!accountVisible(p.account)||p.qty<=1e-10)continue;
@@ -1507,7 +1524,7 @@ function viewData(asOf){
     return {...c,rate,mvUSD:mv,unrealFx:unreal,totalFx:unreal+c.realizedFx}
   });
   let tx=e.txDetails.filter(t=>accountVisible(t.account));
-  return {e,holdings,cash,tx};
+  return {e,holdings,cash,tx,rejected:rejectedView};
 }
 
 function navInit(){
@@ -2098,14 +2115,27 @@ function moreRow(key,fn,total,shown,cols){
   return `<tr class="more-row"><td colspan="${cols}" style="text-align:center;background:#fbfcfd;padding:14px"><button class="btn btn-secondary" onclick="showMore('${key}','${fn}')">แสดงเพิ่ม ${PAGE_STEP[key]} รายการ · เหลืออีก ${total-shown}</button> <span class="muted" style="margin-left:8px">แสดง ${shown} จาก ${total}</span></td></tr>`;
 }
 function typeBadge(t){let cls=t==="FX CONVERSION"?"cash":TYPE_GROUPS.trade.includes(t)?(t.includes("SELL")||t.includes("REDEMPTION")?"sell":"buy"):TYPE_GROUPS.positive.includes(t)?"income":"cash";return `<span class="badge ${cls}">${t}</span>`}
+/* เวลาที่ "สร้างเอกสาร" — ใช้ createdAt ถ้ามี
+   รายการเก่าที่ยังไม่มีฟิลด์นี้ ใช้เลขที่เอกสารแทน (ฝังวันที่+ลำดับไว้แล้ว) */
+function createdKey(t){ return (t.createdAt||"") + "|" + (t.id||"") }
+function byNewestCreated(a,b){
+  const ka=createdKey(a),kb=createdKey(b);
+  if(a.createdAt&&b.createdAt)return kb.localeCompare(ka);
+  if(a.createdAt&&!b.createdAt)return -1;   /* รายการที่คีย์ใหม่ขึ้นก่อนเสมอ */
+  if(!a.createdAt&&b.createdAt)return 1;
+  return b.id.localeCompare(a.id);
+}
 function renderTransactions(){
   let v=viewData(),q=(byId("txnSearch")?.value||"").toLowerCase();
-  let tx=[...v.tx].sort((a,b)=>b.date.localeCompare(a.date)||b.id.localeCompare(a.id));
+  /* รวมรายการที่ไม่อนุมัติเข้ามาด้วย เพื่อให้ยังค้นเจอและใช้อ้างอิงได้
+     (ไม่ถูกนับเข้ายอดพอร์ต — มาจากกองแยกของ engine) */
+  let tx=[...v.tx,...(v.rejected||[])].sort(byNewestCreated);
   if(q)tx=tx.filter(t=>[t.id,t.security,t.account,t.ref,t.note,t.type,t.portfolio,t.broker].join(" ").toLowerCase().includes(q));
-  byId("txnCount").textContent=`${tx.length} transactions`;
+  const nRej=tx.filter(t=>t.excluded).length;
+  byId("txnCount").textContent=`${tx.length} transactions`+(nRej?` · ไม่อนุมัติ ${nRej} (ไม่นับเข้าพอร์ต)`:"");
   let txTotal=tx.length; if(q)PAGE_LIMIT.txn=Math.max(PAGE_LIMIT.txn,PAGE_STEP.txn);
   tx=tx.slice(0,PAGE_LIMIT.txn);
-  byId("txnBody").innerHTML=tx.map(t=>`<tr><td>${dmy(t.date)}</td><td><b>${t.id}</b>${(t.version||1)>1?`<span class="amended-tag">v${t.version} AMENDED</span>`:""}</td><td>${typeBadge(t.type)}${statusBadge(t)}</td><td>${t.portfolio}</td><td>${t.broker}</td><td>${t.account}</td><td>${t.security||"CASH"}</td><td>${t.currency}</td><td class="num">${t.qty?fmt(t.qty,2):"—"}</td><td class="num">${fmt(t.gross,2)}</td><td class="num ${t.cashUSD>=0?'pos':'neg'}">${usd(t.cashUSD)}</td><td>${t.ref||"—"}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="editTransaction('${t.id}')">Edit</button> ${(t.version||1)>1?`<button class="btn btn-secondary" style="padding:6px 8px" onclick="showAuditHistory('${t.id}')">History</button>`:""} <button class="btn btn-secondary" style="padding:6px 8px" onclick="previewDocument('${t.id}')">View</button></td></tr>`).join("")+moreRow("txn","renderTransactions",txTotal,tx.length,13)||`<tr><td colspan="13" class="empty">No transactions</td></tr>`;
+  byId("txnBody").innerHTML=tx.map(t=>`<tr${t.excluded?' class="row-rejected"':''}><td>${dmy(t.date)}</td><td><b>${t.id}</b>${(t.version||1)>1?`<span class="amended-tag">v${t.version} AMENDED</span>`:""}</td><td>${typeBadge(t.type)}${statusBadge(t)}</td><td>${t.portfolio}</td><td>${t.broker}</td><td>${t.account}</td><td>${t.security||"CASH"}</td><td>${t.currency}</td><td class="num">${t.qty?fmt(t.qty,2):"—"}</td><td class="num">${fmt(t.gross,2)}</td><td class="num ${t.cashUSD>=0?'pos':'neg'}">${usd(t.cashUSD)}</td><td>${t.ref||"—"}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="editTransaction('${t.id}')">Edit</button> ${(t.version||1)>1?`<button class="btn btn-secondary" style="padding:6px 8px" onclick="showAuditHistory('${t.id}')">History</button>`:""} <button class="btn btn-secondary" style="padding:6px 8px" onclick="previewDocument('${t.id}')">View</button></td></tr>`).join("")+moreRow("txn","renderTransactions",txTotal,tx.length,13)||`<tr><td colspan="13" class="empty">No transactions</td></tr>`;
 }
 function renderHoldings(){
   let h=viewData().holdings.sort((a,b)=>b.mvUSD-a.mvUSD);byId("holdingCount").textContent=`${h.length} open positions`;
@@ -2333,16 +2363,35 @@ function renderMaster(){
   fillSelect(byId("sDayCount"),["","ACT/365F","ACT/360","ACT/ACT","30/360 US","30E/360"],x=>x,x=>x||"Day Count","Day Count");
 }
 function renderDocuments(){
-  let tx=[...viewData().tx].sort((a,b)=>b.date.localeCompare(a.date));
+  const vd=viewData();
+  let tx=[...vd.tx,...(vd.rejected||[])].sort(byNewestCreated);
   let docTotal=tx.length; tx=tx.slice(0,PAGE_LIMIT.doc);
   byId("docBody").innerHTML=tx.map(t=>`<tr><td>${dmy(t.date)}</td><td><b>${t.id}</b>${(t.version||1)>1?`<span class="amended-tag">v${t.version}</span>`:""}</td><td>${typeBadge(t.type)}</td><td>${t.security||"CASH"}</td><td>${t.account}</td><td>${t.ref||"—"}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="previewDocument('${t.id}')">View</button> <button class="btn btn-dark" style="padding:6px 8px" onclick="printTransaction('${t.id}')">Print</button></td></tr>`).join("")+moreRow("doc","renderDocuments",docTotal,tx.length,7);
   if(previewTxn)drawDoc(previewTxn);
 }
-function drawDoc(id){
-  let t=engine().txDetails.find(x=>x.id===id);if(!t)return;previewTxn=id;goNoRender("documents");
-  byId("docPreview").innerHTML=transactionDocument(t,false);
+/* ค้นเอกสารให้เจอทุกสถานะ
+   เดิมอ่านจาก engine().txDetails ตรงๆ ซึ่งกรองตามสวิตช์ "เฉพาะที่อนุมัติแล้ว"
+   ผู้อนุมัติกด "ดูเอกสาร" ของรายการที่ยังรออนุมัติจึงไม่เห็นอะไรเลย */
+function findTxDetail(id){
+  const keep=SHOW_APPROVED_ONLY; SHOW_APPROVED_ONLY=false;
+  let e; try{ e=engine() } finally { SHOW_APPROVED_ONLY=keep; }
+  return e.txDetails.find(x=>x.id===id) || (e.rejected||[]).find(x=>x.id===id) || null;
 }
-function previewDocument(id){previewTxn=id;go("documents");drawDoc(id)}
+function drawDoc(id){
+  const t=findTxDetail(id);
+  const el=byId("docPreview"); if(!el)return;
+  if(!t){el.innerHTML='<div class="empty">ไม่พบเอกสาร '+id+'</div>';return}
+  previewTxn=id; goNoRender("documents");
+  el.innerHTML=transactionDocument(t,false);
+}
+function previewDocument(id){
+  previewTxn=id; go("documents"); drawDoc(id);
+  /* เลื่อนเอกสารขึ้นมาให้เห็นทันที ไม่ต้องไล่หาเอง */
+  setTimeout(()=>{
+    const el=byId("docPreview");
+    if(el&&el.scrollIntoView)el.scrollIntoView({behavior:"smooth",block:"start"});
+  },60);
+}
 /* ข้อมูลองค์กรและทะเบียนทีม เก็บอยู่ในชุดข้อมูลเดียวกัน จึงเผยแพร่ไปถึงทุกเครื่องพร้อมกัน
    ทำให้ชื่อในเอกสารและชื่อผู้อนุมัติมาจากทะเบียนกลาง ไม่ใช่สิ่งที่แต่ละคนพิมพ์เอง */
 function defaultEntity(){return {name:"",taxId:"",address:"",ic:""}}
@@ -2827,7 +2876,7 @@ function saveTransaction(){
   let qty=Number(byId("fQty").value)||0,price=Number(byId("fPrice").value)||0,amount=Number(byId("fAmount").value)||0;
   if(!date||!a||!rate||(trade&&(!s||qty<=0||price<=0))||(!trade&&amount<=0)){alert("กรุณากรอกข้อมูลที่จำเป็นให้ครบ");return}
   let id=nextTxnId(date);
-  let newTxn={id,date,type:currentType,account:a.id,security:trade?s.id:"",qty,price,amount,fxOverride:Number(byId("fFxOverride").value)||0,accrued:Number(byId("fAccrued").value)||0,fee:Number(byId("fFee").value)||0,tax:Number(byId("fTax").value)||0,ref:byId("fRef").value.trim(),note:byId("fNote").value.trim(),version:1,status:"DRAFT"};
+  let newTxn={id,date,type:currentType,account:a.id,security:trade?s.id:"",qty,price,amount,fxOverride:Number(byId("fFxOverride").value)||0,accrued:Number(byId("fAccrued").value)||0,fee:Number(byId("fFee").value)||0,tax:Number(byId("fTax").value)||0,ref:byId("fRef").value.trim(),note:byId("fNote").value.trim(),version:1,status:"DRAFT",createdAt:new Date().toISOString()};
   let err=validateTransactionSet([...state.transactions,newTxn]);if(err){alert(err);return}
   state.transactions.push(newTxn);
   save();alert(`Saved ${id}`);
@@ -3093,6 +3142,9 @@ function loadGovPrefs(){
     LOCAL_DECISIONS=JSON.parse(localStorage.getItem("po_decisions")||"{}");
   }catch(e){}
   if(!ROLE_LABEL[ROLE])ROLE="viewer";
+  /* ผู้บันทึกรายการต้องเห็นรายการร่างของตัวเองตั้งแต่แรก
+     ไม่อย่างนั้นคีย์รายการเสร็จแล้วหาไม่เจอในตาราง */
+  try{ if(localStorage.getItem("po_approved_only")===null&&ROLE==="editor")SHOW_APPROVED_ONLY=false; }catch(e){}
 }
 function saveGovPrefs(){
   try{
@@ -3222,6 +3274,8 @@ function importDecisions(){
    ================================================================== */
 
 const MAILTO_LIMIT=1800;
+const LINK_LIMIT=6000;     /* ลิงก์ยาวกว่านี้เสี่ยงถูกโปรแกรมเมลตัดบรรทัด */
+let SENT_AT=0;
 /* แยกออกมาเป็นฟังก์ชันเดียว เพื่อให้ทดสอบเนื้อหาเมลได้โดยไม่ต้องเปิดโปรแกรมเมลจริง */
 function openMailto(url){window.location.href=url}   /* โปรแกรมเมลส่วนใหญ่รับ URL ได้ราว 2000 ตัวอักษร */
 
@@ -3248,6 +3302,99 @@ function changeRecipient(){
   renderApprovals();
 }
 
+/* ---------- ย่อผลอนุมัติให้สั้นพอใส่ใน URL ----------
+   รูปแบบกะทัดรัด: {v,b,by,at,d:{ "<txnId>":"A<hash>" | "R<hash>|เหตุผล" }}
+   ใช้ base64url เพื่อให้ผ่านโปรแกรมอีเมลได้โดยไม่ถูกตัด */
+function b64urlEncode(str){
+  const bytes=new TextEncoder().encode(str);
+  let bin=""; bytes.forEach(b=>bin+=String.fromCharCode(b));
+  return btoa(bin).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+function b64urlDecode(b64){
+  const pad=b64.replace(/-/g,"+").replace(/_/g,"/")+"===".slice((b64.length+3)%4);
+  const bin=atob(pad); const bytes=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+function compactDecisions(){
+  const d={};
+  Object.keys(LOCAL_DECISIONS).forEach(id=>{
+    const x=LOCAL_DECISIONS[id];
+    d[id]=(x.decision==="APPROVED"?"A":"R")+(x.hash||"")+(x.note?"|"+x.note:"");
+  });
+  const ids=Object.keys(LOCAL_DECISIONS);
+  const by=(ids.length&&LOCAL_DECISIONS[ids[0]].by)||"";
+  const at=(ids.length&&LOCAL_DECISIONS[ids[0]].at)||new Date().toISOString();
+  return {v:1,b:PUBLISHED_STAMP||"",by,at,d};
+}
+function expandDecisions(c){
+  if(!c||c.v!==1||!c.d)return null;
+  const decisions={};
+  Object.keys(c.d).forEach(id=>{
+    const raw=String(c.d[id]);
+    const bar=raw.indexOf("|");
+    const head=bar<0?raw:raw.slice(0,bar);
+    decisions[id]={decision:head[0]==="A"?"APPROVED":"REJECTED",
+                   hash:head.slice(1), by:c.by, at:c.at,
+                   note:bar<0?"":raw.slice(bar+1)};
+  });
+  return {type:"portfolio-approvals",v:1,createdAt:c.at,basedOn:c.b,decisions};
+}
+function decisionLink(){
+  const base=location.origin+location.pathname;
+  return base+"#ap="+b64urlEncode(JSON.stringify(compactDecisions()));
+}
+/* เครื่องผู้บันทึก: อ่านผลอนุมัติจากลิงก์ที่เปิดมา แล้วลงระบบให้เลย */
+/* ผลอนุมัติที่มาถึงแล้วแต่ยังลงไม่ได้ (ยังไม่ได้เข้าสู่ระบบ)
+   ต้องไม่ทิ้ง — เก็บไว้ใน sessionStorage เพื่อให้รอดการรีเฟรชหน้า
+   แล้วลงให้ทันทีที่เข้าสู่ระบบเป็นผู้บันทึกรายการสำเร็จ */
+const PENDING_LINK_KEY="po_pending_decisions";
+function stashDecisions(d){try{sessionStorage.setItem(PENDING_LINK_KEY,JSON.stringify(d))}catch(e){}}
+function takeStashedDecisions(){
+  try{const raw=sessionStorage.getItem(PENDING_LINK_KEY);return raw?JSON.parse(raw):null}catch(e){return null}
+}
+function clearStashedDecisions(){try{sessionStorage.removeItem(PENDING_LINK_KEY)}catch(e){}}
+
+function offerDecisions(d){
+  const ids=Object.keys(d.decisions);
+  const nn=ids.length, okN=ids.filter(i=>d.decisions[i].decision==="APPROVED").length;
+  const who=d.decisions[ids[0]].by||"ผู้อนุมัติ";
+  if(!canEdit()){
+    stashDecisions(d);
+    alert("ได้รับผลอนุมัติ "+nn+" รายการ จาก "+who+"\n\n"
+      +"ระบบเก็บผลไว้ให้แล้ว — กรุณาเข้าสู่ระบบเป็น\""+editorTitle()+"\" ที่แถบซ้ายล่าง\n"
+      +"ระบบจะลงผลให้ทันทีที่เข้าสู่ระบบสำเร็จ (ไม่ต้องเปิดลิงก์ใหม่)");
+    renderGovPanel();
+    return;
+  }
+  if(!confirm("ได้รับผลอนุมัติจากอีเมล\n\n"
+    +"ผู้อนุมัติ: "+who+"\n"
+    +"วันที่: "+new Date(d.createdAt).toLocaleString("th-TH",{dateStyle:"medium",timeStyle:"short"})+"\n"
+    +"อนุมัติ "+okN+" รายการ · ไม่อนุมัติ "+(nn-okN)+" รายการ\n\nลงผลเข้าระบบเลยหรือไม่?")){
+    stashDecisions(d);   /* กด Cancel ก็ยังไม่ทิ้ง เผื่อเปลี่ยนใจ */
+    return;
+  }
+  clearStashedDecisions();
+  applyDecisions(d);
+}
+function consumeDecisionLink(){
+  const h=location.hash||"";
+  const i=h.indexOf("#ap=");
+  if(i<0){
+    const st=takeStashedDecisions();
+    if(st&&canEdit()){offerDecisions(st);return true}
+    return false;
+  }
+  const raw=h.slice(i+4);
+  history.replaceState(null,"",location.pathname+location.search);   /* ล้างลิงก์ออกจากแถบที่อยู่ */
+  let c; try{ c=JSON.parse(b64urlDecode(raw)) }
+  catch(e){ alert("ลิงก์ผลอนุมัตินี้อ่านไม่ได้ อาจถูกตัดตอนส่งอีเมล\n\n"+e.message
+    +"\n\nให้ผู้อนุมัติกดส่งใหม่ หรือส่งเป็นไฟล์แนบแทน"); return true; }
+  const d=expandDecisions(c);
+  if(!d){alert("ลิงก์นี้ไม่ใช่ผลอนุมัติของระบบนี้");return true}
+  offerDecisions(d);
+  return true;
+}
 function decisionPayload(){
   return {type:"portfolio-approvals",v:1,createdAt:new Date().toISOString(),
     basedOn:PUBLISHED_STAMP||"",decisions:LOCAL_DECISIONS};
@@ -3259,7 +3406,7 @@ function emailDecisions(){
   if(!ids.length){alert("ยังไม่มีผลอนุมัติที่จะส่ง");return}
   const to=approvalRecipient(); if(to===null)return;
 
-  const payload=decisionPayload();
+  const link=decisionLink();
   const who=(ids.length&&LOCAL_DECISIONS[ids[0]].by)||"";
   const ok=ids.filter(i=>LOCAL_DECISIONS[i].decision==="APPROVED");
   const no=ids.filter(i=>LOCAL_DECISIONS[i].decision==="REJECTED");
@@ -3281,45 +3428,36 @@ function emailDecisions(){
   lines.push("ผู้อนุมัติ: "+who);
   lines.push("วันที่: "+new Date().toLocaleString("th-TH",{dateStyle:"long",timeStyle:"short"}));
   lines.push("");
-  lines.push("=============== ข้อมูลสำหรับนำเข้าระบบ ===============");
-  lines.push("คัดลอกตั้งแต่บรรทัดถัดไปจนจบ แล้วกด \"วางผลอนุมัติ\" ในระบบ");
+  lines.push("--------------------------------------------------");
+  lines.push("กดลิงก์ข้างล่างนี้เพื่อลงผลอนุมัติเข้าระบบอัตโนมัติ");
+  lines.push("(ไม่ต้องคัดลอกอะไร ระบบจะอ่านผลจากลิงก์ให้เอง)");
   lines.push("");
-  lines.push(JSON.stringify(payload));
-  lines.push("");
-  lines.push("=====================================================");
+  lines.push(link);
+  lines.push("--------------------------------------------------");
 
   const subject="ผลอนุมัติรายการลงทุน "+ids.length+" รายการ · "+new Date().toISOString().slice(0,10);
   const body=lines.join("\n");
   const url="mailto:"+encodeURIComponent(to)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(body);
 
-  if(url.length>MAILTO_LIMIT*4){
-    /* ยาวเกินกว่าที่โปรแกรมเมลจะรับได้ ให้ใช้ไฟล์แนบแทน */
-    if(!confirm("มี "+ids.length+" รายการ ซึ่งยาวเกินกว่าที่โปรแกรมอีเมลจะรับได้\n\n"+
-      "ระบบจะดาวน์โหลดเป็นไฟล์แทน แล้วเปิดอีเมลให้ (กรุณาแนบไฟล์เอง)\n\nดำเนินการต่อ?"))return;
+  if(url.length>MAILTO_LIMIT*4||link.length>LINK_LIMIT){
+    /* ลิงก์ยาวเกินกว่าที่โปรแกรมอีเมลรับไหว → ถอยไปใช้ไฟล์แนบ ซึ่งก็ยังไม่ต้อง copy */
+    if(!confirm("มี "+ids.length+" รายการ ลิงก์จะยาวเกินกว่าที่โปรแกรมอีเมลรับได้\n\n"+
+      "ระบบจะดาวน์โหลดผลเป็นไฟล์ให้แทน แล้วเปิดอีเมล — กรุณาแนบไฟล์นั้นไปกับเมล\n"+
+      "ฝ่ายการเงินจะกด \"นำเข้าไฟล์ผลอนุมัติ\" แล้วเลือกไฟล์ (ไม่ต้องคัดลอกข้อความ)\n\nดำเนินการต่อ?"))return;
     exportDecisions();
-    const shortBody=lines.slice(0,lines.indexOf("=============== ข้อมูลสำหรับนำเข้าระบบ ===============")).join("\n")
+    const shortBody=lines.slice(0,lines.indexOf("--------------------------------------------------")).join("\n")
       +"\n\n** กรุณาแนบไฟล์ approvals-"+new Date().toISOString().slice(0,10)+".json ที่เพิ่งดาวน์โหลด **";
     openMailto("mailto:"+encodeURIComponent(to)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(shortBody));
     return;
   }
   openMailto(url);
-  setTimeout(()=>{
-    if(confirm("เปิดโปรแกรมอีเมลแล้ว\n\nถ้าโปรแกรมอีเมลไม่เปิดขึ้นมา ให้กด OK เพื่อดาวน์โหลดเป็นไฟล์แทน\nหรือกด Cancel ถ้าอีเมลเปิดเรียบร้อยแล้ว"))exportDecisions();
-  },1500);
+  SENT_AT=Date.now(); renderApprovals();
 }
 
-/* ---------- เครื่องหลัก: รับผลอนุมัติด้วยการวางข้อความจากอีเมล ---------- */
-function pasteDecisions(){
-  if(!guard("edit"))return;
-  const raw=prompt("วางเนื้อหาที่คัดลอกมาจากอีเมลของผู้อนุมัติทั้งหมดที่นี่\n(ระบบจะดึงเฉพาะส่วนข้อมูลออกมาให้เอง)","");
-  if(raw===null)return;
-  const i=raw.indexOf("{"), j=raw.lastIndexOf("}");
-  if(i<0||j<=i){alert("ไม่พบข้อมูลผลอนุมัติในข้อความที่วางมา\n\nกรุณาคัดลอกเนื้อหาอีเมลให้ครบ รวมส่วนที่อยู่ใต้หัวข้อ \"ข้อมูลสำหรับนำเข้าระบบ\"");return}
-  let d;
-  try{d=JSON.parse(raw.slice(i,j+1))}
-  catch(e){alert("ข้อมูลที่วางมาไม่สมบูรณ์: "+e.message+"\n\nอาจถูกตัดตอนคัดลอก กรุณาคัดลอกใหม่ทั้งบล็อก");return}
-  applyDecisions(d);
-}
+/* เดิมมีปุ่ม "วางผลอนุมัติ" ให้ผู้บันทึกคัดลอกข้อความจากอีเมลมาวางเอง
+   ตัดออกแล้ว เพราะเสี่ยงคัดลอกไม่ครบ และผู้ใช้ไม่ควรต้องแตะเนื้อข้อมูลดิบ
+   ตอนนี้ผลอนุมัติเดินทางมาทาง "ลิงก์ในอีเมล" → consumeDecisionLink() ลงให้อัตโนมัติ
+   เหลือไฟล์แนบไว้เป็นทางสำรองกรณีรายการเยอะจนลิงก์ยาวเกิน */
 
 /* ตัวกลางที่ทั้งการนำเข้าไฟล์และการวางข้อความเรียกใช้ร่วมกัน */
 function applyDecisions(d){
@@ -3361,19 +3499,13 @@ function renderWorkflow(){
     {who:"editor",  t:"บันทึกรายการ",        d:"หน้า New Transaction — รายการใหม่จะเป็นสถานะ \"ร่าง\" ยังไม่นับเข้าตัวเลขทางการ",
      active:canEdit()&&nDraft>0, done:nDraft===0&&(nPending>0||nUnpub>0),
      hint:nDraft?nDraft+" รายการเป็นร่างอยู่":""},
-    {who:"editor",  t:"ส่งเข้าอนุมัติ",       d:"กดปุ่ม \"ส่งรายการร่างทั้งหมดเข้าอนุมัติ\" ด้านบน สถานะจะเปลี่ยนเป็น \"รออนุมัติ\"",
-     active:canEdit()&&nDraft>0, done:nDraft===0&&nPending>0,
-     hint:""},
-    {who:"editor",  t:"เผยแพร่ให้ทีม",        d:"กด \"เผยแพร่ให้ทีม\" ที่แถบซ้าย → อัปโหลด data.json ขึ้น GitHub เพื่อให้ IM เห็นคิว",
-     active:canEdit()&&nUnpub>0, done:nUnpub===0&&nPending>0,
-     hint:nUnpub?nUnpub+" รายการยังไม่เผยแพร่":""},
-    {who:"approver",t:"IM พิจารณาอนุมัติ",    d:"IM เปิดลิงก์เดิม → หน้า Approvals → กดอนุมัติ/ไม่อนุมัติทีละรายการ",
-     active:canApprove()&&nPending>0&&nDecided<nPending, done:canApprove()&&nDecided>0&&nDecided>=nPending,
+    {who:"editor",  t:"ส่งเข้าอนุมัติ + เผยแพร่", d:"กดปุ่มเดียว ระบบจะเปลี่ยนสถานะเป็น \"รออนุมัติ\" แล้วสร้าง data.json ให้ทันที — เหลือแค่อัปโหลดขึ้น GitHub",
+     active:canEdit()&&(nDraft>0||nUnpub>0), done:nDraft===0&&nUnpub===0&&nPending>0,
+     hint:nDraft?nDraft+" รายการร่าง":(nUnpub?nUnpub+" รายการยังไม่เผยแพร่":"")},
+    {who:"approver",t:"พิจารณา แล้วส่งผลทางอีเมล", d:"เปิดลิงก์เดิม → หน้า Approvals → กดอนุมัติ/ไม่อนุมัติ → กด \"ส่งผลทางอีเมล\" ปุ่มเดียวจบ",
+     active:canApprove()&&nPending>0, done:canApprove()&&nDecided>0&&nDecided>=nPending,
      hint:canApprove()&&nPending?"ตัดสินใจแล้ว "+nDecided+" จาก "+nPending:""},
-    {who:"approver",t:"IM ส่งผลกลับทางอีเมล", d:"กด \"ส่งผลทางอีเมล\" ระบบจะเปิดโปรแกรมอีเมลพร้อมเนื้อหาครบ กด Send ได้เลย",
-     active:canApprove()&&nDecided>0, done:false,
-     hint:nDecided?"รอส่ง "+nDecided+" รายการ":""},
-    {who:"editor",  t:"รับผลอนุมัติเข้าระบบ", d:"กด \"วางผลอนุมัติ\" แล้ววางเนื้อหาจากอีเมล → สถานะเปลี่ยนเป็นอนุมัติแล้ว → เผยแพร่อีกครั้ง",
+    {who:"editor",  t:"เปิดลิงก์ในอีเมล", d:"กดลิงก์ในอีเมลของผู้อนุมัติ ระบบจะลงผลให้เองทั้งหมด แล้วบอกให้เผยแพร่อีกครั้ง",
      active:canEdit()&&nPending>0, done:false,
      hint:nPending?nPending+" รายการรอผลอนุมัติ":""}
   ];
@@ -3392,6 +3524,24 @@ function renderWorkflow(){
       +'<div class="wf-desc">'+s.d+'</div>'
       +(s.hint?'<div class="wf-hint">'+s.hint+'</div>':'')+'</div></div>';
   }).join("")+'</div>';
+}
+
+/* รวมสองขั้นที่เคยต้องกดแยกกันให้เหลือปุ่มเดียว
+   เพราะในทางปฏิบัติ "ส่งเข้าอนุมัติ" ที่ไม่เผยแพร่ต่อ = ผู้อนุมัติไม่เห็นอะไรเลย
+   จึงไม่มีเหตุผลให้แยกกันตั้งแต่แรก */
+async function submitAndPublish(){
+  if(!guard("edit"))return;
+  const nDraft=state.transactions.filter(t=>txStatus(t)==="DRAFT").length;
+  const nUnpub=unpublishedCount();
+  if(!nDraft&&!nUnpub){alert("ไม่มีรายการร่างและไม่มีอะไรค้างเผยแพร่");return}
+  if(nDraft){
+    if(!confirm("ส่งรายการร่าง "+nDraft+" รายการเข้าอนุมัติ แล้วสร้างไฟล์ data.json ให้ทันที?\n\n"
+      +"หลังจากนี้ให้อัปโหลด data.json ขึ้น GitHub เพื่อให้ "+approverTitle()+" เห็นคิว"))return;
+    state.transactions.forEach(t=>{ if(txStatus(t)==="DRAFT"){t.status="PENDING";auditPush(t.id,"SUBMIT",meName()||"")} });
+    save();
+  }
+  renderAll();
+  await publishData();
 }
 
 /* ---------- หน้า Approval Queue ---------- */
@@ -3414,18 +3564,22 @@ function renderApprovals(){
     const ed0=teamOf().find(m=>m.role==="editor"&&m.email);
     let to=ed0?ed0.email:"";
     if(!to){try{to=localStorage.getItem("po_finance_email")||""}catch(e){}}
+    const sentJustNow=SENT_AT&&(Date.now()-SENT_AT<600000);
     bar.innerHTML = canApprove()
       ? (decided
-          ? '<b>ตัดสินใจแล้ว '+decided+' รายการ · ยังไม่ได้ส่ง</b> '
-            +'<button class="btn btn-primary" onclick="emailDecisions()">ส่งผลทางอีเมล</button> '
-            +'<button class="btn btn-secondary" onclick="exportDecisions()">ดาวน์โหลดเป็นไฟล์</button>'
+          ? '<b>ตัดสินใจแล้ว '+decided+' รายการ</b> — เหลือขั้นตอนเดียว<br>'
+            +'<button class="btn btn-primary" style="margin-top:8px" onclick="emailDecisions()">'
+              +(sentJustNow?"ส่งผลทางอีเมลอีกครั้ง":"ส่งผลทางอีเมล")+'</button>'
             +'<div class="small-note" style="margin-top:8px">ส่งไปที่ '+(to?'<b>'+to+'</b>':'<i>ยังไม่ได้ตั้งอีเมลปลายทาง</i>')
-            +' <a href="#" onclick="changeRecipient();return false" style="color:#1769e0">เปลี่ยน</a></div>'
+            +' <a href="#" onclick="changeRecipient();return false" style="color:#1769e0">เปลี่ยน</a>'
+            +'<br>อีเมลจะมีลิงก์ให้ฝ่ายการเงินกดเพียงครั้งเดียว ระบบลงผลให้เอง ไม่ต้องคัดลอกอะไร</div>'
+            +(sentJustNow?'<div class="small-note" style="margin-top:6px;color:#12805c"><b>✓ เปิดโปรแกรมอีเมลแล้ว</b> — อย่าลืมกด Send</div>':'')
           : '<span class="muted">กดอนุมัติหรือไม่อนุมัติในตารางด้านล่าง แล้วจึงส่งผลกลับทางอีเมล</span>')
       : canEdit()
-        ? '<button class="btn btn-secondary" onclick="submitForApproval()">ส่งรายการร่างทั้งหมดเข้าอนุมัติ</button> '
-          +'<button class="btn btn-primary" onclick="pasteDecisions()">วางผลอนุมัติจากอีเมล</button> '
-          +'<button class="btn btn-secondary" onclick="importDecisions()">หรือเลือกไฟล์</button>'
+        ? '<button class="btn btn-primary" onclick="submitAndPublish()">ส่งเข้าอนุมัติ + เผยแพร่ (ปุ่มเดียว)</button> '
+          +'<button class="btn btn-secondary" onclick="importDecisions()">นำเข้าไฟล์ผลอนุมัติ</button>'
+          +'<div class="small-note" style="margin-top:8px">ผลอนุมัติปกติจะมาทาง<b>ลิงก์ในอีเมล</b> — กดลิงก์แล้วระบบลงผลให้เอง'
+          +'<br>ปุ่ม "นำเข้าไฟล์" ใช้เฉพาะกรณีรายการเยอะจนผู้อนุมัติต้องส่งเป็นไฟล์แนบ</div>'
         : '<span class="muted">โหมดดูอย่างเดียว — ดูสถานะได้ แต่แก้ไขไม่ได้</span>';
   }
   if(!pending.length){el.innerHTML='<tr><td colspan="9" class="empty">ไม่มีรายการรออนุมัติ</td></tr>';return}
@@ -3591,6 +3745,8 @@ async function signIn(id){
   writeSession({id,at:Date.now()});
   ROLE=m.role; saveGovPrefs(); applyRole(); renderAll();
   toast("เข้าใช้งานในนาม "+m.name+" · "+ROLE_LABEL[ROLE]);
+  const st=takeStashedDecisions();
+  if(st&&canEdit())setTimeout(()=>offerDecisions(st),300);
 }
 function signOut(){
   writeSession(null);
@@ -3819,6 +3975,8 @@ async function boot(){
     renderDataStatus();
     bootStep("เสร็จสิ้น",100);
     setTimeout(bootDone,120);
+    /* ถ้าเปิดมาจากลิงก์ผลอนุมัติในอีเมล ให้ลงผลให้เลย ไม่ต้อง copy/paste */
+    setTimeout(()=>{try{consumeDecisionLink()}catch(e){console.error(e)}},400);
   }catch(e){
     bootFail(String(e&&e.message||e), e&&e.stack?String(e.stack).split("\n").slice(0,6).join("\n"):"");
   }
