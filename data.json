@@ -30951,6 +30951,24 @@
       "version": 1,
       "type": "BUY",
       "account": "CORE-IBKR"
+    },
+    {
+      "id": "TXN-20260903-001",
+      "date": "2026-09-03",
+      "type": "BUY",
+      "account": "CORE-KKP",
+      "security": "ADVANC",
+      "qty": 100,
+      "price": 354,
+      "amount": 0,
+      "fxOverride": 0,
+      "accrued": 0,
+      "fee": 0,
+      "tax": 0,
+      "ref": "Test_Buy_0001",
+      "note": "",
+      "version": 1,
+      "status": "DRAFT"
     }
   ],
   "auditTrail": [],
@@ -30992,13 +31010,18 @@
       "email": ""
     }
   ],
-  "publishedAt": "2026-09-11T03:25:46.965Z",
+  "publishedAt": "2026-09-11T03:30:44.919Z",
   "publishedBy": "Jayawat Suwannao",
   "publishLog": [
     {
       "at": "2026-09-11T03:25:46.965Z",
       "by": "Jayawat Suwannao",
       "transactions": 926
+    },
+    {
+      "at": "2026-09-11T03:30:44.919Z",
+      "by": "Jayawat Suwannao",
+      "transactions": 927
     }
   ]
 }
