@@ -510,6 +510,24 @@ tr.row-rejected:hover td{background:#fbe9e7}
   border:1px solid #f0d58d;border-radius:999px;padding:3px 7px;font-size:9px;font-weight:900;margin-left:5px
 }
 
+/* ---- แผงเชื่อมต่อ Microsoft 365 ---- */
+.ms-acct{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#f8fafc}
+.ms-av{width:38px;height:38px;border-radius:50%;background:#1f6fde;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;flex:none}
+.ms-sub{font-size:11.5px;color:var(--muted);line-height:1.55;margin-top:2px;white-space:pre-wrap}
+.ms-warn{margin-top:10px;padding:10px 12px;border-radius:10px;background:#fff5e6;border:1px solid #e8c893;color:#6b4a12;font-size:12px;line-height:1.6}
+.ms-row{display:grid;grid-template-columns:26px 1fr;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:11px;margin-bottom:7px;background:var(--card)}
+.ms-row.ok{border-color:#8fd3b0;background:#f2fbf6}
+.ms-row.no{border-color:#e2a79e;background:#fdf4f2}
+.ms-row.run{border-color:#9dc4ec;background:#f3f8fd}
+.ms-dot{display:inline-flex;width:22px;height:22px;border-radius:50%;align-items:center;justify-content:center;font-weight:800;font-size:12px}
+.ms-ok{background:#1f8a5f;color:#fff}
+.ms-no{background:#b23b32;color:#fff}
+.ms-run{background:#1f6fde;color:#fff}
+.ms-wait{background:#e3e9ef;color:#8a9aa8}
+.ms-f{display:block;margin-bottom:9px}
+.ms-f span{display:block;font-size:11px;font-weight:800;letter-spacing:.04em;color:var(--muted);margin-bottom:4px}
+.ms-f input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+
 .modal-backdrop{
   display:none;position:fixed;inset:0;background:rgba(5,18,31,.52);z-index:200;
   align-items:center;justify-content:center;padding:18px;backdrop-filter:blur(5px)
@@ -643,6 +661,7 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
       <div id="govPanel" style="margin-bottom:14px"></div>
       <div id="dataStatus" style="line-height:1.55">กำลังตรวจแหล่งข้อมูล…</div>
       <div class="side-actions">
+        <button onclick="openMsModal()" id="msSideBtn">เชื่อมต่อ Microsoft 365</button>
         <button onclick="publishData()" style="background:#1f6fde;border-color:#2f7ce8;color:#fff;font-weight:800">เผยแพร่ให้ทีม</button>
         <button onclick="pullLatest()">ดึงข้อมูลล่าสุด</button>
         <button onclick="exportData()">Export JSON</button>
@@ -1397,9 +1416,9 @@ function showStorageWarning(){
    กติกา: แก้เลขนี้ทุกครั้งที่อัปโหลด index.html ขึ้น GitHub
           X.Y = เพิ่มความสามารถ · X.Y.Z = แก้บั๊ก/ปรับเล็กน้อย
    ================================================================== */
-const APP_VERSION="1.9.0";
-const APP_BUILD="2026-09-11";
-const APP_VERSION_NOTE="อนุมัติ 3 ทาง + ส่งคำสั่ง CSV ให้บุคคลภายนอก";
+const APP_VERSION="1.10.0";
+const APP_BUILD="2026-09-14";
+const APP_VERSION_NOTE="เชื่อมต่อ Microsoft 365 — เข้าระบบด้วยบัญชีบริษัท เก็บข้อมูลบน SharePoint แนบไฟล์ในอีเมลได้จริง";
 function versionLabel(){return "v"+APP_VERSION}
 function versionFull(){return "v"+APP_VERSION+" · build "+APP_BUILD}
 function byId(id){return document.getElementById(id)}
@@ -4677,9 +4696,493 @@ function renderAll(){
 }
 window.addEventListener("resize",()=>{clearTimeout(window.__rsz);window.__rsz=setTimeout(enhanceMobileTables,200)});
 
+/* ==================================================================
+   เชื่อมต่อ Microsoft 365 (Entra ID + Microsoft Graph)
+
+   ทำไมไม่ใช้ MSAL.js จาก CDN:
+     1. ระบบนี้ออกแบบเป็นไฟล์เดียวจบ อัปโหลด index.html ไฟล์เดียวก็ใช้ได้
+        ถ้าพึ่ง CDN จะกลายเป็นสองชิ้น และถ้าเครือข่ายบริษัทบล็อก CDN ระบบจะพัง
+     2. ระบบการเงินไม่ควรโหลดโค้ดจากภายนอกตอนรันไทม์ (supply-chain risk)
+     3. สิ่งที่เราต้องใช้จริงคือ OAuth2 Authorization Code + PKCE ซึ่งเขียนเองได้
+        ด้วยโค้ดไม่กี่สิบบรรทัด และใช้ Web Crypto ที่มีในเบราว์เซอร์อยู่แล้ว
+
+   ค่าที่ใช้ มาจาก App Registration ชื่อ "Monta Portfolio Operations Console"
+   ทั้ง client ID และ tenant ID ไม่ใช่ความลับ เป็นเพียงเลขทะเบียน
+   ความปลอดภัยมาจาก PKCE + redirect URI ที่ลงทะเบียนไว้ ไม่ใช่จากการซ่อนเลขนี้
+   ================================================================== */
+
+const MS_CFG_DEFAULT={
+  clientId:"08357a4c-9bd9-418d-ad98-d1530d75ec4b",
+  tenantId:"e4529e67-0bc8-4002-bad7-f6c1433cf3cd",
+  siteHost:"montacoth.sharepoint.com",
+  sitePath:"/sites/Markets",
+  folder:"General/Portfolio-Data",
+  file:"data.json"
+};
+const MS_SCOPES="openid profile offline_access User.Read Files.ReadWrite.All Mail.Send";
+const MS_CFG_KEY="po_ms_cfg", MS_TOK_KEY="po_ms_tok", MS_PKCE_KEY="po_ms_pkce", MS_SITE_KEY="po_ms_site";
+
+let MS_TOK=null, MS_SITE_ID="", MS_REFRESHING=null, MS_REDIRECT_MSG="";
+
+function msCfg(){
+  let over={};
+  try{over=JSON.parse(localStorage.getItem(MS_CFG_KEY)||"{}")||{}}catch(e){over={}}
+  return Object.assign({},MS_CFG_DEFAULT,over);
+}
+function msSaveCfg(o){
+  try{localStorage.setItem(MS_CFG_KEY,JSON.stringify(o||{}))}catch(e){}
+  MS_SITE_ID=""; try{localStorage.removeItem(MS_SITE_KEY)}catch(e){}
+}
+function msCfgIsDefault(){
+  const c=msCfg();
+  return Object.keys(MS_CFG_DEFAULT).every(k=>c[k]===MS_CFG_DEFAULT[k]);
+}
+
+/* redirect URI ต้องตรงกับที่ลงทะเบียนไว้ใน Entra แบบตัวต่อตัว
+   ถ้าผู้ใช้เปิดด้วย .../index.html ต้องตัดออก ไม่งั้น Entra จะปฏิเสธ */
+function msRedirectUri(){
+  return location.origin+location.pathname.replace(/index\.html$/i,"");
+}
+
+/* ---------- PKCE ---------- */
+function msB64u(bytes){
+  let bin=""; const CH=0x8000;
+  for(let i=0;i<bytes.length;i+=CH)bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH));
+  return btoa(bin).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+function msRand(n){const a=new Uint8Array(n);crypto.getRandomValues(a);return msB64u(a)}
+async function msChallenge(verifier){
+  const d=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(verifier));
+  return msB64u(new Uint8Array(d));
+}
+/* base64 ธรรมดา (ไม่ใช่ url-safe) สำหรับไฟล์แนบอีเมล */
+function msB64(str){
+  const bytes=new TextEncoder().encode(str);
+  let bin=""; const CH=0x8000;
+  for(let i=0;i<bytes.length;i+=CH)bin+=String.fromCharCode.apply(null,bytes.subarray(i,i+CH));
+  return btoa(bin);
+}
+
+/* ---------- เก็บ token ----------
+   เก็บใน sessionStorage ไม่ใช่ localStorage โดยตั้งใจ:
+   ปิดแท็บแล้ว token หาย ลดความเสี่ยงกรณีเครื่องถูกใช้ร่วมกัน
+   การเข้าใหม่มักไม่ต้องพิมพ์รหัสผ่าน เพราะ Microsoft จำ session ไว้ให้ (SSO) */
+function msTok(){
+  if(MS_TOK)return MS_TOK;
+  try{MS_TOK=JSON.parse(sessionStorage.getItem(MS_TOK_KEY)||"null")}catch(e){MS_TOK=null}
+  return MS_TOK||{};
+}
+function msPutTok(t){
+  MS_TOK=t;
+  try{sessionStorage.setItem(MS_TOK_KEY,JSON.stringify(t))}catch(e){}
+}
+function msStoreToken(j){
+  const cur=msTok();
+  msPutTok({
+    access:j.access_token||"",
+    refresh:j.refresh_token||cur.refresh||"",
+    exp:Date.now()+(((j.expires_in||3600)-120)*1000),   /* เผื่อ 2 นาทีกันชน */
+    acct:cur.acct||null
+  });
+}
+function msSignedIn(){const t=msTok();return !!(t&&t.access)}
+function msAccount(){const t=msTok();return (t&&t.acct)||null}
+function msSignOutMs(){
+  MS_TOK=null; MS_SITE_ID="";
+  try{sessionStorage.removeItem(MS_TOK_KEY)}catch(e){}
+  try{localStorage.removeItem(MS_SITE_KEY)}catch(e){}
+  renderMsPanel();
+  toast("ออกจากระบบ Microsoft 365 แล้ว");
+}
+
+/* ---------- ขอ token ---------- */
+async function msTokenReq(body){
+  const c=msCfg();
+  const res=await fetch("https://login.microsoftonline.com/"+encodeURIComponent(c.tenantId)+"/oauth2/v2.0/token",{
+    method:"POST",
+    headers:{"Content-Type":"application/x-www-form-urlencoded"},
+    body:new URLSearchParams(Object.assign({client_id:c.clientId},body)).toString()
+  });
+  let j=null; try{j=await res.json()}catch(e){}
+  if(!res.ok){
+    const code=(j&&j.error)||("HTTP "+res.status);
+    const desc=((j&&j.error_description)||"").split(/\r?\n/)[0];
+    const e=new Error(code+(desc?" — "+desc:"")); e.code=code; throw e;
+  }
+  return j;
+}
+async function msSignIn(){
+  if(!cryptoOK()){alert("เบราว์เซอร์นี้ไม่รองรับ Web Crypto\nกรุณาใช้ Chrome หรือ Edge รุ่นปัจจุบัน");return}
+  const c=msCfg();
+  if(!c.clientId||!c.tenantId){alert("ยังไม่ได้ตั้งค่า Client ID / Tenant ID");return}
+  if(location.protocol==="file:"){
+    alert("เข้าสู่ระบบ Microsoft ต้องเปิดจากเว็บ ไม่ใช่เปิดไฟล์ในเครื่อง\n\nกรุณาเปิดผ่าน "+
+          "https://kuisjjj.github.io/Claude_Portfolio_Investment/");
+    return;
+  }
+  const verifier=msRand(32), st=msRand(16);
+  /* จำ query/hash เดิมไว้ เพื่อให้ลิงก์ผลอนุมัติ (?ap=) ไม่หายตอนเด้งไป login */
+  try{sessionStorage.setItem(MS_PKCE_KEY,JSON.stringify({verifier,st,ret:location.search+location.hash}))}catch(e){
+    alert("เบราว์เซอร์บล็อกการเก็บข้อมูลชั่วคราว จึงเข้าสู่ระบบไม่ได้");return;
+  }
+  const ch=await msChallenge(verifier);
+  const u=new URL("https://login.microsoftonline.com/"+encodeURIComponent(c.tenantId)+"/oauth2/v2.0/authorize");
+  const p={client_id:c.clientId,response_type:"code",redirect_uri:msRedirectUri(),response_mode:"query",
+           scope:MS_SCOPES,state:st,code_challenge:ch,code_challenge_method:"S256",prompt:"select_account"};
+  Object.keys(p).forEach(k=>u.searchParams.set(k,p[k]));
+  location.assign(u.toString());
+}
+/* เรียกตอนเปิดหน้า — ถ้ากลับมาจากหน้า login ให้แลก code เป็น token */
+async function msHandleRedirect(){
+  let qs; try{qs=new URLSearchParams(location.search)}catch(e){return false}
+  const code=qs.get("code"), err=qs.get("error");
+  if(!code&&!err)return false;
+
+  let pk=null;
+  try{pk=JSON.parse(sessionStorage.getItem(MS_PKCE_KEY)||"null")}catch(e){}
+  try{sessionStorage.removeItem(MS_PKCE_KEY)}catch(e){}
+
+  /* คืน URL เดิมให้เหมือนก่อนไป login เพื่อไม่ให้ ?ap= หาย และไม่ให้ code ค้างอยู่บน address bar */
+  try{history.replaceState(null,"",msRedirectUri()+((pk&&pk.ret)||""))}catch(e){}
+
+  if(err){
+    MS_REDIRECT_MSG="เข้าสู่ระบบไม่สำเร็จ: "+err+" — "+(qs.get("error_description")||"").split(/\r?\n/)[0];
+    return true;
+  }
+  if(!pk||!pk.verifier){MS_REDIRECT_MSG="เข้าสู่ระบบไม่สำเร็จ: ไม่พบข้อมูลการขอสิทธิ์ในแท็บนี้ (อาจเปิดคนละแท็บกัน)";return true}
+  if(qs.get("state")!==pk.st){MS_REDIRECT_MSG="เข้าสู่ระบบไม่สำเร็จ: ค่า state ไม่ตรงกัน — เพื่อความปลอดภัยระบบยกเลิกให้แล้ว";return true}
+  try{
+    const j=await msTokenReq({grant_type:"authorization_code",code,redirect_uri:msRedirectUri(),
+                              code_verifier:pk.verifier,scope:MS_SCOPES});
+    msStoreToken(j);
+    await msLoadAccount();
+    MS_REDIRECT_MSG="";
+  }catch(e){ MS_REDIRECT_MSG="แลก token ไม่สำเร็จ: "+String(e.message||e); }
+  return true;
+}
+async function msToken(){
+  const t=msTok();
+  if(!t.access)throw new Error("ยังไม่ได้เข้าสู่ระบบ Microsoft 365");
+  if(Date.now()<(t.exp||0))return t.access;
+  if(!t.refresh)throw new Error("เซสชันหมดอายุ กรุณาเข้าสู่ระบบ Microsoft 365 ใหม่");
+  if(!MS_REFRESHING){
+    MS_REFRESHING=msTokenReq({grant_type:"refresh_token",refresh_token:t.refresh,scope:MS_SCOPES})
+      .then(j=>msStoreToken(j))
+      .finally(()=>{MS_REFRESHING=null});
+  }
+  await MS_REFRESHING;
+  const n=msTok();
+  if(!n.access)throw new Error("ต่ออายุเซสชันไม่สำเร็จ กรุณาเข้าสู่ระบบใหม่");
+  return n.access;
+}
+
+/* ---------- เรียก Graph ---------- */
+async function graph(path,opt){
+  opt=opt||{};
+  const tok=await msToken();
+  const h=Object.assign({Authorization:"Bearer "+tok},opt.headers||{});
+  let body=opt.body;
+  if(opt.json!==undefined){h["Content-Type"]="application/json";body=JSON.stringify(opt.json)}
+  const url=/^https?:/.test(path)?path:("https://graph.microsoft.com/v1.0"+path);
+  const res=await fetch(url,{method:opt.method||"GET",headers:h,body});
+  const etag=res.headers.get("etag")||"";
+  if(res.status===204)return {status:204,data:null,etag};
+  const ct=res.headers.get("content-type")||"";
+  let data=null;
+  if(ct.indexOf("json")>=0){try{data=await res.json()}catch(e){}}
+  else{try{data=await res.text()}catch(e){}}
+  if(!res.ok){
+    const msg=(data&&data.error&&data.error.message)||(typeof data==="string"&&data.slice(0,200))||(res.status+" "+res.statusText);
+    const e=new Error(msg); e.status=res.status; e.graph=data; throw e;
+  }
+  return {status:res.status,data,etag};
+}
+async function msLoadAccount(){
+  const r=await graph("/me?$select=displayName,mail,userPrincipalName,id");
+  const d=r.data||{};
+  const t=msTok();
+  t.acct={name:d.displayName||"",email:String(d.mail||d.userPrincipalName||"").toLowerCase(),id:d.id||""};
+  msPutTok(t);
+  return t.acct;
+}
+async function msSiteId(){
+  if(MS_SITE_ID)return MS_SITE_ID;
+  try{const c=localStorage.getItem(MS_SITE_KEY); if(c){MS_SITE_ID=c;return c}}catch(e){}
+  const c=msCfg();
+  const r=await graph("/sites/"+encodeURIComponent(c.siteHost)+":"+c.sitePath);
+  const id=(r.data&&r.data.id)||"";
+  if(!id)throw new Error("หา SharePoint site ไม่พบ");
+  MS_SITE_ID=id;
+  try{localStorage.setItem(MS_SITE_KEY,id)}catch(e){}
+  return id;
+}
+function msItemPath(name){
+  const c=msCfg();
+  const f=String(c.folder||"").replace(/^\/+|\/+$/g,"");
+  const n=name||c.file||"data.json";
+  /* encode ทีละส่วน เผื่อชื่อโฟลเดอร์มีช่องว่างหรืออักษรไทย */
+  const parts=(f?f.split("/"):[]).concat([n]).map(encodeURIComponent);
+  return "/"+parts.join("/");
+}
+async function msDriveRoot(){return "/sites/"+(await msSiteId())+"/drive/root:"}
+
+/* อ่านไฟล์: ขอ metadata ก่อน แล้วโหลดเนื้อไฟล์จาก downloadUrl ที่แนบมา
+   (ไม่ใช้ /content ตรงๆ เพราะมันตอบเป็น redirect ข้ามโดเมน ซึ่งบางเบราว์เซอร์
+    จะตัด Authorization header ทิ้ง ทำให้ล้มแบบหาสาเหตุยาก) */
+async function msStat(name){
+  const r=await graph((await msDriveRoot())+msItemPath(name));
+  return r.data||{};
+}
+async function msReadFile(name){
+  const d=await msStat(name);
+  const url=d["@microsoft.graph.downloadUrl"];
+  if(!url)throw new Error("ไฟล์นี้ไม่มีลิงก์ดาวน์โหลด");
+  const res=await fetch(url,{cache:"no-store"});
+  if(!res.ok)throw new Error("ดาวน์โหลดไฟล์ไม่สำเร็จ (HTTP "+res.status+")");
+  return {
+    text:await res.text(),
+    etag:d.eTag||"",
+    modified:d.lastModifiedDateTime||"",
+    by:(d.lastModifiedBy&&d.lastModifiedBy.user&&d.lastModifiedBy.user.displayName)||"",
+    size:d.size||0,
+    webUrl:d.webUrl||""
+  };
+}
+const MS_MAX_SIMPLE=4*1024*1024;
+/* เขียนไฟล์ — ส่ง etag มาด้วยเพื่อกันเขียนทับงานคนอื่น
+   ถ้าไฟล์ถูกแก้ไปแล้ว เซิร์ฟเวอร์จะตอบ 412 และเราจะไม่เขียนทับ */
+async function msWriteFile(name,text,etag){
+  const bytes=new TextEncoder().encode(text).length;
+  if(bytes>MS_MAX_SIMPLE)throw new Error("ไฟล์ใหญ่เกิน 4 MB ("+(bytes/1048576).toFixed(1)+" MB) ระบบยังไม่รองรับการอัปโหลดแบบแบ่งส่วน");
+  const h={"Content-Type":"application/octet-stream"};
+  if(etag)h["If-Match"]=etag;
+  try{
+    const r=await graph((await msDriveRoot())+msItemPath(name)+":/content",{method:"PUT",headers:h,body:text});
+    return {etag:(r.data&&r.data.eTag)||r.etag||"",webUrl:(r.data&&r.data.webUrl)||"",size:bytes};
+  }catch(e){
+    if(e.status===412){const x=new Error("ไฟล์บน SharePoint ถูกแก้ไขโดยคนอื่นหลังจากที่เราโหลดมา ระบบจึงไม่เขียนทับให้");x.conflict=true;throw x}
+    throw e;
+  }
+}
+function msAddr(s){
+  if(!s)return [];
+  return String(s).split(/[,;]+/).map(x=>x.trim()).filter(Boolean)
+    .map(a=>({emailAddress:{address:a}}));
+}
+/* ส่งอีเมลจากกล่องของผู้ใช้เอง พร้อมไฟล์แนบจริง
+   นี่คือสิ่งที่ mailto: ทำไม่ได้ และเป็นเหตุผลหลักที่เราต่อ Graph */
+async function msSendMail(o){
+  o=o||{};
+  const atts=(o.attachments||[]).map(a=>({
+    "@odata.type":"#microsoft.graph.fileAttachment",
+    name:a.name,
+    contentType:a.type||"application/octet-stream",
+    contentBytes:a.b64!==undefined?a.b64:msB64(a.text||"")
+  }));
+  await graph("/me/sendMail",{method:"POST",json:{
+    message:{
+      subject:o.subject||"",
+      body:{contentType:o.html?"HTML":"Text",content:o.html||o.text||""},
+      toRecipients:msAddr(o.to),
+      ccRecipients:msAddr(o.cc),
+      attachments:atts
+    },
+    saveToSentItems:true
+  }});
+}
+
+/* ==================================================================
+   แผงตรวจการเชื่อมต่อ — ไล่ทีละขั้น เพื่อให้รู้ว่าติดตรงไหน
+
+   ออกแบบให้แต่ละขั้นทดสอบสิทธิ์คนละตัว ถ้าล้มจะได้รู้ทันทีว่าเป็นเรื่อง
+   การเข้าสู่ระบบ, สิทธิ์ SharePoint, หรือสิทธิ์ส่งเมล ไม่ต้องเดา
+   ================================================================== */
+const MS_STEPS=[
+  {k:"login", n:"เข้าสู่ระบบ Microsoft 365",  d:"ยืนยันว่า App Registration และ Redirect URI ตั้งถูก"},
+  {k:"me",    n:"อ่านโปรไฟล์ผู้ใช้",          d:"ยืนยันสิทธิ์ User.Read และการยินยอม (consent) ผ่านแล้ว"},
+  {k:"site",  n:"หา SharePoint site",         d:"ยืนยันว่าเข้าถึง Teams Markets ได้"},
+  {k:"read",  n:"อ่านไฟล์ข้อมูล",             d:"ยืนยันสิทธิ์อ่านในโฟลเดอร์ Portfolio-Data"},
+  {k:"write", n:"เขียนไฟล์ทดสอบ",             d:"ยืนยันสิทธิ์เขียน โดยสร้างไฟล์ทดสอบเล็กๆ ไม่แตะข้อมูลจริง"},
+  {k:"mail",  n:"ส่งอีเมลทดสอบถึงตัวเอง",     d:"ยืนยันสิทธิ์ Mail.Send และการแนบไฟล์ CSV"}
+];
+let MS_RESULT={};
+
+function msSetStep(k,ok,msg){
+  MS_RESULT[k]={ok,msg,at:Date.now()};
+  renderMsSteps();
+}
+function msStepIcon(r){
+  if(!r)return '<span class="ms-dot ms-wait">•</span>';
+  if(r.ok==="run")return '<span class="ms-dot ms-run">◌</span>';
+  return r.ok?'<span class="ms-dot ms-ok">✓</span>':'<span class="ms-dot ms-no">✕</span>';
+}
+function renderMsSteps(){
+  const el=byId("msSteps"); if(!el)return;
+  el.innerHTML=MS_STEPS.map(s=>{
+    const r=MS_RESULT[s.k];
+    const cls=r?(r.ok===true?"ms-row ok":(r.ok==="run"?"ms-row run":"ms-row no")):"ms-row";
+    return '<div class="'+cls+'">'
+      +'<div>'+msStepIcon(r)+'</div>'
+      +'<div><b>'+s.n+'</b><div class="ms-sub">'+(r&&r.msg?r.msg:s.d)+'</div></div>'
+      +'</div>';
+  }).join("");
+}
+function msErrHint(e){
+  const s=e&&e.status, m=String((e&&e.message)||e||"");
+  if(/AADSTS65001|consent/i.test(m))
+    return m+"\n\nแปลว่า: ยังไม่ได้ยินยอมให้แอปใช้สิทธิ์ ปกติจะมีหน้าต่างให้กด Accept ตอนเข้าสู่ระบบ "+
+           "ถ้าขึ้นว่าต้องให้ผู้ดูแลอนุมัติ แปลว่าองค์กรปิด user consent ไว้ ต้องส่งเรื่องให้ IT";
+  if(/AADSTS50011|redirect/i.test(m))
+    return m+"\n\nแปลว่า: Redirect URI ไม่ตรงกับที่ลงทะเบียนไว้ ค่าที่หน้านี้ใช้คือ "+msRedirectUri();
+  if(s===401)return m+"\n\nแปลว่า: token ใช้ไม่ได้แล้ว ลองออกจากระบบแล้วเข้าใหม่";
+  if(s===403)return m+"\n\nแปลว่า: เข้าสู่ระบบผ่าน แต่บัญชีนี้ไม่มีสิทธิ์ในที่นั้น — ตรวจว่าคุณเป็นสมาชิก Teams Markets";
+  if(s===404)return m+"\n\nแปลว่า: หาไม่พบ — ตรวจชื่อ site และชื่อโฟลเดอร์ในหน้าตั้งค่าด้านล่าง";
+  return m;
+}
+async function msRun(only){
+  if(!msSignedIn()&&only!=="login"){alert("กรุณาเข้าสู่ระบบ Microsoft 365 ก่อน");return}
+  const want=k=>!only||only===k;
+
+  if(want("login")){
+    if(!msSignedIn()){ await msSignIn(); return; }   /* จะเด้งออกไปหน้า Microsoft */
+    msSetStep("login",true,"เข้าสู่ระบบแล้ว · redirect URI: "+msRedirectUri());
+  }
+  if(want("me")){
+    msSetStep("me","run","กำลังตรวจ…");
+    try{const a=await msLoadAccount(); msSetStep("me",true,a.name+" · "+a.email); renderMsPanel(); }
+    catch(e){ msSetStep("me",false,msErrHint(e)); return; }
+  }
+  if(want("site")){
+    msSetStep("site","run","กำลังค้นหา…");
+    try{const id=await msSiteId(); msSetStep("site",true,"พบแล้ว · "+id.split(",")[0]); }
+    catch(e){ msSetStep("site",false,msErrHint(e)); return; }
+  }
+  if(want("read")){
+    msSetStep("read","run","กำลังอ่าน…");
+    try{
+      const f=await msReadFile();
+      let note=(f.size/1024).toFixed(0)+" KB · แก้ไขล่าสุด "+(f.modified||"").slice(0,10)+(f.by?" โดย "+f.by:"");
+      try{const j=JSON.parse(f.text); if(Array.isArray(j.transactions))note+=" · "+j.transactions.length+" รายการ"}catch(e){note+=" · (ไฟล์ไม่ใช่ JSON ของระบบนี้)"}
+      msSetStep("read",true,note);
+    }catch(e){
+      if(e.status===404)msSetStep("read",true,"ยังไม่มีไฟล์ในโฟลเดอร์ — ปกติสำหรับการตั้งค่าครั้งแรก ระบบจะสร้างให้ตอนเผยแพร่ครั้งแรก");
+      else{ msSetStep("read",false,msErrHint(e)); return; }
+    }
+  }
+  if(want("write")){
+    msSetStep("write","run","กำลังเขียน…");
+    try{
+      const stamp=new Date().toISOString();
+      const r=await msWriteFile("_connection-test.txt",
+        "Portfolio Operations Console\nทดสอบการเชื่อมต่อสำเร็จ\n"+stamp+"\nโดย "+((msAccount()||{}).email||"")+"\n");
+      msSetStep("write",true,"สร้างไฟล์ _connection-test.txt สำเร็จ ("+r.size+" bytes) — ลบทิ้งได้เลย");
+    }catch(e){ msSetStep("write",false,msErrHint(e)); return; }
+  }
+  if(want("mail")){
+    const a=msAccount();
+    if(!a||!a.email){msSetStep("mail",false,"ยังไม่รู้อีเมลของคุณ — รันขั้น \"อ่านโปรไฟล์ผู้ใช้\" ก่อน");return}
+    if(!confirm("ระบบจะส่งอีเมลทดสอบ 1 ฉบับ พร้อมไฟล์ CSV แนบ\nไปที่ "+a.email+" (ถึงตัวคุณเอง)\n\nดำเนินการต่อหรือไม่?"))return;
+    msSetStep("mail","run","กำลังส่ง…");
+    try{
+      const csv="﻿Test,Value\r\nConnection,OK\r\nAt,"+new Date().toISOString()+"\r\n";
+      await msSendMail({
+        to:a.email,
+        subject:"[ทดสอบ] Portfolio Operations Console เชื่อมต่อสำเร็จ",
+        html:"<p>อีเมลฉบับนี้ส่งจากระบบ Portfolio Operations Console โดยตรง</p>"
+            +"<p>ถ้าคุณเห็นไฟล์ <b>connection-test.csv</b> แนบมาด้วย แปลว่าระบบสามารถ"
+            +"ส่งคำสั่งซื้อขายพร้อมไฟล์แนบได้จริง โดยผู้ใช้ไม่ต้องแนบไฟล์เอง</p>"
+            +"<p style=\"color:#666\">"+versionFull()+" · "+new Date().toLocaleString("th-TH")+"</p>",
+        attachments:[{name:"connection-test.csv",type:"text/csv",text:csv}]
+      });
+      msSetStep("mail",true,"ส่งแล้ว — ตรวจกล่องขาเข้าของ "+a.email+" (ดูใน Sent Items ด้วยก็ได้)");
+    }catch(e){ msSetStep("mail",false,msErrHint(e)); return; }
+  }
+}
+
+/* ---------- ใช้บัญชี Microsoft ระบุตัวตนแทนรหัสผ่าน ---------- */
+function msMatchMember(){
+  const a=msAccount(); if(!a||!a.email)return null;
+  return teamOf().find(m=>String(m.email||"").toLowerCase()===a.email)||null;
+}
+function msAdoptIdentity(){
+  const a=msAccount();
+  if(!a){alert("กรุณาเข้าสู่ระบบ Microsoft 365 ก่อน");return}
+  const m=msMatchMember();
+  if(!m){
+    alert("อีเมล "+a.email+" ไม่ตรงกับรายชื่อในทะเบียนทีม\n\n"
+      +"ให้ผู้บันทึกรายการไปที่ Master Data → ทะเบียนทีมงาน แล้วใส่อีเมลนี้ให้ตรงกับตำแหน่งที่ต้องการ");
+    return;
+  }
+  try{localStorage.setItem("po_me",m.id)}catch(e){}
+  writeSession({id:m.id,at:Date.now(),via:"ms"});
+  ROLE=m.role; saveGovPrefs(); applyRole(); renderAll(); renderMsPanel();
+  toast("เข้าใช้งานในนาม "+m.name+" · "+ROLE_LABEL[ROLE]+" (ยืนยันตัวตนด้วย Microsoft 365)");
+  const st=takeStashedDecisions();
+  if(st&&canEdit())setTimeout(()=>offerDecisions(st),300);
+}
+
+/* ---------- หน้าต่างตั้งค่า/ตรวจสอบ ---------- */
+function openMsModal(){
+  const m=byId("msModal"); if(!m)return;
+  MS_RESULT={};
+  if(msSignedIn())MS_RESULT.login={ok:true,msg:"เข้าสู่ระบบแล้ว · redirect URI: "+msRedirectUri()};
+  if(MS_REDIRECT_MSG)MS_RESULT.login={ok:false,msg:MS_REDIRECT_MSG};
+  renderMsPanel(); renderMsSteps();
+  m.classList.add("open");
+}
+function closeMsModal(){const m=byId("msModal");if(m)m.classList.remove("open")}
+function renderMsPanel(){
+  const el=byId("msHead"); if(!el)return;
+  const a=msAccount(), c=msCfg();
+  let head;
+  if(msSignedIn()&&a){
+    const mem=msMatchMember();
+    head='<div class="ms-acct"><div class="ms-av">'+(a.name||"?").slice(0,1).toUpperCase()+'</div>'
+      +'<div><b>'+(a.name||"—")+'</b><div class="ms-sub">'+a.email+'</div></div>'
+      +'<div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">'
+      +(mem?'<button class="btn btn-primary" style="padding:7px 12px;font-size:12px" onclick="msAdoptIdentity()">ใช้บัญชีนี้เข้าระบบเป็น '+mem.title+'</button>':'')
+      +'<button class="btn btn-secondary" style="padding:7px 12px;font-size:12px" onclick="msSignOutMs()">ออกจากระบบ</button></div></div>'
+      +(mem?'':'<div class="ms-warn">อีเมลนี้ยังไม่ตรงกับใครในทะเบียนทีม — ใส่อีเมลนี้ใน Master Data → ทะเบียนทีมงาน เพื่อให้ใช้บัญชี Microsoft แทนรหัสผ่านได้</div>');
+  }else{
+    head='<div class="ms-acct"><div><b>ยังไม่ได้เชื่อมต่อ</b>'
+      +'<div class="ms-sub">เข้าสู่ระบบด้วยบัญชี '+(c.siteHost.split(".")[0])+' เพื่อให้ระบบอ่าน/เขียนข้อมูลบน SharePoint และส่งอีเมลแทนคุณได้</div></div>'
+      +'<div style="margin-left:auto"><button class="btn btn-primary" style="padding:8px 14px" onclick="msSignIn()">เข้าสู่ระบบ Microsoft 365</button></div></div>';
+  }
+  if(MS_REDIRECT_MSG)head+='<div class="ms-warn">'+MS_REDIRECT_MSG+'</div>';
+  el.innerHTML=head;
+
+  const f=byId("msCfgBody");
+  if(f){
+    const rows=[["clientId","Application (client) ID"],["tenantId","Directory (tenant) ID"],
+                ["siteHost","SharePoint hostname"],["sitePath","Site path"],
+                ["folder","โฟลเดอร์"],["file","ชื่อไฟล์ข้อมูล"]];
+    f.innerHTML=rows.map(r=>'<label class="ms-f"><span>'+r[1]+'</span>'
+      +'<input id="mscfg_'+r[0]+'" value="'+String(c[r[0]]||"").replace(/"/g,"&quot;")+'"></label>').join("")
+      +'<div class="ms-sub" style="margin-top:8px">Redirect URI ที่หน้านี้ใช้: <code>'+msRedirectUri()+'</code> — ค่านี้ต้องตรงกับที่ลงทะเบียนใน Entra แบบตัวต่อตัว</div>';
+  }
+}
+function msSaveCfgFromForm(){
+  const o={};
+  ["clientId","tenantId","siteHost","sitePath","folder","file"].forEach(k=>{
+    const el=byId("mscfg_"+k); if(el)o[k]=el.value.trim();
+  });
+  msSaveCfg(o); renderMsPanel();
+  toast("บันทึกการตั้งค่าแล้ว (เก็บในเครื่องนี้เท่านั้น)");
+}
+function msResetCfg(){
+  if(!confirm("คืนค่าตั้งต้นทั้งหมดหรือไม่?"))return;
+  try{localStorage.removeItem(MS_CFG_KEY)}catch(e){}
+  MS_SITE_ID=""; try{localStorage.removeItem(MS_SITE_KEY)}catch(e){}
+  renderMsPanel(); toast("คืนค่าตั้งต้นแล้ว");
+}
+
+
 /* รันหลัง first paint เพื่อให้ผู้ใช้เห็นแถบสถานะทันที ไม่ใช่จอขาว */
 async function boot(){
   try{
+    /* ถ้าเพิ่งกลับมาจากหน้า login ของ Microsoft ให้แลก code เป็น token ก่อน
+       ขั้นนี้จะคืน URL เดิมให้ด้วย ลิงก์ผลอนุมัติ (?ap=) จึงไม่หาย */
+    try{ await msHandleRedirect() }catch(e){ MS_REDIRECT_MSG="เชื่อมต่อ Microsoft ไม่สำเร็จ: "+String(e&&e.message||e) }
     bootStep("กำลังดึงข้อมูลส่วนกลาง (data.json)",15);
     state=await resolveState();
     if(!state) throw new Error("ไม่สามารถเตรียมข้อมูลได้");
@@ -4701,6 +5204,7 @@ async function boot(){
     setTimeout(bootDone,120);
     /* ถ้าเปิดมาจากลิงก์ผลอนุมัติในอีเมล ให้ลงผลให้เลย ไม่ต้อง copy/paste */
     setTimeout(()=>{try{consumeDecisionLink()}catch(e){console.error(e)}},400);
+    if(msSignedIn()||MS_REDIRECT_MSG)setTimeout(()=>{try{openMsModal()}catch(e){}},650);
   }catch(e){
     bootFail(String(e&&e.message||e), e&&e.stack?String(e.stack).split("\n").slice(0,6).join("\n"):"");
   }
@@ -4736,6 +5240,37 @@ else setTimeout(boot,30);
     <div class="modal-head"><div><h3>Transaction Audit Trail</h3><div class="small-note" id="auditSubtitle"></div></div><button class="btn btn-secondary" onclick="closeAuditModal()">✕</button></div>
     <div class="modal-body" id="auditBody"></div>
     <div class="modal-actions"><button class="btn btn-primary" onclick="closeAuditModal()">Done</button></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="msModal" onclick="if(event.target===this)closeMsModal()">
+  <div class="modal-card" style="max-width:760px">
+    <div class="modal-head">
+      <div><h3>เชื่อมต่อ Microsoft 365</h3>
+        <div class="small-note">ตรวจการเชื่อมต่อทีละขั้น เพื่อให้รู้ว่าติดตรงไหน ไม่ต้องเดา</div></div>
+      <button class="btn btn-secondary" onclick="closeMsModal()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div id="msHead"></div>
+      <div style="display:flex;gap:9px;align-items:center;margin:16px 0 9px">
+        <b style="font-size:13px">ผลการตรวจ</b>
+        <button class="btn btn-primary" style="padding:6px 12px;font-size:12px;margin-left:auto" onclick="msRun()">ตรวจทั้งหมด</button>
+        <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px" onclick="msRun('mail')">ทดสอบส่งอีเมล</button>
+      </div>
+      <div id="msSteps"></div>
+      <details style="margin-top:14px">
+        <summary style="cursor:pointer;font-weight:800;font-size:13px;padding:6px 0">การตั้งค่า (แก้เมื่อจำเป็น)</summary>
+        <div style="padding-top:10px">
+          <div class="ms-sub" style="margin-bottom:10px">ค่าเหล่านี้เก็บในเบราว์เซอร์เครื่องนี้เท่านั้น ไม่ถูกเผยแพร่ไปกับข้อมูล</div>
+          <div id="msCfgBody"></div>
+          <div style="display:flex;gap:9px;margin-top:6px">
+            <button class="btn btn-primary" style="padding:7px 13px;font-size:12px" onclick="msSaveCfgFromForm()">บันทึกการตั้งค่า</button>
+            <button class="btn btn-secondary" style="padding:7px 13px;font-size:12px" onclick="msResetCfg()">คืนค่าตั้งต้น</button>
+          </div>
+        </div>
+      </details>
+    </div>
+    <div class="modal-actions"><button class="btn btn-primary" onclick="closeMsModal()">ปิด</button></div>
   </div>
 </div>
 
