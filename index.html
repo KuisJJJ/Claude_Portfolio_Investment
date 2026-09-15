@@ -528,6 +528,15 @@ tr.row-rejected:hover td{background:#fbe9e7}
 .ms-f span{display:block;font-size:11px;font-weight:800;letter-spacing:.04em;color:var(--muted);margin-bottom:4px}
 .ms-f input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
 .ms-row .btn[disabled]{opacity:.42;cursor:not-allowed;filter:grayscale(1)}
+#lockScreen{position:fixed;inset:0;z-index:150;background:rgba(244,247,251,.97);
+  display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(3px)}
+#lockScreen .lk{max-width:460px;background:#fff;border:1px solid var(--line);border-radius:18px;
+  padding:30px 32px;box-shadow:0 20px 60px rgba(10,31,51,.14);text-align:center}
+#lockScreen h2{margin:0 0 10px;font-size:21px;color:var(--navy)}
+#lockScreen p{margin:0 0 8px;font-size:14px;color:var(--muted);line-height:1.65}
+#lockScreen .lk-ico{width:52px;height:52px;border-radius:14px;background:#eef3f9;color:#1769e0;
+  display:flex;align-items:center;justify-content:center;font-size:24px;margin:0 auto 16px}
+@media(max-width:620px){#lockScreen .lk{padding:24px 20px}}
 
 .modal-backdrop{
   display:none;position:fixed;inset:0;background:rgba(5,18,31,.52);z-index:200;
@@ -928,6 +937,29 @@ function bootFail(msg,extra){
 function bootDone(){
   var p=document.getElementById("bootPanel");
   if(p&&p.parentNode)p.parentNode.removeChild(p);
+  try{renderLockScreen()}catch(e){}
+}
+/* บังหน้าจอไว้ทั้งหมดเมื่อยังไม่ได้เข้าสู่ระบบในโหมด SharePoint
+   เหตุผล: ถ้าปล่อยให้เห็นตัวเลขศูนย์หรือตัวเลขจำลอง มีโอกาสที่คนจะอ่านผิดว่าเป็นของจริง
+   สำหรับระบบการเงิน การไม่แสดงอะไรเลย ปลอดภัยกว่าการแสดงสิ่งที่อาจถูกตีความผิด */
+function renderLockScreen(){
+  const old=document.getElementById("lockScreen");
+  if(!SP_LOCKED){ if(old&&old.parentNode)old.parentNode.removeChild(old); return }
+  if(old)return;
+  const el=document.createElement("div");
+  el.id="lockScreen";
+  el.innerHTML='<div class="lk">'
+    +'<div class="lk-ico">&#128274;</div>'
+    +'<h2>กรุณาเข้าสู่ระบบด้วยบัญชีบริษัท</h2>'
+    +'<p>ข้อมูลพอร์ตการลงทุนเก็บอยู่บน SharePoint ของ Monta &amp; Associates '
+    +'ระบบจึงยังไม่แสดงตัวเลขใด ๆ จนกว่าจะยืนยันตัวตน</p>'
+    +'<p style="color:#8a5a12;background:#fff7ec;border:1px solid #e8cfac;border-radius:10px;padding:9px 12px;margin-top:14px">'
+    +'ตัวเลขที่เห็นก่อนเข้าสู่ระบบ อาจไม่ใช่ข้อมูลจริง จึงไม่แสดงให้เห็น</p>'
+    +'<button class="btn btn-primary" style="margin-top:18px;padding:11px 20px;font-size:14px" '
+    +'onclick="msSignIn()">เข้าสู่ระบบ Microsoft 365</button>'
+    +'<p style="margin-top:14px;font-size:12px">ใช้บัญชีอีเมลของบริษัท เช่น yourname@monta.co.th</p>'
+    +'</div>';
+  document.body.appendChild(el);
 }
 window.addEventListener("error",function(ev){
   bootFail((ev.message||"Unknown error")+"\n"+(ev.filename||"")+" บรรทัด "+(ev.lineno||"?")+":"+(ev.colno||"?"),
@@ -1285,7 +1317,12 @@ function simBuildState(){
   };
 }
 
-function demoState(){return simBuildState()}
+function demoState(){
+  /* ติดป้ายไว้ว่าชุดนี้เป็นข้อมูลจำลอง เพื่อไม่ให้ถูกนำไปรวมกับข้อมูลจริงโดยไม่ตั้งใจ */
+  const st=simBuildState();
+  st.__sim=true;
+  return st;
+}
 /* ---- Safe storage --------------------------------------------------------
    Some corporate browser policies (และการเปิดไฟล์แบบ file:// ในบางเครื่อง)
    ทำให้การเข้าถึง localStorage โยน SecurityError ทันที ถ้าไม่ดักไว้
@@ -1360,12 +1397,8 @@ async function resolveState(){
      ห้ามไปหยิบ data.json บน GitHub มาเป็นฐานอ้างอิงเด็ดขาด
      เพราะไฟล์นั้นอาจเก่ากว่าของจริงบน SharePoint และถ้าเผลอเผยแพร่ทับ
      งานของคนอื่นจะหายทั้งชุด — ใช้ร่างในเครื่องไปก่อนแล้วรอเข้าสู่ระบบ */
-  if(SP_MODE&&!msSignedIn()){
-    SP_NEED_LOGIN=true;
-    if(draft){DATA_SOURCE="draft";DRAFT_DIRTY=!!draft.__basedOn;return draft}
-    DATA_SOURCE="simulation";return demoState();
-  }
-  SP_NEED_LOGIN=false;
+  if(SP_MODE&&!msSignedIn())return lockedState(draft);
+  SP_NEED_LOGIN=false; SP_LOCKED=false;
 
   let pub=await fetchPublished();
 
@@ -1375,11 +1408,7 @@ async function resolveState(){
     if(msSignedIn()){
       try{ pub=await fetchPublishedSP() }
       catch(e){ console.error(e); pub=null }
-    }else{
-      SP_NEED_LOGIN=true;
-      if(draft){DATA_SOURCE="draft";DRAFT_DIRTY=!!draft.__basedOn;return draft}
-      DATA_SOURCE="simulation";return demoState();
-    }
+    }else return lockedState(draft);
   }
 
   /* ถ้าไฟล์ที่เผยแพร่ไม่มีทะเบียนทีมติดมา ให้ยืมของเดิมในเครื่องนี้ไว้ก่อน
@@ -1390,6 +1419,15 @@ async function resolveState(){
     console.warn("data.json ที่เผยแพร่ไม่มีทะเบียนทีม — ใช้ทะเบียนเดิมในเครื่องนี้แทน");
   }
   if(pub&&!pub.entity&&draft&&draft.entity)pub.entity=draft.entity;
+
+  /* ในโหมด SharePoint ร่างที่ใช้ได้ต้องต่อยอดจากชุดที่เผยแพร่เสมอ
+     ร่างที่ไม่มีต้นทาง = เกิดจากข้อมูลจำลองตอนยังไม่ได้เข้าสู่ระบบ ต้องทิ้ง
+     ไม่อย่างนั้นธุรกรรมจำลองจะถูกรวมเข้าข้อมูลจริงแล้วเผยแพร่ทับทั้งทีม */
+  if(pub&&draft&&spActive()&&(draft.__sim||!draft.__basedOn)){
+    console.warn("ทิ้งร่างที่ไม่มีต้นทาง (น่าจะมาจากข้อมูลจำลอง) เพื่อกันปนกับข้อมูลจริง");
+    try{STORE.set(KEY,"")}catch(e){}
+    draft=null;
+  }
 
   if(pub){
     PUBLISHED_STAMP=stampOf(pub);
@@ -1427,6 +1465,23 @@ async function resolveState(){
 }
 let STALE_DRAFT=false, PENDING_DRAFT=null, MERGE_CONFLICT=null, MERGED_ON_LOAD="";
 
+/* สถานะ "ล็อก" — โครงสร้างครบแต่ไม่มีธุรกรรมเลย
+   จงใจให้ทุกตัวเลขเป็นศูนย์ ดีกว่าโชว์ตัวเลขจำลองที่คนอาจเข้าใจผิดว่าเป็นของจริง */
+function lockedState(draft){
+  SP_NEED_LOGIN=true; SP_LOCKED=true;
+  if(draft&&draft.__basedOn&&!draft.__sim){
+    /* มีงานค้างของจริงอยู่ในเครื่องนี้ เก็บไว้ให้ครบ แต่ยังห้ามแก้จนกว่าจะเข้าสู่ระบบ */
+    DATA_SOURCE="draft"; DRAFT_DIRTY=true;
+    return draft;
+  }
+  const empty=demoState();
+  empty.transactions=[];
+  empty.auditTrail=[];
+  empty.__locked=true;
+  DATA_SOURCE="locked"; DRAFT_DIRTY=false;
+  return empty;
+}
+
 let filterPortfolio="";
 let filterAccount="";
 let currentType="BUY";
@@ -1437,6 +1492,12 @@ let pendingEditCandidate=null;
 let dashboardCurrency="THB";
 
 function save(){
+  if(SP_LOCKED){
+    alert("ยังไม่ได้เข้าสู่ระบบ Microsoft 365\n\n"
+      +"ระบบจะไม่บันทึกอะไรลงเครื่องนี้ เพื่อกันข้อมูลปนกับของจริง\n"
+      +"กรุณาเข้าสู่ระบบก่อน แล้วค่อยบันทึกรายการ");
+    return false;
+  }
   state.__basedOn=PUBLISHED_STAMP;      /* ร่างนี้ต่อยอดจากข้อมูลเผยแพร่ชุดไหน */
   if(!state.__baseIndex)state.__baseIndex={};
   DRAFT_DIRTY=true; DATA_SOURCE="draft";
@@ -1458,9 +1519,9 @@ function showStorageWarning(){
    กติกา: แก้เลขนี้ทุกครั้งที่อัปโหลด index.html ขึ้น GitHub
           X.Y = เพิ่มความสามารถ · X.Y.Z = แก้บั๊ก/ปรับเล็กน้อย
    ================================================================== */
-const APP_VERSION="1.11.1";
+const APP_VERSION="1.11.2";
 const APP_BUILD="2026-09-14";
-const APP_VERSION_NOTE="เก็บข้อมูลบน SharePoint · ทุกเครื่องสลับตามอัตโนมัติ · เข้าระบบด้วยบัญชีบริษัท · อีเมลแนบ CSV";
+const APP_VERSION_NOTE="เก็บข้อมูลบน SharePoint · ล็อกหน้าจอจนกว่าจะยืนยันตัวตน · อีเมลแนบ CSV อัตโนมัติ";
 function versionLabel(){return "v"+APP_VERSION}
 function versionFull(){return "v"+APP_VERSION+" · build "+APP_BUILD}
 function byId(id){return document.getElementById(id)}
@@ -3495,6 +3556,11 @@ function saveGovPrefs(){
 const canEdit    = ()=>ROLE==="editor";
 const canApprove = ()=>ROLE==="approver";
 function guard(what){
+  if(SP_LOCKED){
+    alert("ยังไม่ได้เข้าสู่ระบบ Microsoft 365\n\nข้อมูลจริงเก็บอยู่บน SharePoint ของบริษัท\nกรุณาเข้าสู่ระบบก่อนจึงจะทำรายการได้");
+    try{openMsModal()}catch(e){}
+    return false;
+  }
   if(what==="edit"&&!canEdit()){
     alert("โหมดปัจจุบัน: "+ROLE_LABEL[ROLE]+"\n\nการบันทึก/แก้ไขรายการทำได้เฉพาะเครื่องหลักเท่านั้น\nหากคุณคือผู้บันทึก ให้เปลี่ยนโหมดที่แถบซ้ายล่าง");
     return false;
@@ -5386,6 +5452,7 @@ const SP_MODE_KEY="po_sp_mode";
 let SP_MODE=(function(){try{return localStorage.getItem(SP_MODE_KEY)==="1"}catch(e){return false}})();
 let PUBLISHED_ETAG="";          /* eTag ของไฟล์ชุดที่เราโหลดมา ใช้ยืนยันตอนเขียนกลับ */
 let SP_NEED_LOGIN=false;        /* เปิดโหมด SharePoint แล้วแต่ยังไม่ได้เข้าสู่ระบบ */
+let SP_LOCKED=false;            /* ล็อกทั้งระบบ: ห้ามแก้ ห้ามบันทึก ห้ามเผยแพร่ */
 
 const spActive = ()=> SP_MODE && msSignedIn();
 
@@ -5637,7 +5704,7 @@ async function boot(){
     setTimeout(bootDone,120);
     /* ถ้าเปิดมาจากลิงก์ผลอนุมัติในอีเมล ให้ลงผลให้เลย ไม่ต้อง copy/paste */
     setTimeout(()=>{try{consumeDecisionLink()}catch(e){console.error(e)}},400);
-    if(SP_NEED_LOGIN||MS_REDIRECT_MSG)setTimeout(()=>{try{openMsModal()}catch(e){}},650);
+    if(MS_REDIRECT_MSG)setTimeout(()=>{try{openMsModal()}catch(e){}},650);
   }catch(e){
     bootFail(String(e&&e.message||e), e&&e.stack?String(e.stack).split("\n").slice(0,6).join("\n"):"");
   }
