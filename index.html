@@ -1519,9 +1519,9 @@ function showStorageWarning(){
    กติกา: แก้เลขนี้ทุกครั้งที่อัปโหลด index.html ขึ้น GitHub
           X.Y = เพิ่มความสามารถ · X.Y.Z = แก้บั๊ก/ปรับเล็กน้อย
    ================================================================== */
-const APP_VERSION="1.11.2";
+const APP_VERSION="1.12.0";
 const APP_BUILD="2026-09-14";
-const APP_VERSION_NOTE="เก็บข้อมูลบน SharePoint · ล็อกหน้าจอจนกว่าจะยืนยันตัวตน · อีเมลแนบ CSV อัตโนมัติ";
+const APP_VERSION_NOTE="กำหนดผู้บันทึก/ผู้อนุมัติได้อิสระไม่ผูกกับตำแหน่ง · เก็บข้อมูลบน SharePoint · อีเมลแนบ CSV";
 function versionLabel(){return "v"+APP_VERSION}
 function versionFull(){return "v"+APP_VERSION+" · build "+APP_BUILD}
 function byId(id){return document.getElementById(id)}
@@ -2609,13 +2609,36 @@ function renderTeam(){
         : '')+'</td>'
     +'</tr>'}).join("");
   const dn=byId("teamDirty");
-  if(dn)dn.innerHTML=teamDirty()?'<b class="neg">● มีการแก้ไขที่ยังไม่ได้บันทึก</b>':'';
+  if(dn)dn.innerHTML=(teamDirty()?'<b class="neg">● มีการแก้ไขที่ยังไม่ได้บันทึก</b>':'')+roleSummary();
   const sb=byId("setupBanner");
   if(sb)sb.style.display=setupMode()?"":"none";
   const e=entityOf();
   if(byId("entName")){byId("entName").value=e.name;byId("entTax").value=e.taxId;
     byId("entAddr").value=e.address;byId("entIc").value=e.ic;
     ["entName","entTax","entAddr","entIc"].forEach(id=>byId(id).disabled=!canEdit());}
+}
+/* สรุปหน้าที่ปัจจุบัน — ให้เห็นทันทีว่าใครบันทึก ใครอนุมัติ
+   และเตือนเมื่อทะเบียนอยู่ในสภาพที่ใช้งานจริงไม่ได้ */
+function roleSummary(){
+  const t=teamOf();
+  const nm=m=>(m.name||"(ยังไม่ระบุชื่อ)")+(m.title?" · "+m.title:"");
+  const mk=t.filter(m=>m.role==="editor"), ap=t.filter(m=>m.role==="approver");
+  const noMail=t.filter(m=>m.role!=="viewer"&&!String(m.email||"").trim());
+  let warn="";
+  if(!mk.length)warn+='<div class="neg">⚠ ยังไม่มีผู้บันทึกรายการ — จะบันทึกรายการไม่ได้เลย</div>';
+  if(!ap.length)warn+='<div class="neg">⚠ ยังไม่มีผู้อนุมัติ — จะส่งรายการเข้าอนุมัติไม่ได้</div>';
+  if(mk.length&&ap.length&&mk.some(m=>ap.some(a=>a.id===m.id)))
+    warn+='<div style="color:#a8551a">⚠ มีคนที่เป็นทั้งผู้บันทึกและผู้อนุมัติ — ขัดหลักการแบ่งแยกหน้าที่ ควรแยกคนกัน</div>';
+  if(noMail.length)
+    warn+='<div style="color:#a8551a">⚠ ยังไม่ได้ใส่อีเมลให้ '+noMail.map(m=>m.title||m.id).join(", ")
+      +' — ระบบจะส่งอีเมลและยืนยันตัวตนด้วยบัญชีบริษัทไม่ได้</div>';
+  return '<div style="margin-top:10px;padding:11px 13px;border-radius:10px;background:#f4f7fb;'
+    +'border:1px solid var(--line);font-size:12.5px;line-height:1.75">'
+    +'<b>หน้าที่ปัจจุบัน</b> <span class="muted">— กำหนดได้อิสระ ไม่ผูกกับตำแหน่งงาน เปลี่ยนได้ทุกเมื่อ</span><br>'
+    +'ผู้บันทึกรายการ (Maker): <b>'+(mk.length?mk.map(nm).join(" · "):"—")+'</b><br>'
+    +'ผู้อนุมัติ (Approver): <b>'+(ap.length?ap.map(nm).join(" · "):"—")+'</b>'
+    +(warn?'<div style="margin-top:7px">'+warn+'</div>':'')
+    +'</div>';
 }
 function renderMaster(){
   renderTeam();
@@ -3508,8 +3531,13 @@ async function publishData(){
      ==> ด่านความปลอดภัยจริงคือ "สิทธิ์เขียน repo บน GitHub"
          ทีมที่มีสิทธิ์อ่านอย่างเดียว จะแก้ data.json ไม่ได้แม้จะปลดปุ่มในหน้าเว็บ
 
-   เขียนเข้า data.json ได้คนเดียว (เครื่องหลัก) เพื่อตัดปัญหาเขียนทับกัน
-   ผู้อนุมัติจึงไม่เผยแพร่เอง แต่ส่ง "ไฟล์ผลอนุมัติ" ขนาดเล็กกลับมาแทน
+   สิทธิ์ผูกกับ "คน" ไม่ใช่ "ตำแหน่งงาน" และไม่ใช่ "เครื่อง"
+   ผู้ดูแลทะเบียนกำหนดได้อิสระว่าใครเป็น Maker ใครเป็น Approver
+   จะมีหลายคนในบทบาทเดียวกันก็ได้ และเปลี่ยนได้ทุกเมื่อโดยไม่ต้องแก้โค้ด
+
+   เดิมออกแบบให้เขียนข้อมูลได้เครื่องเดียวเพื่อกันเขียนทับกัน เพราะเก็บบน GitHub
+   ตอนนี้ย้ายมา SharePoint แล้ว เซิร์ฟเวอร์ปฏิเสธการเขียนทับให้เองด้วย eTag
+   ข้อจำกัดนั้นจึงหมดไป ผู้บันทึกหลายคนทำงานพร้อมกันได้
    ================================================================== */
 
 /* ชื่อตำแหน่งผู้อนุมัติ — อ่านจากทะเบียนทีมเสมอ
@@ -3525,7 +3553,7 @@ function editorTitle(){
   const e=(typeof teamOf==="function"?teamOf():[]).find(m=>m.role==="editor");
   return (e&&e.title)||"ผู้บันทึกรายการ";
 }
-const ROLE_LABEL_BASE={editor:"ผู้บันทึกรายการ (เครื่องหลัก)",approver:"ผู้อนุมัติ",viewer:"ดูอย่างเดียว"};
+const ROLE_LABEL_BASE={editor:"ผู้บันทึกรายการ (Maker)",approver:"ผู้อนุมัติ (Approver)",viewer:"ดูอย่างเดียว"};
 const ROLE_LABEL=new Proxy(ROLE_LABEL_BASE,{
   get:(t,k)=>k==="approver"?("ผู้อนุมัติ — "+approverTitle()):t[k],
   has:(t,k)=>k in t, ownKeys:t=>Reflect.ownKeys(t),
@@ -3562,7 +3590,9 @@ function guard(what){
     return false;
   }
   if(what==="edit"&&!canEdit()){
-    alert("โหมดปัจจุบัน: "+ROLE_LABEL[ROLE]+"\n\nการบันทึก/แก้ไขรายการทำได้เฉพาะเครื่องหลักเท่านั้น\nหากคุณคือผู้บันทึก ให้เปลี่ยนโหมดที่แถบซ้ายล่าง");
+    alert("สิทธิ์ปัจจุบันของคุณ: "+ROLE_LABEL[ROLE]+"\n\n"
+      +"การบันทึก/แก้ไขรายการทำได้เฉพาะผู้ที่ถูกกำหนดเป็น \"ผู้บันทึกรายการ (Maker)\" ในทะเบียนทีม\n"
+      +"ถ้าคุณควรมีสิทธิ์นี้ ให้ผู้ดูแลทะเบียนแก้ที่ Master Data → ทะเบียนทีมงาน");
     return false;
   }
   if(what==="approve"&&!canApprove()){
@@ -3573,7 +3603,7 @@ function guard(what){
 }
 function setRole(r){
   if(!ROLE_LABEL[r])return;
-  if(r==="editor"&&!confirm("เปลี่ยนเป็นโหมด \"ผู้บันทึกรายการ (เครื่องหลัก)\"?\n\nควรมีเครื่องเดียวในทีมที่ใช้โหมดนี้\nถ้ามีหลายเครื่องบันทึกพร้อมกัน ข้อมูลอาจขัดกันได้"))return;
+  if(r==="editor"&&!confirm("เปลี่ยนเป็นโหมด \"ผู้บันทึกรายการ (Maker)\"?\n\nโหมดนี้บันทึกและแก้ไขรายการได้"))return;
   ROLE=r; saveGovPrefs(); applyRole(); renderAll(); renderGovPanel();
   toast("เปลี่ยนเป็นโหมด "+ROLE_LABEL[r]);
 }
@@ -3600,7 +3630,7 @@ function auditPush(txnId,action,detail){
     by:(function(){try{return localStorage.getItem("po_publisher")||ROLE_LABEL[ROLE]}catch(e){return ROLE}})()});
 }
 
-/* ---------- เครื่องหลัก: ส่งรายการเข้าอนุมัติ ---------- */
+/* ---------- ผู้บันทึกรายการ: ส่งรายการเข้าอนุมัติ ---------- */
 function submitForApproval(ids){
   if(!guard("edit"))return;
   const list=(ids||state.transactions.filter(t=>txStatus(t)==="DRAFT").map(t=>t.id));
@@ -3675,7 +3705,7 @@ function clearDecisions(){
   LOCAL_DECISIONS={}; saveGovPrefs(); renderAll(); toast("ล้างผลอนุมัติแล้ว เริ่มรอบใหม่ได้");
 }
 
-/* ผู้อนุมัติส่งไฟล์เล็กๆ กลับให้เครื่องหลัก แทนการเผยแพร่ทั้งชุด */
+/* ผู้อนุมัติส่งไฟล์เล็กๆ กลับให้ผู้บันทึก แทนการเผยแพร่ทั้งชุด */
 function exportDecisions(quiet){
   const ids=Object.keys(LOCAL_DECISIONS);
   if(!ids.length){alert("ยังไม่มีผลอนุมัติที่จะส่ง");return""}
@@ -3691,7 +3721,7 @@ function exportDecisions(quiet){
   return fname;
 }
 
-/* ---------- เครื่องหลัก: รับผลอนุมัติมาลงระบบ ---------- */
+/* ---------- ผู้บันทึกรายการ: รับผลอนุมัติมาลงระบบ ---------- */
 function importDecisions(){
   if(!guard("edit"))return;
   const inp=document.createElement("input");
@@ -3712,7 +3742,7 @@ function importDecisions(){
    ส่งผลอนุมัติทางอีเมล + รับผลด้วยการวางข้อความ
 
    ข้อจำกัดที่ต้องรู้: ลิงก์ mailto: แนบไฟล์ไม่ได้ (เป็นข้อกำหนดของเบราว์เซอร์)
-   จึงออกแบบให้ "ฝังผลอนุมัติเป็นข้อความในเนื้อเมลเลย" แล้วเครื่องหลัก
+   จึงออกแบบให้ "ฝังผลอนุมัติเป็นข้อความในเนื้อเมลเลย" แล้วผู้บันทึก
    ใช้วิธีวางข้อความแทนการแนบไฟล์ — ตัดขั้นตอนแนบไฟล์ออกทั้งหมด
    ถ้ารายการเยอะจนเมลยาวเกินที่โปรแกรมเมลรับได้ จะถอยไปใช้ไฟล์แนบแทน
    ================================================================== */
@@ -3724,13 +3754,15 @@ let SENT_AT=0;
 function openMailto(url){window.location.href=url}   /* โปรแกรมเมลส่วนใหญ่รับ URL ได้ราว 2000 ตัวอักษร */
 
 function approvalRecipient(){
-  /* ปลายทางคืออีเมลของผู้บันทึกรายการตามทะเบียนทีม */
-  const ed=teamOf().find(m=>m.role==="editor"&&m.email);
-  if(ed)return ed.email;
+  /* ปลายทางคือผู้บันทึกรายการทุกคนตามทะเบียนทีม
+     ส่งให้ทุกคนเพราะทีมกำหนดให้มีผู้บันทึกหลายคนได้ ใครสะดวกก็ลงผลได้ */
+  const eds=teamOf().filter(m=>m.role==="editor"&&String(m.email||"").trim())
+                    .map(m=>m.email.trim());
+  if(eds.length)return eds.join("; ");
   let to="";
   try{to=localStorage.getItem("po_finance_email")||""}catch(e){}
   if(!to){
-    to=prompt("อีเมลของผู้บันทึกรายการ (เครื่องหลัก) ที่จะส่งผลอนุมัติไปให้","");
+    to=prompt("อีเมลของผู้บันทึกรายการ ที่จะส่งผลอนุมัติไปให้","");
     if(to===null)return null;
     to=to.trim();
     if(!to){alert("ต้องระบุอีเมลปลายทาง");return null}
@@ -3740,7 +3772,7 @@ function approvalRecipient(){
 }
 function changeRecipient(){
   let cur="";try{cur=localStorage.getItem("po_finance_email")||""}catch(e){}
-  const v=prompt("อีเมลผู้บันทึกรายการ (เครื่องหลัก)",cur);
+  const v=prompt("อีเมลผู้บันทึกรายการ",cur);
   if(v===null)return;
   try{localStorage.setItem("po_finance_email",v.trim())}catch(e){}
   renderApprovals();
@@ -4613,7 +4645,7 @@ async function setMemberPassword(id){
   if(TEAM_EDIT){const d=TEAM_EDIT.find(x=>x.id===id);
     if(d){d.pwSalt=m.pwSalt;d.pwIter=m.pwIter;d.pwHash=m.pwHash;d.pwSetAt=m.pwSetAt}}
   save();
-  if(first){                       /* รหัสแรกของระบบ = เจ้าของเครื่องหลัก */
+  if(first){                       /* รหัสแรกของระบบ = ผู้ตั้งทะเบียนคนแรก */
     try{localStorage.setItem("po_me",id)}catch(e){}
     writeSession({id,at:Date.now()});
     ROLE=m.role; saveGovPrefs(); applyRole();
