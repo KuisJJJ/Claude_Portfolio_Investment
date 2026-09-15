@@ -826,11 +826,14 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
           <div class="card master-card" style="grid-column:1/-1"><h3>ทะเบียนทีมงาน — ใครทำหน้าที่อะไร</h3>
             <p class="small-note" style="margin:-6px 0 10px">ชื่อในทะเบียนนี้จะไปปรากฏบนช่องลายเซ็นในเอกสาร และใช้เป็นชื่อผู้อนุมัติ · ข้อมูลนี้เผยแพร่ไปพร้อมชุดข้อมูล ทุกเครื่องจึงเห็นตรงกัน</p>
             <div class="notice warn" style="margin-bottom:12px">
-              <b>ขอบเขตของรหัสผ่านในระบบนี้</b><br>
+              <b>รหัสผ่านในแอปนี้กันอะไรได้ กันอะไรไม่ได้</b><br>
               ระบบนี้เป็นไฟล์เดียวที่รันในเบราว์เซอร์ ไม่มีเซิร์ฟเวอร์ตรวจรหัสผ่าน — รหัสผ่านจึง<b>กันการสลับตำแหน่งโดยพลการได้</b>
               แต่<b>กันผู้ที่ตั้งใจหลบเลี่ยงไม่ได้</b> (เปิดเครื่องมือนักพัฒนาก็ข้ามได้)
-              · ด่านที่บังคับได้จริงคือ<b>สิทธิ์เขียน repo บน GitHub</b> ต่อให้ปลดล็อกหน้าจอได้ ก็อัปโหลดทับข้อมูลไม่ได้
               · เก็บเฉพาะค่าที่แปลงแล้ว (PBKDF2-SHA256 250,000 รอบ พร้อม salt เฉพาะคน) ไม่เก็บรหัสจริง
+              <br><b>ด่านที่บังคับได้จริงคือสิทธิ์บน SharePoint</b> — ต่อให้ใครปลดล็อกหน้าจอได้
+              ถ้าไม่ได้เป็นสมาชิก Teams &ldquo;Markets&rdquo; ก็อ่านหรือเขียนข้อมูลไม่ได้เลย
+              <br>แนะนำให้เปิดโหมด <b>&ldquo;ใช้บัญชีบริษัทเท่านั้น&rdquo;</b> ที่แผงเชื่อมต่อ Microsoft 365
+              แล้วเลิกใช้รหัสผ่านในแอปไปเลย เพราะบัญชีบริษัทแข็งแรงกว่ามาก
             </div>
             <div id="setupBanner" class="notice" style="display:none;border-color:#a7d3f5;background:#e8f4ff">
               <b>🔑 โหมดตั้งค่าครั้งแรก — ยังไม่มีใครตั้งรหัสผ่าน</b><br>
@@ -1519,7 +1522,7 @@ function showStorageWarning(){
    กติกา: แก้เลขนี้ทุกครั้งที่อัปโหลด index.html ขึ้น GitHub
           X.Y = เพิ่มความสามารถ · X.Y.Z = แก้บั๊ก/ปรับเล็กน้อย
    ================================================================== */
-const APP_VERSION="1.12.0";
+const APP_VERSION="1.12.1";
 const APP_BUILD="2026-09-14";
 const APP_VERSION_NOTE="กำหนดผู้บันทึก/ผู้อนุมัติได้อิสระไม่ผูกกับตำแหน่ง · เก็บข้อมูลบน SharePoint · อีเมลแนบ CSV";
 function versionLabel(){return "v"+APP_VERSION}
@@ -2588,11 +2591,11 @@ function renderTeam(){
   el.innerHTML=rows.map(m=>{
     const isNew=!saved.some(x=>x.id===m.id);
     return '<tr><td><input id="tm_'+m.id+'_title" value="'+(m.title||"").replace(/"/g,"&quot;")+'" placeholder="เช่น Finance Manager" '+inp+dis+'>'
-    +'<br><span class="muted" style="font-size:10px">'+m.id+(isNew?' · ใหม่ (ยังไม่บันทึก)':'')+'</span></td>'
+    +(isNew?'<br><span class="muted" style="font-size:10px">ใหม่ · ยังไม่บันทึก</span>':'')+'</td>'
     +'<td><input id="tm_'+m.id+'_name" value="'+(m.name||"").replace(/"/g,"&quot;")+'" placeholder="ยังไม่ได้ระบุ" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px"'+dis+'></td>'
     +'<td><input id="tm_'+m.id+'_email" value="'+(m.email||"").replace(/"/g,"&quot;")+'" placeholder="name@monta.co.th" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px"'+dis+'></td>'
     +'<td><select id="tm_'+m.id+'_role" style="border:1px solid var(--line);border-radius:8px;padding:7px"'+dis+'>'
-    +Object.keys(ROLE_LABEL).map(r=>'<option value="'+r+'"'+(r===m.role?" selected":"")+'>'+ROLE_LABEL[r]+'</option>').join("")
+    +Object.keys(ROLE_LABEL_BASE).map(r=>'<option value="'+r+'"'+(r===m.role?" selected":"")+'>'+ROLE_LABEL_BASE[r]+'</option>').join("")
     +'</select></td>'
     +'<td>'+(!needsPassword(m.role) ? '<span class="muted">ไม่ต้องใช้</span>'
         : isNew ? '<span class="muted" style="font-size:11px">บันทึกทะเบียนก่อน<br>จึงตั้งรหัสผ่านได้</span>'
