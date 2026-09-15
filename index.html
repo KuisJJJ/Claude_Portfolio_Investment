@@ -1323,7 +1323,7 @@ let DRAFT_DIRTY=false;     /* มีการแก้ไขที่ยัง�
 
 function stampOf(d){return (d&&d.publishedAt)||""}
 
-async function fetchPublished(){
+async function fetchPublishedGitHub(){
   try{
     /* กัน cache ของ GitHub Pages ไม่ให้ค้างข้อมูลเก่า */
     const res=await fetch("data.json?t="+Date.now(),{cache:"no-store"});
@@ -1337,6 +1337,17 @@ async function fetchPublished(){
 async function resolveState(){
   let draft=null;
   try{draft=JSON.parse(STORE.get(KEY)||"null")}catch(e){draft=null}
+
+  /* เปิดโหมด SharePoint แล้วแต่ยังไม่ได้เข้าสู่ระบบ
+     ห้ามไปหยิบ data.json บน GitHub มาเป็นฐานอ้างอิงเด็ดขาด
+     เพราะไฟล์นั้นอาจเก่ากว่าของจริงบน SharePoint และถ้าเผลอเผยแพร่ทับ
+     งานของคนอื่นจะหายทั้งชุด — ใช้ร่างในเครื่องไปก่อนแล้วรอเข้าสู่ระบบ */
+  if(SP_MODE&&!msSignedIn()){
+    SP_NEED_LOGIN=true;
+    if(draft){DATA_SOURCE="draft";DRAFT_DIRTY=!!draft.__basedOn;return draft}
+    DATA_SOURCE="simulation";return demoState();
+  }
+  SP_NEED_LOGIN=false;
 
   const pub=await fetchPublished();
 
@@ -1416,9 +1427,9 @@ function showStorageWarning(){
    กติกา: แก้เลขนี้ทุกครั้งที่อัปโหลด index.html ขึ้น GitHub
           X.Y = เพิ่มความสามารถ · X.Y.Z = แก้บั๊ก/ปรับเล็กน้อย
    ================================================================== */
-const APP_VERSION="1.10.0";
+const APP_VERSION="1.11.0";
 const APP_BUILD="2026-09-14";
-const APP_VERSION_NOTE="เชื่อมต่อ Microsoft 365 — เข้าระบบด้วยบัญชีบริษัท เก็บข้อมูลบน SharePoint แนบไฟล์ในอีเมลได้จริง";
+const APP_VERSION_NOTE="เก็บข้อมูลบน SharePoint · เข้าระบบด้วยบัญชีบริษัท · อีเมลแนบ CSV อัตโนมัติ";
 function versionLabel(){return "v"+APP_VERSION}
 function versionFull(){return "v"+APP_VERSION+" · build "+APP_BUILD}
 function byId(id){return document.getElementById(id)}
@@ -3239,8 +3250,16 @@ function diffSummary(d){
 
 /* ---------- ดึงข้อมูลล่าสุดมารวมกับงานที่ค้างอยู่ (ไม่เผยแพร่) ---------- */
 async function pullLatest(){
-  const remote=await fetchPublished();
-  if(!remote){alert("ดึง data.json ไม่สำเร็จ\n\nถ้าเปิดจากไฟล์ในเครื่อง จะดึงข้อมูลส่วนกลางไม่ได้ ต้องเปิดผ่านลิงก์เว็บ");return false}
+  if(SP_MODE&&!msSignedIn()){
+    alert("เปิดโหมด SharePoint ไว้ แต่ยังไม่ได้เข้าสู่ระบบ Microsoft 365\n\nกรุณากด \"เชื่อมต่อ Microsoft 365\" ที่แถบซ้ายล่างก่อน");
+    return false;
+  }
+  let remote=null;
+  try{ remote=await fetchPublished() }
+  catch(e){ alert("ดึงข้อมูลส่วนกลางไม่สำเร็จ\n\n"+String(e.message||e)); return false }
+  if(!remote){alert(spActive()
+      ?"ยังไม่มีไฟล์ข้อมูลบน SharePoint\n\nกด \"เผยแพร่ให้ทีม\" เพื่อสร้างไฟล์ชุดแรก"
+      :"ดึง data.json ไม่สำเร็จ\n\nถ้าเปิดจากไฟล์ในเครื่อง จะดึงข้อมูลส่วนกลางไม่ได้ ต้องเปิดผ่านลิงก์เว็บ");return false}
   if(stampOf(remote)===PUBLISHED_STAMP){
     alert("ข้อมูลของคุณเป็นชุดล่าสุดอยู่แล้ว\n\nเผยแพร่เมื่อ "+
       (PUBLISHED_STAMP?new Date(PUBLISHED_STAMP).toLocaleString("th-TH"):"—"));
@@ -3283,8 +3302,21 @@ async function publishData(){
     try{localStorage.setItem("po_publisher",who)}catch(e){}
   }
 
+  if(SP_MODE&&!msSignedIn()){
+    alert("เปิดโหมด SharePoint ไว้ แต่ยังไม่ได้เข้าสู่ระบบ Microsoft 365\n\n"
+      +"ระบบจะไม่เผยแพร่ให้ เพื่อกันการเขียนทับงานของคนอื่น\n"
+      +"กรุณากด \"เชื่อมต่อ Microsoft 365\" ที่แถบซ้ายล่างก่อน");
+    return;
+  }
+
   /* ขั้นสำคัญ: ดึงของล่าสุดมาเทียบก่อนเสมอ ห้ามเผยแพร่ทับโดยไม่ตรวจ */
-  const remote=await fetchPublished();
+  let remote=null;
+  try{ remote=await fetchPublished() }
+  catch(e){
+    alert("อ่านข้อมูลส่วนกลางไม่สำเร็จ จึงยังไม่เผยแพร่ให้\n\n"+String(e.message||e)
+      +"\n\nข้อมูลของคุณยังอยู่ครบในเครื่องนี้");
+    return;
+  }
   let outState=state;
 
   if(remote && stampOf(remote)!==PUBLISHED_STAMP){
@@ -3308,28 +3340,62 @@ async function publishData(){
     outState=r.merged;
   }
 
-  const out=JSON.parse(JSON.stringify(outState));
-  delete out.__basedOn; delete out.__baseIndex;
-  out.publishedAt=new Date().toISOString();
-  out.publishedBy=who;
-  out.publishedByVersion=APP_VERSION;
-  /* บันทึกประวัติการเผยแพร่ไว้ในไฟล์ แบบต่อท้ายอย่างเดียว */
-  out.publishLog=[...(out.publishLog||[]).slice(-49),
-    {at:out.publishedAt,by:who,transactions:out.transactions.length}];
+  /* ถ้ารวมกับของส่วนกลางไปแล้ว ให้ยึดผลรวมนั้นเป็นข้อมูลปัจจุบันก่อนเขียน */
+  if(outState!==state){
+    state=outState;
+    if(remote){state.__basedOn=stampOf(remote); state.__baseIndex=buildIndex(remote.transactions)}
+    STORE.set(KEY,JSON.stringify(state));
+  }
 
+  /* สร้างชุดที่จะเผยแพร่จาก state ปัจจุบันเสมอ
+     ทำเป็นฟังก์ชันเพราะถ้าชนกันแล้วต้องรวมใหม่ ต้องสร้างซ้ำจากของที่รวมแล้ว */
+  const buildOut=()=>{
+    const o=JSON.parse(JSON.stringify(state));
+    delete o.__basedOn; delete o.__baseIndex;
+    o.publishedAt=new Date().toISOString();
+    o.publishedBy=who;
+    o.publishedByVersion=APP_VERSION;
+    /* บันทึกประวัติการเผยแพร่ไว้ในไฟล์ แบบต่อท้ายอย่างเดียว */
+    o.publishLog=[...(o.publishLog||[]).slice(-49),
+      {at:o.publishedAt,by:who,transactions:o.transactions.length}];
+    return o;
+  };
+  const finalize=(o)=>{
+    state=JSON.parse(JSON.stringify(o));
+    state.__basedOn=o.publishedAt;
+    state.__baseIndex=buildIndex(o.transactions);
+    PUBLISHED_STAMP=o.publishedAt;
+    DRAFT_DIRTY=false; DATA_SOURCE="published"; STALE_DRAFT=false;
+    STORE.set(KEY,JSON.stringify(state));
+    renderDataStatus();
+  };
+
+  if(spActive()){
+    let r;
+    try{ r=await publishToSharePoint(buildOut) }
+    catch(e){
+      alert("เขียนไฟล์ขึ้น SharePoint ไม่สำเร็จ\n\n"+String(e.message||e)
+        +"\n\nข้อมูลของคุณยังอยู่ครบในเครื่องนี้ ไม่มีอะไรหาย");
+      return;
+    }
+    if(!r.ok)return;
+    finalize(r.out);
+    renderAll();
+    alert("เผยแพร่ขึ้น SharePoint แล้ว ("+r.out.transactions.length+" รายการ)\n\n"
+      +"ที่อยู่: "+msCfg().folder+"/"+msCfg().file+"\n\n"
+      +"ทีมกด \"ดึงข้อมูลล่าสุด\" หรือเปิดระบบใหม่ จะเห็นชุดนี้ทันที\n"
+      +"ไม่ต้องอัปโหลดขึ้น GitHub อีกแล้ว");
+    return;
+  }
+
+  const out=buildOut();
   const blob=new Blob([JSON.stringify(out,null,2)],{type:"application/json"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(blob); a.download="data.json"; a.click();
   URL.revokeObjectURL(a.href);
 
   /* หลังผู้ใช้อัปโหลดขึ้น GitHub แล้ว ชุดนี้จะกลายเป็นฐานอ้างอิงใหม่ */
-  state=JSON.parse(JSON.stringify(out));
-  state.__basedOn=out.publishedAt;
-  state.__baseIndex=buildIndex(out.transactions);
-  PUBLISHED_STAMP=out.publishedAt;
-  DRAFT_DIRTY=false; DATA_SOURCE="published"; STALE_DRAFT=false;
-  STORE.set(KEY,JSON.stringify(state));
-  renderDataStatus();
+  finalize(out);
 
   alert("ดาวน์โหลด data.json แล้ว ("+out.transactions.length+" รายการ)\n\n"+
     "ขั้นตอนถัดไป — อัปโหลดขึ้น GitHub:\n"+
@@ -3813,7 +3879,7 @@ function decisionPayload(){
 }
 
 /* ---------- ผู้อนุมัติ: เปิดโปรแกรมเมลพร้อมเนื้อหาครบ ---------- */
-function emailDecisions(){
+async function emailDecisions(){
   const ids=Object.keys(LOCAL_DECISIONS);
   if(!ids.length){alert("ยังไม่มีผลอนุมัติที่จะส่ง");return}
   const to=approvalRecipient(); if(to===null)return;
@@ -3872,7 +3938,26 @@ function emailDecisions(){
       +"==================================================";
     finalUrl="mailto:"+encodeURIComponent(to)+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(shortBody);
   }
-  openMailto(finalUrl);
+  /* ถ้าเชื่อม Microsoft 365 ไว้ ส่งตรงพร้อมแนบไฟล์ให้เอง
+     ผู้อนุมัติไม่ต้องแนบเอง ซึ่งเป็นขั้นตอนที่คนลืมบ่อยที่สุด */
+  let sentViaGraph=false;
+  if(msSignedIn()){
+    try{
+      const payload=JSON.stringify(decisionPayload(),null,2);
+      if(confirm("ส่งผลอนุมัติ "+ids.length+" รายการ ถึง "+to+"\n\n"
+        +"ระบบจะแนบไฟล์ "+fname+" ให้อัตโนมัติ\n"
+        +"ส่งจากกล่องจดหมายของ "+((msAccount()||{}).email||"")+"\n\nส่งเลยหรือไม่?")){
+        await msSendMail({to,subject,html:csvHtmlBody(lines),
+          attachments:[{name:fname,type:"application/json",text:payload}]});
+        sentViaGraph=true;
+        toast("ส่งผลอนุมัติแล้ว พร้อมไฟล์แนบ");
+      }else return;
+    }catch(e){
+      if(!confirm("ส่งผ่าน Microsoft 365 ไม่สำเร็จ\n\n"+String(e.message||e)
+        +"\n\nลองใช้วิธีเดิม (เปิดโปรแกรมอีเมลแล้วแนบไฟล์เอง) หรือไม่?"))return;
+    }
+  }
+  if(!sentViaGraph)openMailto(finalUrl);
 
   const stamp=new Date().toISOString();
   ids.forEach(id=>{ if(LOCAL_DECISIONS[id])LOCAL_DECISIONS[id].sentAt=stamp });
@@ -3888,7 +3973,7 @@ function emailDecisions(){
      • อีเมลภายใน  = แจ้งผลกลับให้ระบบลงสถานะ
    ถ้ารวมเป็นฉบับเดียว ลิงก์ควบคุมภายในจะหลุดไปถึงคู่ค้าโดยไม่จำเป็น
    ================================================================== */
-function emailExternalInstruction(){
+async function emailExternalInstruction(){
   if(!guard("approve"))return;
   const rows=approvedThisRound();
   if(!rows.length){alert("ไม่มีรายการที่อนุมัติในรอบนี้ จึงไม่มีคำสั่งให้ส่งออก");return}
@@ -3901,7 +3986,8 @@ function emailExternalInstruction(){
   }
   rememberExternal(to);
 
-  const fname=downloadInstructionCsv(true);
+  const csvText=buildInstructionCsv(rows);
+  const fname=msSignedIn()?csvFileName():downloadInstructionCsv(true);
   const ent=ENTITY_();
   const who=(Object.values(LOCAL_DECISIONS)[0]||{}).by||meName()||"";
   const ccFin=(teamOf().find(m=>m.role==="editor")||{}).email||"";
@@ -3956,6 +4042,25 @@ function emailExternalInstruction(){
     url="mailto:"+encodeURIComponent(to)+"?subject="+encodeURIComponent(subject)
       +(ccFin?"&cc="+encodeURIComponent(ccFin):"")
       +"&body="+encodeURIComponent(shortBody);
+  }
+  /* ทางที่ดีที่สุด: ส่งตรงผ่าน Microsoft 365 พร้อมแนบ CSV จริง
+     ขั้นนี้ส่งข้อมูลออกนอกองค์กร จึงให้ยืนยันผู้รับอย่างชัดเจนก่อนเสมอ */
+  if(msSignedIn()){
+    try{
+      const sent=await sendExternalViaGraph(to,ccFin,subject,csvHtmlBody(L.slice(1)),
+                                            fname,csvText,rows.length);
+      if(!sent)return;
+      EXT_SENT_AT=Date.now();
+      const stg=byId("extState");
+      if(stg)stg.innerHTML='<b class="pos">✓ ส่งอีเมลแล้ว พร้อมแนบ '+fname+'</b><br>'
+        +'<span class="muted">ตรวจได้ที่ Sent Items · สำเนาถึง '+(ccFin||"—")+'</span>';
+      toast("ส่งคำสั่งซื้อขายแล้ว "+rows.length+" รายการ");
+      return;
+    }catch(e){
+      if(!confirm("ส่งผ่าน Microsoft 365 ไม่สำเร็จ\n\n"+String(e.message||e)
+        +"\n\nลองใช้วิธีเดิม (เปิดโปรแกรมอีเมลแล้วแนบไฟล์เอง) หรือไม่?"))return;
+      downloadInstructionCsv(true);
+    }
   }
   openMailto(url);
   EXT_SENT_AT=Date.now();
@@ -4454,6 +4559,28 @@ async function signIn(id){
     ROLE=m.role; saveGovPrefs(); applyRole(); renderAll();
     toast("เข้าใช้งานในนาม "+m.name); return;
   }
+  /* โหมดบังคับใช้บัญชีบริษัท — ปิดทางรหัสผ่านในแอปทั้งหมด
+     นี่คือการแก้ปัญหาที่ผู้ใช้สลับบัญชีบนเครื่องแล้วสวมสิทธิ์กันได้ */
+  if(MS_AUTH_ONLY){
+    const acct=msAccount();
+    if(!acct){
+      alert("ระบบตั้งให้เข้าใช้งานด้วยบัญชีบริษัทเท่านั้น\n\nกรุณากด \"เชื่อมต่อ Microsoft 365\" ที่แถบซ้ายล่าง");
+      openMsModal(); return;
+    }
+    if(String(m.email||"").toLowerCase()!==acct.email){
+      alert("บัญชีที่เข้าสู่ระบบอยู่คือ "+acct.email+"\n\n"
+        +"จึงเข้าใช้งานในนาม \""+(m.name||m.title)+"\" ไม่ได้\n"
+        +"ถ้าต้องการเปลี่ยนผู้ใช้ ให้ออกจากระบบ Microsoft แล้วเข้าใหม่ด้วยบัญชีนั้น");
+      return;
+    }
+    try{localStorage.setItem("po_me",id)}catch(e){}
+    writeSession({id,at:Date.now(),via:"ms"});
+    ROLE=m.role; saveGovPrefs(); applyRole(); renderAll();
+    toast("เข้าใช้งานในนาม "+m.name+" · "+ROLE_LABEL[ROLE]+" (บัญชีบริษัท)");
+    const st0=takeStashedDecisions();
+    if(st0&&canEdit())setTimeout(()=>offerDecisions(st0),300);
+    return;
+  }
   if(!hasPassword(m)){
     alert("ตำแหน่ง \""+m.title+"\" ยังไม่ได้ตั้งรหัสผ่าน\n\nให้ผู้บันทึกรายการไปที่ Master Data → ทะเบียนทีมงาน แล้วกด \"ตั้งรหัสผ่าน\"");
     renderGovPanel(); return;
@@ -4535,7 +4662,17 @@ function renderGovPanel(){
       +'<div style="margin-top:8px;padding:8px 10px;border-radius:9px;background:rgba(255,255,255,.07);color:#c9d9e8;font-size:11.5px;line-height:1.5">'
       +'ยังไม่ได้ตั้งทะเบียนทีม — ไปที่ <b>Master Data</b> เพื่อระบุว่าใครเป็นฝ่ายการเงิน ใครเป็น IM ชื่อจะได้ขึ้นบนเอกสารอัตโนมัติ</div>';
   }
-  el.innerHTML=picker+warn;
+  el.innerHTML=picker+warn+spNotice();
+}
+/* แถบบอกแหล่งข้อมูล — ให้เห็นชัดว่ากำลังอ่าน/เขียนที่ไหนอยู่ */
+function spNotice(){
+  if(SP_NEED_LOGIN)
+    return '<div style="margin-top:10px;padding:9px 10px;border-radius:9px;background:#4a3410;border:1px solid #7a591c;color:#ffe6b8;line-height:1.5">'
+      +'<b>ยังไม่ได้เข้าสู่ระบบ</b><br>ข้อมูลที่เห็นเป็นร่างในเครื่องนี้ ยังไม่ใช่ชุดล่าสุดของทีม'
+      +'<br><button class="btn btn-secondary" style="margin-top:7px;padding:6px 10px;font-size:11px" onclick="msSignIn()">เข้าสู่ระบบเพื่อโหลดข้อมูล</button></div>';
+  if(spActive())
+    return '<div style="margin-top:10px;font-size:11px;color:#8fe3b8;line-height:1.5">เก็บข้อมูลที่ SharePoint · Teams Markets</div>';
+  return '';
 }
 
 /* เตือนก่อนปิดหน้า ถ้ายังมีงานที่ไม่ได้เผยแพร่ */
@@ -5151,6 +5288,26 @@ function renderMsPanel(){
   if(MS_REDIRECT_MSG)head+='<div class="ms-warn">'+MS_REDIRECT_MSG+'</div>';
   el.innerHTML=head;
 
+  const md=byId("msModes");
+  if(md){
+    const card=(title,desc,on,onLabel,offLabel,fn,ready)=>
+      '<div class="ms-row'+(on?" ok":"")+'" style="grid-template-columns:1fr auto;align-items:center">'
+      +'<div><b>'+title+'</b><div class="ms-sub">'+desc+'</div></div>'
+      +'<div><button class="btn '+(on?"btn-secondary":"btn-primary")+'" style="padding:7px 12px;font-size:12px"'
+      +(ready?"":" disabled")+' onclick="'+fn+'">'+(on?offLabel:onLabel)+'</button></div></div>';
+    md.innerHTML='<b style="font-size:13px">การตั้งค่าการใช้งานจริง</b>'
+      +'<div class="ms-sub" style="margin:4px 0 10px">เปิดเมื่อผลตรวจด้านบนผ่านครบแล้วเท่านั้น</div>'
+      +card("เก็บข้อมูลบน SharePoint",
+            SP_MODE?("อ่าน/เขียนที่ "+msCfg().folder+"/"+msCfg().file+" · ไม่ต้องอัปโหลด GitHub อีก")
+                   :"ตอนนี้ยังเก็บบน GitHub ซึ่งเป็นพื้นที่สาธารณะ",
+            SP_MODE,"เปิดใช้","กลับไปใช้ GitHub",
+            SP_MODE?"disableSpMode()":"enableSpMode()", msSignedIn())
+      +card("ใช้บัญชีบริษัทเท่านั้น",
+            MS_AUTH_ONLY?"ปิดรหัสผ่านในแอปแล้ว สิทธิ์มาจากอีเมลที่ตรงกับทะเบียนทีม"
+                        :"ตอนนี้ยังใช้รหัสผ่านในแอปได้ ซึ่งสลับผู้ใช้บนเครื่องแล้วสวมสิทธิ์กันได้",
+            MS_AUTH_ONLY,"เปิดใช้","ปิด","toggleMsAuthOnly()", msSignedIn());
+  }
+
   const f=byId("msCfgBody");
   if(f){
     const rows=[["clientId","Application (client) ID"],["tenantId","Directory (tenant) ID"],
@@ -5177,6 +5334,217 @@ function msResetCfg(){
 }
 
 
+/* ==================================================================
+   โหมด SharePoint — ใช้ SharePoint เป็นที่เก็บข้อมูลหลักแทน GitHub
+
+   หลักการที่ยึดไว้ ไม่ยอมแลกกับความสะดวก:
+     1. ห้ามเขียนทับงานคนอื่นเด็ดขาด ใช้ eTag + If-Match ให้เซิร์ฟเวอร์
+        เป็นคนปฏิเสธ ไม่ใช่ให้เบราว์เซอร์เดาเอง
+     2. ถ้ายังไม่ได้เข้าสู่ระบบ ห้ามถือว่าข้อมูลในเครื่องคือชุดล่าสุด
+        เพราะถ้าเผลอเผยแพร่ทับ งานของคนอื่นจะหาย
+     3. ถ้าอะไรไม่แน่ใจ ให้หยุดแล้วถามผู้ใช้ ดีกว่าเดาแล้วข้อมูลหาย
+   ================================================================== */
+
+const SP_MODE_KEY="po_sp_mode";
+let SP_MODE=(function(){try{return localStorage.getItem(SP_MODE_KEY)==="1"}catch(e){return false}})();
+let PUBLISHED_ETAG="";          /* eTag ของไฟล์ชุดที่เราโหลดมา ใช้ยืนยันตอนเขียนกลับ */
+let SP_NEED_LOGIN=false;        /* เปิดโหมด SharePoint แล้วแต่ยังไม่ได้เข้าสู่ระบบ */
+
+const spActive = ()=> SP_MODE && msSignedIn();
+
+function setSpMode(on){
+  SP_MODE=!!on;
+  try{localStorage.setItem(SP_MODE_KEY,SP_MODE?"1":"0")}catch(e){}
+  PUBLISHED_ETAG="";
+}
+
+/* อ่านไฟล์ข้อมูลจาก SharePoint
+   404 = ยังไม่เคยเผยแพร่ ถือว่าไม่มีข้อมูลส่วนกลาง (ไม่ใช่ข้อผิดพลาด) */
+async function fetchPublishedSP(){
+  try{
+    const f=await msReadFile();
+    const d=JSON.parse(f.text);
+    if(!d||!Array.isArray(d.transactions)){
+      console.warn("ไฟล์บน SharePoint ไม่ใช่ข้อมูลของระบบนี้");
+      return null;
+    }
+    PUBLISHED_ETAG=f.etag||"";
+    SP_LAST_INFO={modified:f.modified,by:f.by,size:f.size,webUrl:f.webUrl};
+    return d;
+  }catch(e){
+    if(e.status===404){PUBLISHED_ETAG="";return null}
+    throw e;     /* อย่ากลืน error อื่น ผู้ใช้ต้องรู้ว่าอ่านไม่ได้ ไม่ใช่คิดว่าไม่มีข้อมูล */
+  }
+}
+let SP_LAST_INFO=null;
+
+/* ตัวส่งต่อ — เลือกแหล่งข้อมูลตามโหมด
+   ชื่อเดิม fetchPublished() ถูกเปลี่ยนเป็น fetchPublishedGitHub() */
+async function fetchPublished(){
+  if(spActive())return await fetchPublishedSP();
+  return await fetchPublishedGitHub();
+}
+
+/* เขียนข้อมูลขึ้น SharePoint
+   คืน {ok:true} หรือ {conflict:true} เมื่อมีคนแก้ไฟล์หลังจากที่เราโหลดมา */
+async function writePublishedSP(out){
+  const text=JSON.stringify(out,null,2);
+  try{
+    const r=await msWriteFile(null,text,PUBLISHED_ETAG||"");
+    PUBLISHED_ETAG=r.etag||"";
+    return {ok:true,webUrl:r.webUrl,size:r.size};
+  }catch(e){
+    if(e.conflict)return {conflict:true};
+    throw e;
+  }
+}
+
+/* ---------- เผยแพร่ขึ้น SharePoint ----------
+   ทำสองชั้น:
+     ชั้นแรก  — ดึงของล่าสุดมาเทียบและรวมก่อนเขียน (เหมือนเดิม)
+     ชั้นสอง  — ส่ง If-Match ให้เซิร์ฟเวอร์ปฏิเสธ ถ้ามีคนแทรกในเสี้ยววินาทีนั้น
+   ชั้นสองสำคัญเพราะระหว่าง "อ่านมาเทียบ" กับ "เขียน" มีช่องว่างเวลาเสมอ */
+async function publishToSharePoint(buildOut,onMerged){
+  for(let attempt=1;attempt<=2;attempt++){
+    const out=buildOut();
+    const r=await writePublishedSP(out);
+    if(r.ok)return {ok:true,out,webUrl:r.webUrl};
+
+    /* ชนกัน — ดึงของใหม่มารวมแล้วลองอีกครั้งเดียว */
+    if(attempt===2){
+      alert("⛔ ยังชนกันอยู่หลังจากลองรวมข้อมูลแล้ว\n\n"
+        +"แปลว่ามีคนกำลังเผยแพร่พร้อมกับคุณพอดี\n"
+        +"กรุณากด \"ดึงข้อมูลล่าสุด\" แล้วลองเผยแพร่ใหม่อีกครั้ง\n\n"
+        +"ข้อมูลของคุณยังอยู่ครบในเครื่องนี้ ไม่มีอะไรหาย");
+      return {ok:false};
+    }
+    const fresh=await fetchPublishedSP();
+    if(!fresh){alert("อ่านไฟล์ล่าสุดจาก SharePoint ไม่สำเร็จ ยกเลิกการเผยแพร่เพื่อความปลอดภัย");return {ok:false}}
+    const mg=threeWayMerge(state.__baseIndex||{},state,fresh);
+    if(!mg.ok){
+      alert("⛔ หยุดการเผยแพร่ เพื่อไม่ให้ข้อมูลของผู้อื่นหาย\n\n"
+        +"มีผู้เผยแพร่ชุดใหม่ระหว่างที่คุณกดเผยแพร่ และรายการเหล่านี้ถูกแก้ทั้งสองฝั่ง:\n  "
+        +mg.collisions.slice(0,12).join("\n  ")
+        +(mg.collisions.length>12?"\n  … และอีก "+(mg.collisions.length-12)+" รายการ":"")
+        +"\n\nกด Export JSON เก็บงานไว้ก่อน แล้วปรึกษากับผู้ที่แก้รายการเดียวกัน");
+      return {ok:false};
+    }
+    if(!confirm("มีผู้เผยแพร่ชุดใหม่ในจังหวะเดียวกับคุณพอดี\n\n"
+       +"จากผู้อื่น: "+diffSummary(mg.thDiff)+"\n"
+       +"ของคุณ:    "+diffSummary(mg.myDiff)+"\n\n"
+       +"ระบบรวมทั้งสองฝั่งให้แล้ว เผยแพร่ต่อหรือไม่?"))return {ok:false};
+    state=mg.merged;
+    state.__basedOn=stampOf(fresh);
+    state.__baseIndex=buildIndex(fresh.transactions);
+    if(onMerged)onMerged();
+  }
+  return {ok:false};
+}
+
+/* ---------- เปิด/ปิดโหมด SharePoint จากแผงเชื่อมต่อ ---------- */
+async function enableSpMode(){
+  if(!msSignedIn()){alert("กรุณาเข้าสู่ระบบ Microsoft 365 ก่อน");return}
+  if(!canEdit()){alert("เฉพาะ"+editorTitle()+"เท่านั้นที่เปลี่ยนที่เก็บข้อมูลได้");return}
+  let existing=null;
+  try{
+    SP_MODE=true;                       /* ชั่วคราว เพื่อให้ spActive() เป็นจริงตอนอ่าน */
+    existing=await fetchPublishedSP();
+  }catch(e){
+    SP_MODE=false;
+    alert("อ่านโฟลเดอร์บน SharePoint ไม่สำเร็จ\n\n"+String(e.message||e));
+    return;
+  }finally{ SP_MODE=false }
+
+  if(existing){
+    const n=existing.transactions.length;
+    if(!confirm("พบไฟล์ข้อมูลอยู่แล้วบน SharePoint ("+n+" รายการ"
+      +(SP_LAST_INFO&&SP_LAST_INFO.modified?" · แก้ไขล่าสุด "+SP_LAST_INFO.modified.slice(0,10):"")+")\n\n"
+      +"ระบบจะใช้ไฟล์นั้นเป็นข้อมูลส่วนกลาง และรวมกับงานในเครื่องนี้ให้\n\nเปิดโหมด SharePoint หรือไม่?"))return;
+  }else{
+    if(!confirm("ยังไม่มีไฟล์ข้อมูลบน SharePoint\n\n"
+      +"เมื่อเปิดโหมดนี้ ระบบจะสร้างไฟล์ให้ตอนคุณกด \"เผยแพร่ให้ทีม\" ครั้งแรก\n"
+      +"ที่อยู่: "+msCfg().folder+"/"+msCfg().file+"\n\n"
+      +"เปิดโหมด SharePoint หรือไม่?"))return;
+  }
+  setSpMode(true);
+  renderMsPanel(); renderDataStatus(); renderAll();
+  toast("เปิดโหมด SharePoint แล้ว — กด \"เผยแพร่ให้ทีม\" เพื่อบันทึกขึ้นส่วนกลาง");
+}
+function disableSpMode(){
+  if(!confirm("กลับไปใช้ GitHub เป็นที่เก็บข้อมูลหรือไม่?\n\n"
+    +"ข้อมูลบน SharePoint จะไม่ถูกลบ แต่ระบบจะเลิกอ่าน/เขียนที่นั่น\n"
+    +"และจะกลับไปใช้วิธีดาวน์โหลด data.json แล้วอัปโหลดขึ้น GitHub เอง"))return;
+  setSpMode(false);
+  renderMsPanel(); renderDataStatus();
+  toast("กลับไปใช้ GitHub แล้ว");
+}
+
+/* ---------- ยืนยันตัวตนด้วยบัญชีบริษัท ---------- */
+const MS_ONLY_KEY="po_ms_only";
+let MS_AUTH_ONLY=(function(){try{return localStorage.getItem(MS_ONLY_KEY)==="1"}catch(e){return false}})();
+function setMsAuthOnly(on){
+  MS_AUTH_ONLY=!!on;
+  try{localStorage.setItem(MS_ONLY_KEY,MS_AUTH_ONLY?"1":"0")}catch(e){}
+}
+function toggleMsAuthOnly(){
+  if(!MS_AUTH_ONLY){
+    if(!msSignedIn()){alert("กรุณาเข้าสู่ระบบ Microsoft 365 ก่อน");return}
+    const m=msMatchMember();
+    if(!m){alert("อีเมลของคุณยังไม่ตรงกับใครในทะเบียนทีม\n\nถ้าเปิดโหมดนี้ตอนนี้ จะไม่มีใครเข้าระบบได้เลย");return}
+    /* กันล็อกตัวเองออก: ต้องมีอย่างน้อยหนึ่งผู้บันทึกที่มีอีเมลในทะเบียน */
+    const editors=teamOf().filter(x=>x.role==="editor"&&String(x.email||"").trim());
+    if(!editors.length){alert("ยังไม่มี"+editorTitle()+"ที่ระบุอีเมลไว้ในทะเบียนทีม\n\nกรุณาใส่อีเมลให้ครบก่อนเปิดโหมดนี้");return}
+    if(!confirm("เปิดโหมด \"ใช้บัญชีบริษัทเท่านั้น\"?\n\n"
+      +"• การเข้าระบบด้วยรหัสผ่านในแอปจะถูกปิด\n"
+      +"• ทุกคนต้องเข้าสู่ระบบด้วยบัญชี Microsoft ของบริษัท\n"
+      +"• สิทธิ์จะมาจากอีเมลที่ตรงกับทะเบียนทีมเท่านั้น\n\n"
+      +"นี่คือการแก้ปัญหาที่ผู้ใช้สลับเครื่องแล้วสวมสิทธิ์กันได้"))return;
+    setMsAuthOnly(true);
+  }else{
+    if(!confirm("ปิดโหมด \"ใช้บัญชีบริษัทเท่านั้น\"?\n\n"
+      +"ระบบจะกลับมายอมรับรหัสผ่านที่ตั้งไว้ในแอป ซึ่งอ่อนแอกว่า"))return;
+    setMsAuthOnly(false);
+  }
+  renderMsPanel(); renderGovPanel(); renderAll();
+  toast(MS_AUTH_ONLY?"ใช้บัญชีบริษัทเท่านั้นแล้ว":"เปิดให้ใช้รหัสผ่านในแอปได้อีกครั้ง");
+}
+/* รับสิทธิ์อัตโนมัติเมื่อเข้าสู่ระบบสำเร็จและอีเมลตรงกับทะเบียน */
+function msAutoAdopt(){
+  if(!msSignedIn())return false;
+  const m=msMatchMember();
+  if(!m)return false;
+  if(meId()===m.id&&ROLE===m.role)return false;
+  try{localStorage.setItem("po_me",m.id)}catch(e){}
+  writeSession({id:m.id,at:Date.now(),via:"ms"});
+  ROLE=m.role; saveGovPrefs(); applyRole();
+  return true;
+}
+
+/* ---------- ส่งอีเมลผ่าน Graph พร้อมไฟล์แนบจริง ---------- */
+/* ส่งคำสั่งซื้อขายออกไปยังบุคคลภายนอก
+   ขั้นตอนนี้ส่งข้อมูลออกนอกองค์กร จึงต้องยืนยันให้ชัดก่อนเสมอ */
+async function sendExternalViaGraph(to,cc,subject,html,csvName,csvText,count){
+  const lines=["ยืนยันการส่งคำสั่งซื้อขายออกนอกองค์กร","",
+    "ถึง:        "+to,
+    cc?"สำเนา:      "+cc:"",
+    "จำนวน:      "+count+" รายการ",
+    "ไฟล์แนบ:    "+csvName,
+    "ส่งจาก:     "+((msAccount()||{}).email||""),
+    "","อีเมลจะถูกส่งทันทีเมื่อกดตกลง และจะปรากฏใน Sent Items ของคุณ","",
+    "ตรวจสอบผู้รับให้แน่ใจก่อนกดตกลง"].filter(Boolean);
+  if(!confirm(lines.join("\n")))return false;
+  await msSendMail({to,cc,subject,html,
+    attachments:[{name:csvName,type:"text/csv",text:csvText}]});
+  return true;
+}
+function csvHtmlBody(textLines){
+  return "<div style=\"font-family:Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.6\">"
+    +textLines.map(l=>l===""?"<br>":"<div>"+String(l)
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")+"</div>").join("")
+    +"</div>";
+}
+
+
 /* รันหลัง first paint เพื่อให้ผู้ใช้เห็นแถบสถานะทันที ไม่ใช่จอขาว */
 async function boot(){
   try{
@@ -5192,6 +5560,7 @@ async function boot(){
     /* ถ้าระบุตัวตนไว้แล้ว สิทธิ์ต้องมาจากทะเบียนกลาง ไม่ใช่ค่าที่ค้างในเครื่อง
        เพื่อให้การเปลี่ยนตำแหน่งในทะเบียนมีผลกับทุกเครื่องทันทีที่เผยแพร่ */
     restoreSession();
+    try{ msAutoAdopt() }catch(e){ console.error(e) }
     applyRole();
     try{pruneDecisions()}catch(e){}
 
@@ -5204,7 +5573,7 @@ async function boot(){
     setTimeout(bootDone,120);
     /* ถ้าเปิดมาจากลิงก์ผลอนุมัติในอีเมล ให้ลงผลให้เลย ไม่ต้อง copy/paste */
     setTimeout(()=>{try{consumeDecisionLink()}catch(e){console.error(e)}},400);
-    if(msSignedIn()||MS_REDIRECT_MSG)setTimeout(()=>{try{openMsModal()}catch(e){}},650);
+    if(SP_NEED_LOGIN||MS_REDIRECT_MSG)setTimeout(()=>{try{openMsModal()}catch(e){}},650);
   }catch(e){
     bootFail(String(e&&e.message||e), e&&e.stack?String(e.stack).split("\n").slice(0,6).join("\n"):"");
   }
@@ -5258,6 +5627,7 @@ else setTimeout(boot,30);
         <button class="btn btn-secondary" style="padding:6px 12px;font-size:12px" onclick="msRun('mail')">ทดสอบส่งอีเมล</button>
       </div>
       <div id="msSteps"></div>
+      <div id="msModes" style="margin-top:16px"></div>
       <details style="margin-top:14px">
         <summary style="cursor:pointer;font-weight:800;font-size:13px;padding:6px 0">การตั้งค่า (แก้เมื่อจำเป็น)</summary>
         <div style="padding-top:10px">
