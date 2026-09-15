@@ -527,6 +527,7 @@ tr.row-rejected:hover td{background:#fbe9e7}
 .ms-f{display:block;margin-bottom:9px}
 .ms-f span{display:block;font-size:11px;font-weight:800;letter-spacing:.04em;color:var(--muted);margin-bottom:4px}
 .ms-f input{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:9px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
+.ms-row .btn[disabled]{opacity:.42;cursor:not-allowed;filter:grayscale(1)}
 
 .modal-backdrop{
   display:none;position:fixed;inset:0;background:rgba(5,18,31,.52);z-index:200;
@@ -1323,12 +1324,29 @@ let DRAFT_DIRTY=false;     /* มีการแก้ไขที่ยัง�
 
 function stampOf(d){return (d&&d.publishedAt)||""}
 
+let SP_POINTER=null;      /* ป้ายบอกทางที่อ่านได้จาก data.json บน GitHub */
 async function fetchPublishedGitHub(){
   try{
     /* กัน cache ของ GitHub Pages ไม่ให้ค้างข้อมูลเก่า */
     const res=await fetch("data.json?t="+Date.now(),{cache:"no-store"});
     if(!res.ok)return null;
     const d=await res.json();
+    /* ป้ายบอกทาง: ข้อมูลจริงย้ายไป SharePoint แล้ว ไฟล์นี้เหลือไว้ชี้ทางอย่างเดียว
+       ทำแบบนี้เพื่อให้เครื่องที่ยังไม่ได้ตั้งค่า ไม่เผลออ่านข้อมูลเก่าแล้วคิดว่าเป็นชุดล่าสุด */
+    if(d&&d.movedTo==="sharepoint"){
+      SP_POINTER=d;
+      if(d.graph&&typeof d.graph==="object"){
+        /* ให้ไฟล์ชี้ทางเป็นคนบอกที่อยู่ ทีมจึงไม่ต้องกรอกเองทีละเครื่อง */
+        const cur=msCfg(), next={};
+        ["clientId","tenantId","siteHost","sitePath","folder","file"].forEach(k=>{
+          if(d.graph[k])next[k]=String(d.graph[k]);
+        });
+        if(Object.keys(next).length&&JSON.stringify(Object.assign({},cur,next))!==JSON.stringify(cur))
+          msSaveCfg(Object.assign({},cur,next));
+      }
+      if(!SP_MODE)setSpMode(true);
+      return null;
+    }
     if(!d||!Array.isArray(d.transactions))return null;
     return d;
   }catch(e){ return null; }   /* เปิดจากไฟล์ในเครื่อง (file://) จะมาทางนี้ ถือว่าปกติ */
@@ -1349,7 +1367,20 @@ async function resolveState(){
   }
   SP_NEED_LOGIN=false;
 
-  const pub=await fetchPublished();
+  let pub=await fetchPublished();
+
+  /* เพิ่งรู้จากป้ายบอกทางว่าข้อมูลย้ายไป SharePoint แล้ว
+     ถ้าเข้าสู่ระบบอยู่ ให้ไปอ่านที่นั่นต่อทันที ถ้ายัง ให้ขอเข้าสู่ระบบก่อน */
+  if(pub===null&&SP_POINTER){
+    if(msSignedIn()){
+      try{ pub=await fetchPublishedSP() }
+      catch(e){ console.error(e); pub=null }
+    }else{
+      SP_NEED_LOGIN=true;
+      if(draft){DATA_SOURCE="draft";DRAFT_DIRTY=!!draft.__basedOn;return draft}
+      DATA_SOURCE="simulation";return demoState();
+    }
+  }
 
   /* ถ้าไฟล์ที่เผยแพร่ไม่มีทะเบียนทีมติดมา ให้ยืมของเดิมในเครื่องนี้ไว้ก่อน
      ไม่อย่างนั้นทุกเครื่องจะตกกลับไปเป็นทะเบียนตั้งต้นที่ไม่มีรหัสผ่าน
@@ -1427,9 +1458,9 @@ function showStorageWarning(){
    กติกา: แก้เลขนี้ทุกครั้งที่อัปโหลด index.html ขึ้น GitHub
           X.Y = เพิ่มความสามารถ · X.Y.Z = แก้บั๊ก/ปรับเล็กน้อย
    ================================================================== */
-const APP_VERSION="1.11.0";
+const APP_VERSION="1.11.1";
 const APP_BUILD="2026-09-14";
-const APP_VERSION_NOTE="เก็บข้อมูลบน SharePoint · เข้าระบบด้วยบัญชีบริษัท · อีเมลแนบ CSV อัตโนมัติ";
+const APP_VERSION_NOTE="เก็บข้อมูลบน SharePoint · ทุกเครื่องสลับตามอัตโนมัติ · เข้าระบบด้วยบัญชีบริษัท · อีเมลแนบ CSV";
 function versionLabel(){return "v"+APP_VERSION}
 function versionFull(){return "v"+APP_VERSION+" · build "+APP_BUILD}
 function byId(id){return document.getElementById(id)}
@@ -5305,7 +5336,13 @@ function renderMsPanel(){
       +card("ใช้บัญชีบริษัทเท่านั้น",
             MS_AUTH_ONLY?"ปิดรหัสผ่านในแอปแล้ว สิทธิ์มาจากอีเมลที่ตรงกับทะเบียนทีม"
                         :"ตอนนี้ยังใช้รหัสผ่านในแอปได้ ซึ่งสลับผู้ใช้บนเครื่องแล้วสวมสิทธิ์กันได้",
-            MS_AUTH_ONLY,"เปิดใช้","ปิด","toggleMsAuthOnly()", msSignedIn());
+            MS_AUTH_ONLY,"เปิดใช้","ปิด","toggleMsAuthOnly()", msSignedIn())
+      +(SP_MODE?('<div class="ms-row" style="grid-template-columns:1fr auto;align-items:center">'
+        +'<div><b>เอาข้อมูลออกจาก GitHub</b><div class="ms-sub">'
+        +'สร้างไฟล์ชี้ทางไปวางแทน data.json เดิม — ข้อมูลพอร์ตจะหายจากพื้นที่สาธารณะ '
+        +'และทุกเครื่องจะถูกพาไปอ่านจาก SharePoint เองโดยไม่ต้องตั้งค่าทีละคน</div></div>'
+        +'<div><button class="btn btn-primary" style="padding:7px 12px;font-size:12px" '
+        +'onclick="downloadPointerFile()">สร้างไฟล์</button></div></div>'):"");
   }
 
   const f=byId("msCfgBody");
@@ -5469,6 +5506,33 @@ async function enableSpMode(){
   setSpMode(true);
   renderMsPanel(); renderDataStatus(); renderAll();
   toast("เปิดโหมด SharePoint แล้ว — กด \"เผยแพร่ให้ทีม\" เพื่อบันทึกขึ้นส่วนกลาง");
+}
+/* สร้างไฟล์ป้ายบอกทางสำหรับวางแทน data.json บน GitHub
+   หลังวางแล้ว ข้อมูลพอร์ตจะไม่อยู่ในพื้นที่สาธารณะอีกต่อไป
+   และทุกเครื่องที่เปิดลิงก์เดิมจะถูกพาไปอ่านจาก SharePoint เองอัตโนมัติ */
+function downloadPointerFile(){
+  const c=msCfg();
+  const ptr={
+    movedTo:"sharepoint",
+    note:"ข้อมูลพอร์ตการลงทุนย้ายไปเก็บบน SharePoint ของบริษัทแล้ว ไฟล์นี้เหลือไว้เพื่อชี้ทางเท่านั้น ไม่มีข้อมูลใดๆ",
+    movedAt:new Date().toISOString(),
+    movedBy:meName()||"",
+    graph:{clientId:c.clientId,tenantId:c.tenantId,siteHost:c.siteHost,
+           sitePath:c.sitePath,folder:c.folder,file:c.file}
+  };
+  const blob=new Blob([JSON.stringify(ptr,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download="data.json"; a.click();
+  URL.revokeObjectURL(a.href);
+  alert("ดาวน์โหลดไฟล์ป้ายบอกทางแล้ว (data.json)\n\n"
+    +"ขั้นตอนถัดไป — อัปโหลดทับไฟล์เดิมบน GitHub:\n"
+    +"1. เปิด repo บน github.com\n"
+    +"2. Add file → Upload files → ลากไฟล์นี้เข้าไป\n"
+    +"3. Commit changes\n\n"
+    +"ผลที่ได้:\n"
+    +"• ข้อมูลพอร์ตจะหายไปจาก repo สาธารณะ\n"
+    +"• ทุกเครื่องที่เปิดลิงก์เดิม จะถูกพาไปอ่านจาก SharePoint เองอัตโนมัติ\n"
+    +"  ไม่ต้องให้แต่ละคนไปกดตั้งค่าเอง");
 }
 function disableSpMode(){
   if(!confirm("กลับไปใช้ GitHub เป็นที่เก็บข้อมูลหรือไม่?\n\n"
