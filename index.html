@@ -819,6 +819,7 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
               <input id="entName" class="wide" placeholder="ชื่อนิติบุคคล">
               <input id="entTax" placeholder="เลขผู้เสียภาษี 13 หลัก">
               <input id="entIc" placeholder="ผู้แนะนำการลงทุน (IC) / เลขใบอนุญาต">
+              <select id="entAck" title="ชื่อที่จะขึ้นในช่องลายเซ็น รับทราบ (Acknowledged)"></select>
               <input id="entAddr" class="wide" placeholder="ที่อยู่">
               <button class="btn btn-primary" onclick="saveEntity()">บันทึกข้อมูลองค์กร</button>
             </div>
@@ -1522,9 +1523,9 @@ function showStorageWarning(){
    กติกา: แก้เลขนี้ทุกครั้งที่อัปโหลด index.html ขึ้น GitHub
           X.Y = เพิ่มความสามารถ · X.Y.Z = แก้บั๊ก/ปรับเล็กน้อย
    ================================================================== */
-const APP_VERSION="1.12.1";
+const APP_VERSION="1.13.0";
 const APP_BUILD="2026-09-14";
-const APP_VERSION_NOTE="กำหนดผู้บันทึก/ผู้อนุมัติได้อิสระไม่ผูกกับตำแหน่ง · เก็บข้อมูลบน SharePoint · อีเมลแนบ CSV";
+const APP_VERSION_NOTE="เลือกผู้อนุมัติได้รายรอบ · เฉพาะคนที่ถูกมอบหมายเท่านั้นที่ตัดสินได้ · ชื่อบนเอกสารตรงคนจริง";
 function versionLabel(){return "v"+APP_VERSION}
 function versionFull(){return "v"+APP_VERSION+" · build "+APP_BUILD}
 function byId(id){return document.getElementById(id)}
@@ -2493,7 +2494,8 @@ function warnIfGoesNegative(){
 function saveEntity(){
   if(!guard("edit"))return;
   state.entity={name:byId("entName").value.trim(),taxId:byId("entTax").value.trim(),
-                address:byId("entAddr").value.trim(),ic:byId("entIc").value.trim()};
+                address:byId("entAddr").value.trim(),ic:byId("entIc").value.trim(),
+                ackMemberId:(byId("entAck")?byId("entAck").value:"")};
   save();renderAll();toast("บันทึกข้อมูลองค์กรแล้ว");
 }
 /* ---------- ฉบับร่างของทะเบียนทีม ----------
@@ -2618,7 +2620,14 @@ function renderTeam(){
   const e=entityOf();
   if(byId("entName")){byId("entName").value=e.name;byId("entTax").value=e.taxId;
     byId("entAddr").value=e.address;byId("entIc").value=e.ic;
-    ["entName","entTax","entAddr","entIc"].forEach(id=>byId(id).disabled=!canEdit());}
+    const ack=byId("entAck");
+    if(ack){
+      ack.innerHTML='<option value="">ผู้รับทราบบนเอกสาร — ไม่ระบุ</option>'
+        +teamOf().filter(m=>m.name).map(m=>'<option value="'+m.id+'"'
+          +(m.id===(e.ackMemberId||"")?" selected":"")+'>รับทราบ: '+m.name
+          +(m.title?" · "+m.title:"")+'</option>').join("");
+    }
+    ["entName","entTax","entAddr","entIc","entAck"].forEach(id=>{const x=byId(id);if(x)x.disabled=!canEdit()});}
 }
 /* สรุปหน้าที่ปัจจุบัน — ให้เห็นทันทีว่าใครบันทึก ใครอนุมัติ
    และเตือนเมื่อทะเบียนอยู่ในสภาพที่ใช้งานจริงไม่ได้ */
@@ -2750,7 +2759,7 @@ function previewDocument(id){
 }
 /* ข้อมูลองค์กรและทะเบียนทีม เก็บอยู่ในชุดข้อมูลเดียวกัน จึงเผยแพร่ไปถึงทุกเครื่องพร้อมกัน
    ทำให้ชื่อในเอกสารและชื่อผู้อนุมัติมาจากทะเบียนกลาง ไม่ใช่สิ่งที่แต่ละคนพิมพ์เอง */
-function defaultEntity(){return {name:"",taxId:"",address:"",ic:""}}
+function defaultEntity(){return {name:"",taxId:"",address:"",ic:"",ackMemberId:""}}
 function defaultTeam(){return [
   {id:"FIN", name:"Jayawat Suwannao", title:"Finance Manager", role:"editor", email:"Jayawat.s@monta.co.th"},
   {id:"IM",  name:"", title:"Investment Manager",  role:"approver", email:""},
@@ -2836,8 +2845,11 @@ function transactionDocument(t,printing){
         +'<br>'+dl+'</div>';
     };
     const fin=teamOf().find(m=>m.role==="editor");
-    const im=teamOf().find(m=>m.role==="approver");
-    const ceo=teamOf().find(m=>m.id==="CEO");
+    /* ต้องเป็นผู้อนุมัติที่รับผิดชอบรายการนี้จริง ไม่ใช่ผู้อนุมัติคนแรกในทะเบียน
+       ไม่อย่างนั้นชื่อกับตำแหน่งบนเอกสารจะเป็นคนละคนกัน */
+    const im=approverOf(t)||approverList()[0]||null;
+    const ackId=(entityOf().ackMemberId||"");
+    const ceo=ackId?memberByIdOrName(ackId):null;
     const approvedStamp=(t.status==="APPROVED"&&t.approvedAt)?"อนุมัติแล้ว"
       :(t.status==="RETURNED"?"ส่งกลับให้แก้ไข":"");
     const preparedDate=stampOfIso(t.createdAt);
@@ -2845,7 +2857,9 @@ function transactionDocument(t,printing){
     return '<div style="margin-top:32px;display:grid;grid-template-columns:repeat(3,1fr);gap:35px;text-align:center">'
       +sig("ผู้จัดทำ (Prepared by)",fin,"",preparedDate)
       +sig("ผู้อนุมัติ (Approved by)",
-           (t.approvedBy||t.returnedBy?{name:t.approvedBy||t.returnedBy,title:im?im.title:approverTitle()}:im),
+           (t.approvedBy||t.returnedBy
+              ?{name:t.approvedBy||t.returnedBy,title:im?im.title:""}
+              :im),
            (t.status==="REJECTED"?"ไม่อนุมัติ":approvedStamp),
            t.status==="RETURNED"?stampOfIso(t.returnedAt):approvedDate)
       +sig("รับทราบ (Acknowledged)",ceo,"","")+'</div>';
@@ -3546,6 +3560,23 @@ async function publishData(){
 /* ชื่อตำแหน่งผู้อนุมัติ — อ่านจากทะเบียนทีมเสมอ
    (เคยฝังคำว่า "Investment Manager" ไว้ตายตัว พอผู้ใช้ย้ายสิทธิ์อนุมัติ
     ไปตำแหน่งอื่น ข้อความบนหน้าจอก็ผิดทันที) */
+const approverList = ()=>(typeof teamOf==="function"?teamOf():[]).filter(m=>m.role==="approver");
+/* หาสมาชิกจากรหัส หรือจากชื่อ (ผลอนุมัติเก็บชื่อไว้ ไม่ได้เก็บรหัส) */
+function memberByIdOrName(x){
+  if(!x)return null;
+  const t=teamOf();
+  return t.find(m=>m.id===x)||t.find(m=>m.name&&m.name===x)||null;
+}
+/* ผู้อนุมัติที่รับผิดชอบรายการนี้ — ใช้ชื่อ/ตำแหน่งให้ตรงคน ไม่ใช่หยิบคนแรกในทะเบียน */
+function approverOf(t){
+  if(!t)return null;
+  return memberByIdOrName(t.approvedBy)||memberByIdOrName(t.returnedBy)
+       ||memberByIdOrName(t.assignedTo)||null;
+}
+function assignedName(t){
+  const m=memberByIdOrName(t&&t.assignedTo);
+  return m?(m.name||m.title||m.id):"";
+}
 function approverTitle(){
   const a=(typeof teamOf==="function"?teamOf():[]).filter(m=>m.role==="approver");
   if(!a.length)return "ผู้อนุมัติ";
@@ -3656,6 +3687,14 @@ function decide(id,decision){
   const t=state.transactions.find(x=>x.id===id);
   if(!t){alert("ไม่พบรายการ "+id);return}
   if(txStatus(t)!=="PENDING"){alert("รายการนี้ไม่ได้อยู่ในสถานะรออนุมัติ");return}
+  /* กันผู้อนุมัติคนอื่นตัดสินรายการที่ไม่ได้มอบหมายให้ตน
+     ถ้าปล่อยให้ตัดสินได้ทุกคน แล้วผลขัดกัน ผู้บันทึกจะกลายเป็นคนเลือกว่าเสียงใครมีผล */
+  if(t.assignedTo&&meId()&&t.assignedTo!==meId()){
+    alert("รายการ "+id+" มอบหมายให้ "+(assignedName(t)||t.assignedTo)+" เป็นผู้อนุมัติ\n\n"
+      +"คุณจึงตัดสินรายการนี้ไม่ได้\n"
+      +"ถ้าต้องการเปลี่ยนผู้อนุมัติ ให้ผู้บันทึกรายการส่งเข้าอนุมัติใหม่");
+    return;
+  }
   let note="";
   if(decision==="REJECTED"){
     note=prompt("เหตุผลที่ไม่อนุมัติ "+id+" (จำเป็น)\n\n"
@@ -4152,7 +4191,9 @@ async function emailExternalInstruction(){
   });
   L.push("Total instructions: "+rows.length);
   L.push("");
-  L.push("Approved by: "+who+(approverTitle()?" ("+approverTitle()+")":""));
+  const apM=memberByIdOrName(who)||approverOf(rows[0]);
+  const apT=apM&&apM.title?apM.title:"";
+  L.push("Approved by: "+who+(apT?" ("+apT+")":""));
   L.push("Date: "+new Date().toLocaleString("en-GB",{dateStyle:"long",timeStyle:"short"}));
   L.push("");
   L.push("Please confirm receipt and advise of any discrepancy before execution.");
@@ -4411,16 +4452,32 @@ async function submitAndPublish(){
     const net=ds.reduce((a,t)=>a+(t.cashUSD||0),0);
     const list=ds.slice(0,10).map(t=>"  • "+t.id+"  "+t.type+" "+(t.security||"CASH")
       +(t.qty?" "+fmt(t.qty,2):"")+"  "+usd(t.cashUSD)).join("\n");
-    if(!confirm("ส่งรายการร่าง "+nDraft+" รายการเข้าอนุมัติ แล้วสร้างไฟล์ data.json ให้ทันที?\n\n"
-      +list+(ds.length>10?"\n  … และอีก "+(ds.length-10)+" รายการ":"")
+    /* ต้องระบุว่ารอบนี้ใครเป็นผู้อนุมัติ — ถ้าไม่ระบุ รายการจะค้างไม่มีเจ้าของ */
+    const sel=byId("apprAssign");
+    const who=sel?sel.value:"";
+    const ap=memberByIdOrName(who);
+    if(!ap){
+      alert("กรุณาเลือกผู้อนุมัติสำหรับรอบนี้ก่อน\n\n"
+        +"ถ้าช่องเลือกว่างเปล่า แปลว่ายังไม่มีใครถูกตั้งเป็นผู้อนุมัติในทะเบียนทีม\n"
+        +"ไปตั้งที่ Master Data → ทะเบียนทีมงาน");
+      return;
+    }
+    const noMail=!String(ap.email||"").trim();
+    if(!confirm("ส่งรายการร่าง "+nDraft+" รายการ เข้าอนุมัติ?\n\n"
+      +"ผู้อนุมัติรอบนี้: "+(ap.name||ap.id)+(ap.title?" ("+ap.title+")":"")+"\n"
+      +(noMail?"⚠ ยังไม่ได้ใส่อีเมลให้ผู้อนุมัติคนนี้ในทะเบียนทีม\n":"")
+      +"\n"+list+(ds.length>10?"\n  … และอีก "+(ds.length-10)+" รายการ":"")
       +"\n\nเงินสดสุทธิ "+usd(net)
       +"\n\nส่งแล้วแก้ไม่ได้จนกว่าผู้อนุมัติจะตัดสิน — ตรวจครบแล้วใช่ไหม?"
-      +"\n\nหลังจากนี้ให้อัปโหลด data.json ขึ้น GitHub เพื่อให้ "+approverTitle()+" เห็นคิว"))return;
+      +"\n\nเฉพาะ "+(ap.name||ap.id)+" เท่านั้นที่ตัดสินรายการรอบนี้ได้"))return;
+    try{localStorage.setItem("po_last_approver",ap.id)}catch(e){}
     state.transactions.forEach(t=>{ if(isEditableStatus(txStatus(t))){
       const wasReturned=txStatus(t)==="RETURNED";
       t.status="PENDING";
+      t.assignedTo=ap.id;
       delete t.returnedBy; delete t.returnedAt; delete t.returnedNote; delete t.approvalNote;
-      auditPush(t.id,wasReturned?"RESUBMIT":"SUBMIT",meName()||"");
+      auditPush(t.id,wasReturned?"RESUBMIT":"SUBMIT",
+                (meName()||"")+" → "+(ap.name||ap.id));
     }});
     save();
   }
@@ -4440,9 +4497,23 @@ function renderDraftReview(){
   card.style.display="";
   const net=drafts.reduce((a,t)=>a+(t.cashUSD||0),0);
   const nRet=drafts.filter(t=>txStatus(t)==="RETURNED").length;
+  const aps=approverList();
+  let last=""; try{last=localStorage.getItem("po_last_approver")||""}catch(e){}
+  if(!aps.some(m=>m.id===last))last=aps.length?aps[0].id:"";
   byId("draftSummary").innerHTML=drafts.length+" รายการ"
     +(nRet?' · <b class="warn">ถูกส่งกลับให้แก้ '+nRet+' รายการ</b>':"")
-    +" · เงินสดสุทธิ <b class="+(net>=0?'"pos"':'"neg"')+">"+usd(net)+"</b>";
+    +" · เงินสดสุทธิ <b class="+(net>=0?'"pos"':'"neg"')+">"+usd(net)+"</b>"
+    +'<div style="margin-top:10px;display:flex;gap:9px;align-items:center;flex-wrap:wrap">'
+    +'<span style="font-size:12.5px;font-weight:700">ส่งให้ใครอนุมัติ</span>'
+    +(aps.length
+       ? '<select id="apprAssign" style="border:1px solid var(--line);border-radius:9px;padding:7px 10px;min-width:260px">'
+         +aps.map(m=>'<option value="'+m.id+'"'+(m.id===last?" selected":"")+'>'
+           +((m.name||"(ยังไม่ระบุชื่อ)")+(m.title?" · "+m.title:""))
+           +(String(m.email||"").trim()?"":"  — ยังไม่มีอีเมล")+'</option>').join("")
+         +'</select>'
+         +'<span class="muted" style="font-size:11.5px">เฉพาะคนที่เลือกเท่านั้นที่ตัดสินรายการรอบนี้ได้</span>'
+       : '<span class="neg" style="font-size:12.5px">ยังไม่มีผู้อนุมัติในทะเบียนทีม — ไปตั้งที่ Master Data ก่อน</span>')
+    +'</div>';
   byId("draftBody").innerHTML=drafts.map(t=>
     '<tr'+(txStatus(t)==="RETURNED"?' class="row-returned"':'')+'><td class="muted" style="font-size:11px">'+(t.createdAt
         ? new Date(t.createdAt).toLocaleString("th-TH",{dateStyle:"short",timeStyle:"short"})
@@ -4480,16 +4551,24 @@ function renderApprovals(){
   renderWorkflow();
   renderDraftReview();
   const sub=byId("apprSubtitle");
-  if(sub)sub.textContent="รายการที่รอการอนุมัติจาก "+approverTitle()+" ก่อนนับเข้าตัวเลขทางการ";
+  if(sub)sub.textContent=ROLE==="approver"
+    ? "รายการที่มอบหมายให้คุณเป็นผู้อนุมัติ"
+    : "รายการที่รอการอนุมัติ ก่อนนับเข้าตัวเลขทางการ";
   const el=byId("approvalBody"); if(!el)return;
   /* คิวอนุมัติต้องเห็นรายการที่ "รออนุมัติ" เสมอ
      ไม่ว่าผู้ใช้จะตั้งมุมมองเป็น "เฉพาะที่อนุมัติแล้ว" อยู่หรือไม่
      จึงต้องปิดตัวกรองชั่วคราวระหว่างคำนวณหน้านี้ */
   const keep=SHOW_APPROVED_ONLY; SHOW_APPROVED_ONLY=false;
   let v; try{ v=viewData(); } finally { SHOW_APPROVED_ONLY=keep; }
-  const pending=v.tx.filter(t=>txStatus(t)==="PENDING")
+  let pending=v.tx.filter(t=>txStatus(t)==="PENDING")
     .sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
-  byId("approvalCount").textContent=pending.length+" รายการรออนุมัติ";
+  /* ผู้อนุมัติเห็นเฉพาะรายการที่มอบหมายให้ตน (รายการเก่าที่ยังไม่มีการมอบหมาย ให้เห็นได้ทุกคน)
+     ส่วนผู้บันทึกและผู้ดูอย่างเดียว เห็นทั้งหมดเพื่อติดตามสถานะ */
+  const mine=pending.filter(t=>!t.assignedTo||t.assignedTo===meId());
+  const others=pending.length-mine.length;
+  if(ROLE==="approver"&&!canEdit())pending=mine;
+  byId("approvalCount").textContent=pending.length+" รายการรออนุมัติ"
+    +(ROLE==="approver"&&!canEdit()&&others?" (อีก "+others+" รายการมอบหมายให้ผู้อนุมัติคนอื่น)":"");
   const decided=Object.keys(LOCAL_DECISIONS).length;
   const bar=byId("approvalActions");
   if(bar){
