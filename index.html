@@ -859,8 +859,24 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
           <div class="card master-card"><h3>Portfolios</h3><div class="mini-form"><input id="pId" placeholder="Portfolio ID"><input id="pName" placeholder="Portfolio name"><button class="btn btn-primary" onclick="addPortfolio()">Add Portfolio</button></div><div class="table-wrap" style="max-height:240px"><table><thead><tr><th>ID</th><th>Name</th><th>CCY</th></tr></thead><tbody id="portfolioBody"></tbody></table></div></div>
           <div class="card master-card"><h3>Brokers / Custodians</h3><div class="mini-form"><input id="bId" placeholder="Broker ID"><input id="bName" placeholder="Broker name"><input id="bCountry" placeholder="Country"><select id="bCcy"></select><button class="btn btn-primary" onclick="addBroker()">Add Broker</button></div><div class="table-wrap" style="max-height:240px"><table><thead><tr><th>ID</th><th>Broker</th><th>Country</th><th>CCY</th></tr></thead><tbody id="brokerBody"></tbody></table></div></div>
           <div class="card master-card"><h3>Accounts</h3><div class="mini-form"><input id="aId" placeholder="Account ID"><input id="aName" placeholder="Account name"><select id="aPortfolio"></select><select id="aBroker"></select><select id="aCcy"></select><button class="btn btn-primary" onclick="addAccount()">Add Account</button></div><div class="table-wrap" style="max-height:280px"><table><thead><tr><th>ID</th><th>Name</th><th>Portfolio</th><th>Broker</th><th>CCY</th></tr></thead><tbody id="accountBody"></tbody></table></div></div>
+          <div class="card master-card span2" style="grid-column:1/-1"><h3>รอบการชำระราคา</h3>
+            <p class="small-note" style="margin:-6px 0 10px">
+              <b>ชำระราคา T+n</b> = วันส่งมอบเงิน/หลักทรัพย์หลังวันซื้อขาย · <b>เงินเข้าบัญชี +n</b> = ประมาณการว่าดอกเบี้ยหรือเงินต้นจะเข้าบัญชีช้ากว่าวันจ่ายกี่วันทำการ ·
+              นับเฉพาะวันทำการ จึงใช้ปฏิทินวันหยุดข้างล่างด้วย · ค้นหาตามลำดับ สกุล+ประเภท → ประเภท → สกุล → ค่ากลาง ·
+              ถ้าตราสารใดต่างจากกฎ ใส่ค่าเฉพาะตัวได้ที่ช่อง Settle T+n ในการ์ด Securities</p>
+            <div id="settleNote"></div>
+            <div class="mini-form">
+              <select id="stCcy"></select>
+              <select id="stType"></select>
+              <input type="number" id="stSettle" min="0" max="15" step="1" placeholder="ชำระราคา T+n">
+              <input type="number" id="stLag" min="0" max="30" step="1" placeholder="เงินเข้าบัญชี +n วันทำการ">
+              <input id="stNote" class="wide" placeholder="หมายเหตุ เช่น อ้างอิงจาก prospectus">
+              <button class="btn btn-primary" onclick="saveSettleRule()">บันทึกกฎนี้</button>
+            </div>
+            <div class="table-wrap" style="max-height:300px"><table><thead><tr><th>สกุลเงิน</th><th>ประเภทตราสาร</th><th class="n">ชำระราคา</th><th class="n">เงินเข้าบัญชี</th><th>หมายเหตุ</th><th></th></tr></thead><tbody id="settleBody"></tbody></table></div>
+          </div>
           <div class="card master-card span2" style="grid-column:1/-1"><h3>ปฏิทินวันหยุดตลาด</h3>
-            <p class="small-note" style="margin:-6px 0 10px">ใช้คำนวณ<b>วันชำระราคา (T+2)</b> และ<b>วันคาดว่าจะได้รับดอกเบี้ย (+5 วันทำการ)</b> ·
+            <p class="small-note" style="margin:-6px 0 10px">ใช้นับวันทำการให้กับ<b>วันชำระราคา</b>และ<b>วันคาดว่าจะได้รับดอกเบี้ย</b> ตามรอบที่ตั้งไว้ในการ์ดด้านบน ·
               ผูกกับสกุลเงิน เพราะใช้กับรายการเงินสดและ FX ได้ด้วย · ปล่อยสกุลว่าง = ถือเป็นวันหยุดของทุกสกุล ·
               ข้อมูลนี้เผยแพร่ไปพร้อมชุดข้อมูล ทุกเครื่องจึงเห็นตรงกัน</p>
             <div id="holCoverage"></div>
@@ -883,7 +899,7 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
             </details>
             <div class="table-wrap" style="max-height:300px"><table><thead><tr><th>วันที่</th><th>สกุลเงิน</th><th>ชื่อวันหยุด</th><th></th></tr></thead><tbody id="holidayBody"></tbody></table></div>
           </div>
-          <div class="card master-card"><h3>Securities</h3><div class="mini-form"><input id="sId" placeholder="Ticker / Security ID"><input id="sName" placeholder="Security name"><select id="sType"></select><select id="sCcy"></select><input id="sAsset" placeholder="Asset class"><input type="number" id="sFace" placeholder="Face / Unit (optional)"><input id="sIsin" placeholder="ISIN (optional)"><input id="sMarket" placeholder="Market e.g. SET"><select id="sDayCount" class="wide"></select><button class="btn btn-primary" onclick="addSecurity()">Add Security</button></div><div class="table-wrap" style="max-height:280px"><table><thead><tr><th>Security</th><th>Name</th><th>Class</th><th>Instrument</th><th>CCY</th><th>Day Count</th></tr></thead><tbody id="securityBody"></tbody></table></div></div>
+          <div class="card master-card"><h3>Securities</h3><div class="mini-form"><input id="sId" placeholder="Ticker / Security ID"><input id="sName" placeholder="Security name"><select id="sType"></select><select id="sCcy"></select><input id="sAsset" placeholder="Asset class"><input type="number" id="sFace" placeholder="Face / Unit (optional)"><input id="sIsin" placeholder="ISIN (optional)"><input id="sMarket" placeholder="Market e.g. SET"><input type="number" id="sSettle" min="0" max="15" step="1" placeholder="Settle T+n (ถ้าต่างจากกฎ)"><select id="sDayCount" class="wide"></select><button class="btn btn-primary" onclick="addSecurity()">Add Security</button></div><div class="table-wrap" style="max-height:280px"><table><thead><tr><th>Security</th><th>Name</th><th>Class</th><th>Instrument</th><th>CCY</th><th>Day Count</th></tr></thead><tbody id="securityBody"></tbody></table></div></div>
         </div>
       </section>
 
@@ -1552,9 +1568,9 @@ function showStorageWarning(){
    กติกา: แก้เลขนี้ทุกครั้งที่อัปโหลด index.html ขึ้น GitHub
           X.Y = เพิ่มความสามารถ · X.Y.Z = แก้บั๊ก/ปรับเล็กน้อย
    ================================================================== */
-const APP_VERSION="1.16.0";
+const APP_VERSION="1.18.0";
 const APP_BUILD="2026-09-14";
-const APP_VERSION_NOTE="แยกค่าธรรมเนียม/ภาษี/ดอกเบี้ยค้างออกจาก Capital Gain · สองรายงานกระทบยอดกันแล้ว · ตัวตรวจ ledger นับเฉพาะรายการที่มีผล · ไฟล์ผลอนุมัติต้องมีลายนิ้วมือและตรงผู้รับมอบหมาย · escape ข้อความทุกจุด · เตือนเมื่อข้อมูลตลาดขาด · เลื่อนงวดดอกเบี้ยอัตโนมัติหลังวันจ่าย · ปฏิทินวันหยุดตลาดที่ทีมกรอกเองและใช้คำนวณวันชำระราคา";
+const APP_VERSION_NOTE="แยกค่าธรรมเนียม/ภาษี/ดอกเบี้ยค้างออกจาก Capital Gain · สองรายงานกระทบยอดกันแล้ว · ตัวตรวจ ledger นับเฉพาะรายการที่มีผล · ไฟล์ผลอนุมัติต้องมีลายนิ้วมือและตรงผู้รับมอบหมาย · escape ข้อความทุกจุด · เตือนเมื่อข้อมูลตลาดขาด · เลื่อนงวดดอกเบี้ยอัตโนมัติหลังวันจ่าย · ปฏิทินวันหยุดตลาดที่ทีมกรอกเองและใช้คำนวณวันชำระราคา · วันจ่ายดอกเบี้ยเลื่อนวันทำการตามหลักสากล (ดอกเบี้ยยังเดินแบบไม่ปรับ) · รอบการชำระราคาแก้ได้เอง ไม่ฝังตายที่ T+2";
 function versionLabel(){return "v"+APP_VERSION}
 function versionFull(){return "v"+APP_VERSION+" · build "+APP_BUILD}
 function byId(id){return document.getElementById(id)}
@@ -2051,7 +2067,8 @@ function reportPeriods(){
 /* ==================================================================
    FUTURE EVENT CASH FLOWS — ประมาณการกระแสเงินสดล่วงหน้า 6 เดือน
    ครอบคลุมดอกเบี้ยหุ้นกู้งวดถัดไป และเงินต้นที่ครบกำหนดไถ่ถอน
-   Effective Date = วันกำหนดสิทธิ, Expected Payment Date = +5 วันทำการ
+   Effective Date = วันกำหนดสิทธิตามกำหนด (ไม่ปรับ) · paid = วันจ่ายจริงหลังเลื่อนวันทำการ
+   Expected Payment Date = +n วันทำการนับจากวันจ่ายจริง ตามตารางรอบการชำระราคา
    ================================================================== */
 function addMonths(ds,n){
   let [y,m,d]=ds.split("-").map(Number);
@@ -2082,7 +2099,9 @@ function futureCashFlows(){
         const amt=h.qty*face*cpn/perYear;
         if(amt>0)rows.push({
           instrument:s.id, name:s.name, account:h.account, detail:fmt(cpn*100,2)+" %",
-          qty:h.qty, nominal:h.qty*face, effective:next, payment:addBusinessDays(next,5,s.currency),
+          qty:h.qty, nominal:h.qty*face,
+          effective:next, paid:rollBusinessDay(next,s.currency),
+          payment:addBusinessDays(rollBusinessDay(next,s.currency),incomeLagOf(s),s.currency),
           currency:s.currency, localAmt:amt, usd:amt/(getFx(s.currency,state.valuationDate)||1),
           kind:"Coupon"
         });
@@ -2094,7 +2113,8 @@ function futureCashFlows(){
     if(mat&&mat>start&&mat<=end){
       const amt=h.qty*face;
       rows.push({instrument:s.id,name:s.name,account:h.account,detail:"Redemption at par",
-        qty:h.qty,nominal:amt,effective:mat,payment:addBusinessDays(mat,5,s.currency),currency:s.currency,
+        qty:h.qty,nominal:amt,effective:mat,paid:rollBusinessDay(mat,s.currency),
+        payment:addBusinessDays(rollBusinessDay(mat,s.currency),incomeLagOf(s),s.currency),currency:s.currency,
         localAmt:amt,usd:amt/(getFx(s.currency,state.valuationDate)||1),kind:"Maturity"});
     }
   }
@@ -2368,7 +2388,7 @@ function renderDashboard(){
     fcfDetail+=`<tr class="grp"><td colspan="10">${monthLabel(m+"-01")}</td></tr>`;
     let t=0;
     byMonth[m].forEach(r=>{t+=r.usd;
-      fcfDetail+=`<tr><td><b>${esc(r.instrument)}</b> <span class="muted">${r.kind}</span></td><td>${esc(r.account)}</td><td>${r.detail}</td><td class="n">${fmt(r.qty,2)}</td><td class="n">${fmt(r.nominal,2)}</td><td class="n">${dmy(r.effective)}</td><td class="n">${dmy(r.payment)}</td><td class="n">${esc(r.currency)}</td><td class="n">${fmt(r.localAmt,2)}</td><td class="n">${dm(r.usd)}</td></tr>`;
+      fcfDetail+=`<tr><td><b>${esc(r.instrument)}</b> <span class="muted">${r.kind}</span></td><td>${esc(r.account)}</td><td>${r.detail}</td><td class="n">${fmt(r.qty,2)}</td><td class="n">${fmt(r.nominal,2)}</td><td class="n">${dmy(r.effective)}${r.paid&&r.paid!==r.effective?'<br><span class="rolled-tag" title="วันกำหนดสิทธิตกวันหยุด ตามหลักสากลเงินจ่ายวันทำการถัดไป — ดอกเบี้ยยังเดินถึงวันตามกำหนดเดิม">จ่าย '+dmy(r.paid)+'</span>':""}</td><td class="n">${dmy(r.payment)}</td><td class="n">${esc(r.currency)}</td><td class="n">${fmt(r.localAmt,2)}</td><td class="n">${dm(r.usd)}</td></tr>`;
     });
     fcfDetail+=`<tr class="sub"><td colspan="9">Total amount for ${monthLabel(m+"-01")}</td><td class="n">${dm(t)}</td></tr>`;
   });
@@ -2491,7 +2511,7 @@ function renderDashboard(){
       <div class="table-wrap"><table class="rpt-tbl"><thead>
         <tr><th>Instrument</th><th>Trading Account</th><th>Detail</th><th class="n">Quantity</th><th class="n">Nominal</th><th class="n">Effective Date</th><th class="n">Expected Payment Date</th><th class="n">Currency</th><th class="n">Net Flows</th><th class="n">Total in ${CCY}</th></tr>
       </thead><tbody>${fcfDetail}</tbody></table></div>
-      <div class="small-note" style="padding:8px 18px 12px">ครอบคลุมดอกเบี้ยหุ้นกู้งวดถัดไปและเงินต้นที่ครบกำหนดไถ่ถอน · Effective Date คือวันกำหนดสิทธิ, Expected Payment Date ประมาณการที่ +5 วันทำการ</div>
+      <div class="small-note" style="padding:8px 18px 12px">ครอบคลุมดอกเบี้ยหุ้นกู้งวดถัดไปและเงินต้นที่ครบกำหนดไถ่ถอน · Effective Date คือวันกำหนดสิทธิตามกำหนดเดิม (ดอกเบี้ยเดินถึงวันนี้เสมอ ไม่ปรับตามวันหยุด ตามหลักสากล) · ถ้าวันนั้นตกวันหยุด เงินจะจ่ายวันทำการถัดไป (${BDC_DEFAULT}) และ Expected Payment Date ประมาณการที่ +5 วันทำการนับจากวันจ่ายจริง</div>
     </div>
   </div>`;
 }
@@ -2854,6 +2874,60 @@ function roleSummary(){
     +(warn?'<div style="margin-top:7px">'+warn+'</div>':'')
     +'</div>';
 }
+function saveSettleRule(){
+  if(!guard("edit"))return;
+  const c=(byId("stCcy").value||"").trim().toUpperCase();
+  const i=(byId("stType").value||"").trim();
+  const d=byId("stSettle").value, l=byId("stLag").value;
+  if(d===""&&l===""){alert("กรุณาใส่จำนวนวันอย่างน้อยหนึ่งช่อง");return}
+  const R=settleRules();
+  let r=R.find(x=>String(x.ccy||"").toUpperCase()===c&&String(x.instrument||"")===i);
+  if(!r){r={ccy:c,instrument:i};R.push(r)}
+  if(d!=="")r.settleDays=Math.max(0,Math.round(Number(d)||0));
+  if(l!=="")r.incomeLagDays=Math.max(0,Math.round(Number(l)||0));
+  r.note=(byId("stNote").value||"").trim();
+  delete state.__settleSeeded;
+  save();renderAll();
+  toast("บันทึกรอบการชำระราคา "+(c||"ทุกสกุล")+(i?" · "+i:""));
+}
+function removeSettleRule(ccy,instrument){
+  if(!guard("edit"))return;
+  const c=String(ccy||"").toUpperCase(),i=String(instrument||"");
+  if(!confirm("ลบกฎ "+(c||"ทุกสกุล")+(i?" · "+i:"")+" ?\n\nรายการที่เคยใช้กฎนี้จะไปใช้กฎที่กว้างกว่าแทน"))return;
+  state.settleRules=settleRules().filter(x=>
+    !(String(x.ccy||"").toUpperCase()===c&&String(x.instrument||"")===i));
+  delete state.__settleSeeded;
+  save();renderAll();toast("ลบกฎแล้ว");
+}
+function renderSettleRules(){
+  const tb=byId("settleBody"); if(!tb)return;
+  const R=settleRules().slice().sort((a,b)=>
+    String(a.ccy||"~").localeCompare(String(b.ccy||"~"))||String(a.instrument||"").localeCompare(String(b.instrument||"")));
+  tb.innerHTML=R.map(r=>{
+    const c=String(r.ccy||"").toUpperCase(),i=String(r.instrument||"");
+    return '<tr><td>'+(c?'<b>'+esc(c)+'</b>':'<span class="muted">ทุกสกุล</span>')+'</td>'
+      +'<td>'+(i?esc(i):'<span class="muted">ทุกประเภท</span>')+'</td>'
+      +'<td class="num"><b>T+'+(Number(r.settleDays)||0)+'</b></td>'
+      +'<td class="num">+'+(Number(r.incomeLagDays)||0)+' วันทำการ</td>'
+      +'<td class="muted" style="font-size:11.5px">'+esc(r.note||"—")+'</td>'
+      +'<td><button class="btn btn-secondary" style="padding:4px 8px" onclick="removeSettleRule(\''
+        +escAttr(c)+'\',\''+escAttr(i)+'\')">ลบ</button></td></tr>';
+  }).join("")||'<tr><td colspan="6" class="empty">ยังไม่มีกฎ — ทุกรายการจะใช้ T+'
+    +SETTLE_FALLBACK.settleDays+' และ +'+SETTLE_FALLBACK.incomeLagDays+' วันทำการ</td></tr>';
+
+  /* ตราสารที่ตั้งค่าเฉพาะตัวไว้ + คำเตือนว่ายังเป็นค่าตั้งต้นที่ยังไม่มีใครตรวจ */
+  const el=byId("settleNote"); if(!el)return;
+  const ov=state.securities.filter(x=>Number(x.settleDays)>0);
+  el.innerHTML=(state.__settleSeeded
+      ?'<div class="gap-bar"><span class="gap-ic">\u26a0</span><div>'
+        +'<b>ยังเป็นค่าตั้งต้นที่ระบบใส่ให้ ยังไม่มีใครในทีมตรวจ</b>'
+        +'<div class="gap-list">ใส่ไว้ตามสภาพตลาดเดือนกันยายน 2026 — สหรัฐฯ T+1 ตั้งแต่ 28 พ.ค. 2024 · '
+        +'ไทย/ยุโรป/เอเชีย T+2 (ยุโรปจะย้ายไป T+1 เดือน ต.ค. 2027) · กองทุนรวม T+3 เป็นค่าประมาณ '
+        +'ต้องตรวจกับ prospectus และ custodian ของคุณเอง แล้วกดบันทึกทับเพื่อยืนยัน</div></div></div>'
+      :'')
+    +(ov.length?'<p class="small-note" style="margin:0 0 10px">ตราสารที่ตั้งค่าเฉพาะตัวไว้: '
+      +ov.map(x=>esc(x.id)+" (T+"+Number(x.settleDays)+")").join(" · ")+'</p>':"");
+}
 function addHoliday(){
   if(!guard("edit"))return;
   const d=(byId("holDate").value||"").trim();
@@ -2935,6 +3009,10 @@ function renderHolidays(){
 }
 function renderMaster(){
   renderTeam();
+  renderSettleRules();
+  fillSelect(byId("stCcy"),CURRENCIES,x=>x,x=>x,"ทุกสกุล");
+  fillSelect(byId("stType"),["Equity","ETF","Mutual Fund","DR/DRx","REIT","Government Bond",
+    "Corporate Bond","Perpetual Bond","Fixed Deposit","Structured Note","Other"],x=>x,x=>x,"ทุกประเภท");
   renderHolidays();
   fillSelect(byId("holCcy"),CURRENCIES,x=>x,x=>x,"ทุกสกุล");
   byId("portfolioBody").innerHTML=state.portfolios.map(x=>`<tr><td><b>${esc(x.id)}</b></td><td>${esc(x.name)}</td><td>${esc(x.currency)}</td></tr>`).join("");
@@ -3103,6 +3181,103 @@ function holidayCoverage(){
   });
   return by;
 }
+/* ==================================================================
+   Business-Day Convention — หลักสากลของตราสารหนี้
+
+   แยกสองเรื่องออกจากกัน ซึ่งเป็นสิ่งที่มาตรฐานสากลกำหนดไว้:
+
+   1) การเดินดอกเบี้ย (accrual) ใช้ "วันตามกำหนด" ไม่ปรับ (Unadjusted)
+      ดอกเบี้ยเดินทุกวันตามปฏิทินรวมวันหยุด คิดตาม day-count convention
+      → ดอกเบี้ยค้างรับ NAV และผลตอบแทน ไม่ได้รับผลจากปฏิทินวันหยุดเลย
+
+   2) การจ่ายเงินจริง (payment) เลื่อนไปวันทำการ (Adjusted)
+      ถ้าวันกำหนดสิทธิตกวันหยุด เงินจะเข้าบัญชีวันทำการถัดไป
+
+   ใช้ Modified Following เป็นค่าตั้งต้น = เลื่อนไปข้างหน้า
+   เว้นแต่จะข้ามไปเดือนถัดไป ให้ถอยกลับมาวันทำการสุดท้ายของเดือนเดิมแทน
+   (สำหรับงวดที่ตกกลางเดือน ให้ผลเท่ากับ Following ทุกประการ
+    จะต่างกันเฉพาะงวดที่ตกปลายเดือน)
+
+   ถ้า term sheet ของตราสารใดระบุเป็นอย่างอื่น เปลี่ยนค่าคงที่ข้างล่างได้
+   ================================================================== */
+const BDC_DEFAULT="Modified Following";
+
+/* ==================================================================
+   รอบการชำระราคา (T+n) และระยะเวลาเงินเข้าบัญชี (+n วันทำการ)
+
+   ของเดิมฝังตายไว้ว่า T+2 กับ +5 ทุกตลาดทุกตราสาร ซึ่งไม่ตรงความจริง
+   ตลาดสหรัฐย่นเหลือ T+1 ตั้งแต่ 28 พ.ค. 2024 (แคนาดาและเม็กซิโกด้วย)
+   ส่วนสหภาพยุโรป สหราชอาณาจักร และสวิตเซอร์แลนด์ จะย้ายไป T+1 เดือน ต.ค. 2027
+   กองทุนรวมใช้รอบของตัวเองตาม prospectus ซึ่งมักยาวกว่าหุ้น
+
+   จึงทำเป็นตารางที่ทีมแก้เองได้ที่ Master Data เผยแพร่ไปพร้อมชุดข้อมูล
+   ลำดับการค้นหา: ค่าเฉพาะตราสาร → (สกุล+ประเภท) → (สกุล) → (ประเภท) → ค่ากลาง
+   ================================================================== */
+const SETTLE_FALLBACK={settleDays:2,incomeLagDays:5};
+/* ค่าตั้งต้นตามสภาพตลาด ณ เดือนกันยายน 2026 — ทีมตรวจและแก้ได้ที่ Master Data */
+const SETTLE_SEED=[
+  {ccy:"USD",instrument:"",settleDays:1,incomeLagDays:5,note:"สหรัฐฯ ย้ายไป T+1 ตั้งแต่ 28 พ.ค. 2024"},
+  {ccy:"THB",instrument:"",settleDays:2,incomeLagDays:5,note:"SET / ThaiBMA"},
+  {ccy:"EUR",instrument:"",settleDays:2,incomeLagDays:5,note:"ยุโรปย้ายไป T+1 ต.ค. 2027"},
+  {ccy:"GBP",instrument:"",settleDays:2,incomeLagDays:5,note:"สหราชอาณาจักรย้ายไป T+1 ต.ค. 2027"},
+  {ccy:"CHF",instrument:"",settleDays:2,incomeLagDays:5,note:"สวิตเซอร์แลนด์ย้ายไป T+1 ต.ค. 2027"},
+  {ccy:"JPY",instrument:"",settleDays:2,incomeLagDays:5,note:""},
+  {ccy:"HKD",instrument:"",settleDays:2,incomeLagDays:5,note:""},
+  {ccy:"SGD",instrument:"",settleDays:2,incomeLagDays:5,note:""},
+  {ccy:"AUD",instrument:"",settleDays:2,incomeLagDays:5,note:""},
+  {ccy:"CNY",instrument:"",settleDays:2,incomeLagDays:5,note:""},
+  {ccy:"KRW",instrument:"",settleDays:2,incomeLagDays:5,note:""},
+  {ccy:"TWD",instrument:"",settleDays:2,incomeLagDays:5,note:""},
+  {ccy:"",   instrument:"Mutual Fund",settleDays:3,incomeLagDays:5,note:"ตรวจกับ prospectus ของแต่ละกอง"}
+];
+function settleRules(){
+  if(!Array.isArray(state.settleRules)){
+    state.settleRules=JSON.parse(JSON.stringify(SETTLE_SEED));
+    state.__settleSeeded=true;
+  }
+  return state.settleRules;
+}
+function settleLookup(ccy,instrument){
+  const R=settleRules(),C=String(ccy||"").toUpperCase(),I=String(instrument||"");
+  const hit=k=>R.find(r=>String(r.ccy||"").toUpperCase()===k[0]&&String(r.instrument||"")===k[1]);
+  /* ลำดับ: เจาะจงที่สุดก่อน แล้ว "ประเภทตราสาร" ชนะ "สกุลเงิน"
+     เพราะกฎระดับสกุลเงินคือฐานของทั้งตลาด ส่วนกฎระดับประเภทตั้งขึ้นเมื่อ
+     ตราสารประเภทนั้นมีรอบของตัวเองจริง ๆ (กองทุนรวมใช้รอบตาม prospectus
+     ไม่ใช่รอบของตลาดหุ้น) การตั้งกฎประเภทจึงเป็นการตั้งใจยกเว้นเสมอ */
+  return hit([C,I])||hit(["",I])||hit([C,""])||hit(["",""])||null;
+}
+/* จำนวนวันชำระราคาของรายการหนึ่ง */
+function settleDaysOf(t){
+  const s=sec(t&&t.security);
+  if(s&&Number(s.settleDays)>0)return Number(s.settleDays);
+  const r=settleLookup(t&&(t.currency||txnCurrency(t)),s&&s.instrument);
+  return r&&Number(r.settleDays)>0?Number(r.settleDays):SETTLE_FALLBACK.settleDays;
+}
+/* จำนวนวันทำการกว่าดอกเบี้ย/เงินต้นจะเข้าบัญชีจริง */
+function incomeLagOf(s){
+  if(s&&Number(s.incomeLagDays)>0)return Number(s.incomeLagDays);
+  const r=settleLookup(s&&s.currency,s&&s.instrument);
+  return r&&Number(r.incomeLagDays)>0?Number(r.incomeLagDays):SETTLE_FALLBACK.incomeLagDays;
+}
+function settleLabel(t){return "T+"+settleDaysOf(t)}
+function isBusinessDay(d,ccy){
+  if(!d)return false;
+  const g=new Date(d+"T00:00:00Z").getUTCDay();
+  if(g===0||g===6)return false;
+  return !isHoliday(d,ccy);
+}
+function rollBusinessDay(d,ccy,conv){
+  if(!d)return "";
+  conv=conv||BDC_DEFAULT;
+  if(conv==="Unadjusted"||isBusinessDay(d,ccy))return d;
+  let x=d,guard=0;
+  while(!isBusinessDay(x,ccy)&&guard++<60)x=shiftDay(x,1);
+  if(conv==="Modified Following"&&x.slice(0,7)!==d.slice(0,7)){
+    x=d;guard=0;
+    while(!isBusinessDay(x,ccy)&&guard++<60)x=shiftDay(x,-1);
+  }
+  return x;
+}
 function addBusinessDays(d,n,ccy){
   if(!d)return "";
   let x=new Date(d+"T00:00:00Z"),added=0,guard=0;
@@ -3119,7 +3294,7 @@ function marketOf(s){if(!s)return "—";if(s.market)return s.market;if(s.currenc
 function transactionDocument(t,printing){
   let a=acct(t.account),s=sec(t.security),p=port(a?.portfolioId),b=broker(a?.brokerId);
   let trade=TYPE_GROUPS.trade.includes(t.type), isSell=/SELL|REDEMPTION/.test(t.type);
-  let settle=addBusinessDays(t.date,2,t.currency||txnCurrency(t));
+  let settle=addBusinessDays(t.date,settleDaysOf(t),t.currency||txnCurrency(t));
   let commission=Number(t.fee)||0, wht=Number(t.tax)||0, vatEst=commission*0.07;
   let payLabel=(Number(t.cashLocal)||0)<0?"Payable":"Receivable";
   let sect=(txt)=>`<div class="doc-row" style="grid-column:1/-1;background:#f4f7fb;color:#0a1f33;font-weight:800;letter-spacing:.03em"><span>${txt}</span><b></b></div>`;
@@ -3128,7 +3303,7 @@ function transactionDocument(t,printing){
     `<div class="doc-row"><span>Sell Currency / จ่ายออก</span><b>${t.fxFrom||"—"}</b></div><div class="doc-row"><span>Sell Amount</span><b>${t.fxFrom||""} ${fmt(t.fxFromAmount||0,2)}</b></div>`+
     `<div class="doc-row"><span>Buy Currency / รับเข้า</span><b>${t.fxTo||"—"}</b></div><div class="doc-row"><span>Buy Amount</span><b>${t.fxTo||""} ${fmt(t.fxToAmount||0,2)}</b></div>`+
     `<div class="doc-row"><span>Deal Rate (${t.fxTo||"To"} per 1 ${t.fxFrom||"From"})</span><b>${fmt(t.dealRate||0,6)}</b></div><div class="doc-row"><span>USD Value of Deal</span><b>${usd((Number(t.fxFromAmount)||0)/(t.fx||1))}</b></div>`+
-    `<div class="doc-row" style="grid-column:1/-1"><span>Value Date / วันที่ส่งมอบ (Spot T+2)</span><b>${dmy(settle)}</b></div>`+
+    `<div class="doc-row" style="grid-column:1/-1"><span>Value Date / วันที่ส่งมอบ (Spot ${esc(settleLabel(t))})</span><b>${dmy(settle)}</b></div>`+
     `<div class="doc-row" style="grid-column:1/-1"><span>Impact on Net Contribution</span><b>ไม่มี — เป็นการสับเปลี่ยนสกุลเงินภายในพอร์ต (ไม่ใช่เงินเข้า/ออก)</b></div>` : "";
   let realizedBlock = isSell ? sect("REALIZED GAIN / LOSS (FIFO)")+
     `<div class="doc-row"><span>Realized Asset P/L (USD)</span><b>${usd(t.realizedAsset||0)}</b></div><div class="doc-row"><span>Realized FX P/L (USD)</span><b>${usd(t.realizedFx||0)}</b></div>`+
@@ -3622,7 +3797,8 @@ function saveFx(){let date=byId("fxDate").value;if(!date){alert("กรอกว
 function addPortfolio(){let id=byId("pId").value.trim().toUpperCase(),name=byId("pName").value.trim();if(!id||!name)return alert("กรอก Portfolio ID และชื่อ");if(port(id))return alert("Portfolio ID ซ้ำ");state.portfolios.push({id,name,currency:"USD"});save();renderAll()}
 function addBroker(){let id=byId("bId").value.trim().toUpperCase(),name=byId("bName").value.trim();if(!id||!name)return alert("กรอก Broker ID และชื่อ");state.brokers.push({id,name,country:byId("bCountry").value.trim(),currency:byId("bCcy").value||"USD"});save();renderAll()}
 function addAccount(){let id=byId("aId").value.trim().toUpperCase(),name=byId("aName").value.trim(),portfolioId=byId("aPortfolio").value,brokerId=byId("aBroker").value;if(!id||!name||!portfolioId||!brokerId)return alert("กรอก Account ให้ครบ");state.accounts.push({id,name,portfolioId,brokerId,currency:byId("aCcy").value||"USD"});save();renderAll()}
-function addSecurity(){let id=byId("sId").value.trim().toUpperCase(),name=byId("sName").value.trim(),instrument=byId("sType").value,currency=byId("sCcy").value;if(!id||!name||!instrument||!currency)return alert("กรอก Security ให้ครบ");state.securities.push({id,name,assetClass:byId("sAsset").value.trim()||instrument,instrument,currency,face:Number(byId("sFace").value)||0,coupon:0,frequency:"",dayCount:byId("sDayCount").value,maturity:"",isin:(byId("sIsin")?.value||"").trim().toUpperCase(),market:(byId("sMarket")?.value||"").trim()});save();renderAll()}
+function addSecurity(){let id=byId("sId").value.trim().toUpperCase(),name=byId("sName").value.trim(),instrument=byId("sType").value,currency=byId("sCcy").value;if(!id||!name||!instrument||!currency)return alert("กรอก Security ให้ครบ");state.securities.push({id,name,assetClass:byId("sAsset").value.trim()||instrument,instrument,currency,face:Number(byId("sFace").value)||0,coupon:0,frequency:"",dayCount:byId("sDayCount").value,maturity:"",isin:(byId("sIsin")?.value||"").trim().toUpperCase(),market:(byId("sMarket")?.value||"").trim(),
+    settleDays:Number(byId("sSettle")?.value)||0});save();renderAll()}
 function editFixedDates(id){let x=state.fixedDates[id]||{},p=prompt(`Prev Coupon / Start (${esc(id)}) YYYY-MM-DD`,x.prev||"");if(p===null)return;let n=prompt(`Next Coupon / Maturity (${esc(id)}) YYYY-MM-DD`,x.next||sec(id)?.maturity||"");if(n===null)return;state.fixedDates[id]={prev:p,next:n};save();renderAll()}
 /* ==================================================================
    IMPORT / EXPORT
@@ -3732,6 +3908,9 @@ function threeWayMerge(baseIndex, mine, theirs){
   merged.fx         = unionByComposite(theirs.fx,     mine.fx,     x=>x.date,"อัตราแลกเปลี่ยน",C);
   merged.holidays   = unionByComposite(theirs.holidays||[], mine.holidays||[],
                         x=>x.date+"|"+String(x.ccy||"").toUpperCase(),"วันหยุด",C);
+  merged.settleRules= unionByComposite(theirs.settleRules||[], mine.settleRules||[],
+                        x=>String(x.ccy||"").toUpperCase()+"|"+String(x.instrument||""),
+                        "รอบการชำระราคา",C);
   /* วันจ่ายดอกเบี้ย: ของเดิม theirs ทับ mine เสมอ — ต้องฟ้องเมื่อไม่ตรงกัน */
   const fdM=mine.fixedDates||{}, fdT=theirs.fixedDates||{};
   Object.keys(fdM).forEach(k=>{
@@ -4356,7 +4535,7 @@ function pasteApLink(){
 const CSV_COLUMNS=[
   ["Transaction ID",    t=>t.id],
   ["Trade Date",        t=>t.date],
-  ["Settlement Date",   t=>addBusinessDays(t.date,2,t.currency||txnCurrency(t))],
+  ["Settlement Date",   t=>addBusinessDays(t.date,settleDaysOf(t),t.currency||txnCurrency(t))],
   ["Transaction Type",  t=>t.type],
   ["Portfolio",         t=>t.portfolio||""],
   ["Account",           t=>t.account||""],
@@ -4566,7 +4745,7 @@ async function emailExternalInstruction(){
     const a=acct(acc), b=a?broker(a.brokerId):null;
     L.push("Account: "+acc+(b?"  |  Broker: "+b.name:""));
     byAcct[acc].forEach(t=>{
-      const sd=addBusinessDays(t.date,2,t.currency||txnCurrency(t));
+      const sd=addBusinessDays(t.date,settleDaysOf(t),t.currency||txnCurrency(t));
       L.push("  - "+t.id+"  "+t.type+"  "+(t.security||"CASH")
         +(t.qty?"  Qty "+num4(t.qty):"")
         +(t.price?"  @ "+num4(t.price):"")
