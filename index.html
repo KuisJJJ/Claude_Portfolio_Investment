@@ -79,7 +79,7 @@ th,td{padding:11px 12px;border-bottom:1px solid #edf0f3;white-space:nowrap}
 tbody tr:hover{background:#f8fbff}
 .num{text-align:right;font-variant-numeric:tabular-nums}.muted{color:var(--muted)}
 .badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:10px;font-weight:800}
-.civ-row.recon-warn{background:#fff6e5;color:#8a5a00}.civ-row.recon-warn small{display:block;font-weight:400;font-size:11px;opacity:.8}
+.civ-row.memo{color:#667085;font-style:italic;background:#fbfcfd}.civ-row.memo small{font-style:normal;opacity:.85}.notofficial{background:#fdeceb;border:1px solid #f0bdb8;color:#8c2f26;border-radius:8px;padding:11px 14px;margin:0 0 14px;font-size:13px;line-height:1.6}.notofficial .gap-list{font-size:12px;opacity:.92;margin-top:3px}.civ-row.recon-warn{background:#fff6e5;color:#8a5a00}.civ-row.recon-warn small{display:block;font-weight:400;font-size:11px;opacity:.8}
 tr.row-unrecon td{background:#fff6e5;color:#8a5a00;font-weight:600}
 tr.row-other-approver td{background:#fafbfc;opacity:.92}
 .gap-bar{display:flex;gap:10px;align-items:flex-start;background:#fff6e5;border:1px solid #f0d9a8;border-radius:8px;padding:11px 14px;margin:0 0 14px;color:#7a4e00;font-size:13px}.gap-bar .gap-ic{font-size:15px;line-height:1.2}.gap-bar .gap-list{font-size:12px;opacity:.9;margin-top:3px}.rolled-tag{display:inline-block;background:#fff1cf;color:#8a5a00;border-radius:5px;padding:1px 5px;font-size:10px;font-weight:700;margin-left:4px}
@@ -906,6 +906,7 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
 
       <section class="page" id="page-approvals">
         <div class="pagehead"><div><h2>Approval Queue</h2><p id="apprSubtitle">รายการที่รออนุมัติ ก่อนนับเข้าตัวเลขทางการ</p></div></div>
+        <div id="officialStamp" style="display:none"></div>
         <div id="dataGapBar" style="display:none"></div>
         <div id="wfPanel"></div>
         <div class="card table-card" id="draftCard" style="display:none;margin-bottom:16px;border-color:#f0d9a8">
@@ -1485,6 +1486,7 @@ async function resolveState(){
       /* ร่างอ้างอิงข้อมูลเผยแพร่ชุดเดียวกัน ใช้ร่างต่อได้ */
       DATA_SOURCE="draft"; DRAFT_DIRTY=true;
       draft.__baseIndex=draft.__baseIndex||buildIndex(pub.transactions);
+      draft.__baseMaster=draft.__baseMaster||buildMasterBase(pub);
       return draft;
     }
     if(draft&&draft.__basedOn&&draft.__basedOn!==PUBLISHED_STAMP){
@@ -1500,6 +1502,7 @@ async function resolveState(){
         DRAFT_DIRTY=changed>0;
         r.merged.__basedOn=PUBLISHED_STAMP;
         r.merged.__baseIndex=buildIndex(pub.transactions);
+        r.merged.__baseMaster=buildMasterBase(pub);
         return r.merged;
       }
       MERGE_CONFLICT=r.collisions;      /* รวมอัตโนมัติไม่ได้ ใช้ของส่วนกลางไปก่อน ร่างยังเก็บไว้ */
@@ -1507,6 +1510,7 @@ async function resolveState(){
     DATA_SOURCE="published";
     pub.__basedOn=PUBLISHED_STAMP;
     pub.__baseIndex=buildIndex(pub.transactions);
+    pub.__baseMaster=buildMasterBase(pub);
     return pub;
   }
 
@@ -1550,6 +1554,7 @@ function save(){
   }
   state.__basedOn=PUBLISHED_STAMP;      /* ร่างนี้ต่อยอดจากข้อมูลเผยแพร่ชุดไหน */
   if(!state.__baseIndex)state.__baseIndex={};
+  if(!state.__baseMaster)state.__baseMaster=buildMasterBase(state);
   DRAFT_DIRTY=true; DATA_SOURCE="draft";
   renderDataStatus();
   let ok=STORE.set(KEY,JSON.stringify(state));
@@ -1569,9 +1574,9 @@ function showStorageWarning(){
    กติกา: แก้เลขนี้ทุกครั้งที่อัปโหลด index.html ขึ้น GitHub
           X.Y = เพิ่มความสามารถ · X.Y.Z = แก้บั๊ก/ปรับเล็กน้อย
    ================================================================== */
-const APP_VERSION="1.19.0";
+const APP_VERSION="1.20.0";
 const APP_BUILD="2026-09-14";
-const APP_VERSION_NOTE="แยกค่าธรรมเนียม/ภาษี/ดอกเบี้ยค้างออกจาก Capital Gain · สองรายงานกระทบยอดกันแล้ว · ตัวตรวจ ledger นับเฉพาะรายการที่มีผล · ไฟล์ผลอนุมัติต้องมีลายนิ้วมือและตรงผู้รับมอบหมาย · escape ข้อความทุกจุด · เตือนเมื่อข้อมูลตลาดขาด · เลื่อนงวดดอกเบี้ยอัตโนมัติหลังวันจ่าย · ปฏิทินวันหยุดตลาดที่ทีมกรอกเองและใช้คำนวณวันชำระราคา · วันจ่ายดอกเบี้ยเลื่อนวันทำการตามหลักสากล (ดอกเบี้ยยังเดินแบบไม่ปรับ) · รอบการชำระราคาแก้ได้เอง ไม่ฝังตายที่ T+2 · ผู้อนุมัติคนอื่นรับช่วงได้เมื่อเจ้าของเดิมไม่อยู่ · TWR ฟ้องเดือนที่คำนวณไม่ได้ · ไฟล์ JSON ที่บัญชีไม่สมดุลถูกปฏิเสธ";
+const APP_VERSION_NOTE="ตรวจรอบ 2: นิยามเดียวของรายการที่นับเข้าพอร์ต · นำเข้าผลอนุมัติแบบ atomic · ปิด XSS ครบ 41 ฟิลด์ · three-way merge ข้อมูลหลักที่ถูกจริง · ข้อมูลตลาดขาดแล้วตัวเลขไม่เป็นทางการ · ดอกเบี้ยที่ถึงกำหนดเป็นลูกหนี้ ไม่หายจาก NAV · TWR เป็น N/A เมื่อมีเดือนวัดไม่ได้ · 30/360 US ปลายเดือน ก.พ. · เปิดเผยต้นทุนการซื้อขาย"
 function versionLabel(){return "v"+APP_VERSION}
 function versionFull(){return "v"+APP_VERSION+" · build "+APP_BUILD}
 function byId(id){return document.getElementById(id)}
@@ -1656,6 +1661,29 @@ function getPrice(security,date){
   if(!rows.length){DATA_GAPS.price[security]=(DATA_GAPS.price[security]||date);return 0}
   return Number(rows[rows.length-1].price);
 }
+/* ==================================================================
+   ข้อมูลตลาดไม่ครบ = ตัวเลขยังไม่เป็นทางการ
+
+   การมีแถบเตือนอย่างเดียวไม่พอ เพราะหน้าจอยังแสดง NAV/TWR เป็นตัวเลข
+   ที่ดูเป็นทางการต่อไป ผู้ตรวจอิสระชี้ว่าหลักทรัพย์ที่ไม่มีราคาจะถูกตีเป็น 0
+   แล้วส่วนที่หายไปกลายเป็น capital loss โดยที่ Unreconciled ยังเท่ากับศูนย์
+   — Unreconciled พิสูจน์แค่ว่าเลขบวกกลับได้ ไม่ได้พิสูจน์ว่าข้อมูลครบ
+   ================================================================== */
+function officialFigures(){ return dataGapCount()===0 }
+function renderOfficialStamp(){
+  const el=byId("officialStamp"); if(!el)return;
+  if(officialFigures()){el.style.display="none";el.innerHTML="";return}
+  const fxs=Object.keys(DATA_GAPS.fx), pxs=Object.keys(DATA_GAPS.price);
+  el.style.display="block";
+  el.innerHTML='<div class="notofficial"><b>\u26d4 ตัวเลขในหน้านี้ยังไม่เป็นทางการ</b> — '
+    +'ข้อมูลตลาดไม่ครบ ระบบจึงตีมูลค่าส่วนที่ขาดเป็นศูนย์ '
+    +'NAV ผลตอบแทน และการแยกส่วนกำไรขาดทุนจึงต่ำกว่าความจริง'
+    +'<div class="gap-list">ขาด: '
+    +(fxs.length?'อัตราแลกเปลี่ยน '+fxs.map(esc).join(", ")+' ':'')
+    +(pxs.length?'ราคา '+pxs.slice(0,10).map(esc).join(", ")+(pxs.length>10?' และอีก '+(pxs.length-10):''):'')
+    +'</div><div class="gap-list">ห้ามใช้ตัวเลขชุดนี้ตัดสินใจลงทุนหรือยืนยันกับ custodian '
+    +'จนกว่าจะเติมข้อมูลที่หน้า Market Data ให้ครบ</div></div>';
+}
 function renderDataGaps(){
   const el=byId("dataGapBar"); if(!el)return;
   const fxs=Object.keys(DATA_GAPS.fx), pxs=Object.keys(DATA_GAPS.price);
@@ -1683,7 +1711,18 @@ function yearFrac(start,end,conv){
     return sum;
   }
   let [y1,m1,d1]=start.split("-").map(Number),[y2,m2,d2]=end.split("-").map(Number);
-  if(conv==="30/360 US"){if(d1===31)d1=30;if(d2===31&&d1>=30)d2=30}
+  if(conv==="30/360 US"){
+    /* NASD / US 30/360 (Bond Basis) — ครบทั้งสี่ข้อ ตามลำดับที่กำหนด
+       ของเดิมมีแค่ข้อ 3 กับ 4 จึงคิดช่วงที่เริ่มจากวันสิ้นเดือนกุมภาพันธ์ผิด
+       (29/02/2024 → 31/03/2024 ได้ 32 วัน ทั้งที่ต้องเป็น 30)
+       ข้อ 1 และ 2 ต้องใช้ค่า d1 เดิม จึงต้องดูว่าเป็นวันสิ้นเดือน ก.พ. ก่อนแก้ค่า */
+    const isFebEnd=(y,m,d)=>m===2&&d===(isLeap(y)?29:28);
+    const f1=isFebEnd(y1,m1,d1), f2=isFebEnd(y2,m2,d2);
+    if(f1&&f2)d2=30;          /* 1. ปลาย ก.พ. ทั้งคู่ */
+    if(f1)d1=30;              /* 2. วันเริ่มเป็นปลาย ก.พ. */
+    if(d2===31&&d1>=30)d2=30; /* 3. */
+    if(d1===31)d1=30;         /* 4. */
+  }
   else {d1=Math.min(d1,30);d2=Math.min(d2,30)}
   return ((y2-y1)*360+(m2-m1)*30+(d2-d1))/360;
 }
@@ -1704,14 +1743,38 @@ function cashImpact(t,gross){
   if(t.type==="FX CONVERSION")return -(Number(t.fxFromAmount)||0)-fee;
   return 0;
 }
+/* ==================================================================
+   นิยามเดียวของ "รายการที่นับเข้าพอร์ต"
+
+   เดิมมีสองที่ที่ตัดสินใจเรื่องนี้คนละแบบ: engine() ตัดทั้ง REJECTED และ
+   (เมื่อเปิดสวิตช์ "เฉพาะที่อนุมัติแล้ว") ทุกอย่างที่ไม่ใช่ APPROVED
+   ส่วน validateTransactionSet() ตัดแค่ REJECTED
+   ผลคือ PENDING BUY + APPROVED SELL ผ่านตัวตรวจ แต่ engine ได้สถานะติดลบ
+   และสร้างกำไรกับเงินสดที่ไม่มีอยู่จริง
+
+   รอบก่อนแก้เฉพาะ REJECTED ซึ่งเป็นการแก้อาการ บั๊กจึงกลับมาทางสถานะอื่น
+   ตอนนี้ทั้งสองฝั่งเรียกฟังก์ชันเดียวกัน เพิ่มสถานะใหม่ในอนาคตก็แก้ที่เดียว
+
+   universe:
+     "official" = ชุดที่เป็นทางการ นับเฉพาะ APPROVED — ใช้ตัดสินความถูกต้องของบัญชี
+     "working"  = ชุดทำงาน รวมร่างและรออนุมัติ — ใช้ให้ผู้บันทึกเห็นปัญหาแต่เนิ่น ๆ
+     "view"     = ตามสวิตช์บนหน้าจอขณะนั้น
+   ================================================================== */
+function ledgerUniverse(mode){
+  if(mode==="official")return "official";
+  if(mode==="working")return "working";
+  return SHOW_APPROVED_ONLY?"official":"working";
+}
+function countsInLedger(t,mode){
+  const st=txStatus(t);
+  if(st==="REJECTED")return false;                       /* ไม่อนุมัติ = ไม่นับ เสมอ */
+  if(ledgerUniverse(mode)==="official"&&st!=="APPROVED")return false;
+  return true;
+}
 function engine(asOf){
   let positions={},cash={},txDetails=[];
-  /* รายการที่ไม่อนุมัติไม่นับเข้าพอร์ตเสมอ
-     ส่วนรายการที่ยังรออนุมัติ จะนับหรือไม่ ขึ้นกับสวิตช์ "เฉพาะที่อนุมัติแล้ว" */
   let txs=[...state.transactions].filter(t=>{
-    const st=txStatus(t);
-    if(st==="REJECTED")return false;
-    if(SHOW_APPROVED_ONLY&&st!=="APPROVED")return false;
+    if(!countsInLedger(t))return false;
     return !asOf||t.date<=asOf;
   }).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
   for(const t of txs){
@@ -1800,16 +1863,28 @@ function couponPeriod(s,date){
   if(!prev||!next||next<=prev)return {prev,next,rolled:0};
   const perYear=s.frequency==="Annual"?1:s.frequency==="Quarterly"?4:2;
   const step=12/perYear;
-  let rolled=0;
+  let rolled=0; const due=[];
   while(date>next&&(!mat||next<mat)&&rolled<400){
+    due.push(next);            /* งวดนี้ถึงกำหนดแล้ว — ต้องพิสูจน์ว่ารับเงินหรือยัง */
     prev=next; next=addMonths(next,step); rolled++;
   }
   /* งวดสุดท้ายจบที่วันครบกำหนดไถ่ถอน ไม่เลยไปกว่านั้น */
   if(mat&&next>mat)next=mat;
-  return {prev,next,rolled};
+  return {prev,next,rolled,due};
+}
+/* งวดดอกเบี้ยที่ถึงกำหนดแล้ว รับเงินเข้ามาหรือยัง
+   มองหารายการรับดอกเบี้ยของตราสารนั้นในช่วงตั้งแต่วันกำหนดสิทธิถึง 45 วันถัดมา
+   (เผื่อระยะเวลาที่ custodian โอนเข้าบัญชีจริง) */
+function couponReceived(secId,couponDate){
+  if(!secId||!couponDate)return false;
+  const until=shiftDay(couponDate,45);
+  return (state.transactions||[]).some(t=>
+    t.security===secId && INCOME_TYPES.includes(t.type) &&
+    countsInLedger(t) && t.date>=couponDate && t.date<=until);
 }
 function fixedValuation(s,qty,date){
-  if(!s||!isFixed(s)||qty<=0)return {accruedLocal:0,cleanLocal:0,dirtyLocal:0,convDays:0,yf:0,prev:"",next:"",rolled:0};
+  if(!s||!isFixed(s)||qty<=0)return {accruedLocal:0,cleanLocal:0,dirtyLocal:0,convDays:0,yf:0,
+    prev:"",next:"",rolled:0,receivableLocal:0,unpaid:[]};
   let cp=couponPeriod(s,date), prev=cp.prev, next=cp.next;
   let end=date;if(next&&end>next)end=next;
   let yf=prev&&end>=prev?yearFrac(prev,end,s.dayCount):0;
@@ -1818,8 +1893,23 @@ function fixedValuation(s,qty,date){
   let price=getPrice(s.id,date)||(s.instrument==="Fixed Deposit"?100:0);
   let clean=s.instrument==="Fixed Deposit"?face:face*price/100;
   let accrued=face*(Number(s.coupon)||0)*yf;
-  return {accruedLocal:accrued,cleanLocal:clean,dirtyLocal:clean+accrued,convDays:conv,yf,prev,next,
-          rolled:cp.rolled};
+  /* ==================================================================
+     งวดที่ผ่านวันจ่ายไปแล้ว: ถ้ายังไม่มีรายการรับเงิน ต้องยกเป็น "ลูกหนี้ดอกเบี้ย"
+     ไม่ใช่ปล่อยให้หายไปจาก NAV
+
+     ของเดิมเลื่อนงวดแล้วเริ่มนับใหม่จากศูนย์ทันที ทำให้มูลค่าที่ควรได้รับ
+     หายออกจากพอร์ตทั้งที่เงินยังไม่เข้า — ผู้ตรวจอิสระเรียกว่า NAV leakage
+     สิทธิ์ในดอกเบี้ยเกิดขึ้นแล้ว ณ วันกำหนดสิทธิ จะหายได้ก็ต่อเมื่อรับเงินจริง
+     ================================================================== */
+  const perYear=s.frequency==="Annual"?1:s.frequency==="Quarterly"?4:2;
+  const perCoupon=face*(Number(s.coupon)||0)/perYear;
+  const unpaid=[];
+  (cp.due||[]).forEach(d=>{ if(!couponReceived(s.id,d))unpaid.push(d) });
+  const receivable=s.instrument==="Fixed Deposit"?0:unpaid.length*perCoupon;
+  return {accruedLocal:accrued,cleanLocal:clean,
+          dirtyLocal:clean+accrued+receivable,
+          receivableLocal:receivable,unpaid,
+          convDays:conv,yf,prev,next,rolled:cp.rolled};
 }
 function viewData(asOf){
   let date=asOf||state.valuationDate,e=engine(asOf?date:undefined);
@@ -1833,7 +1923,7 @@ function viewData(asOf){
     let mvUSD=rate?marketLocal/rate:0;
     let assetPL=rate?(cleanLocal-p.costLocal)/rate:0;
     let fxPL=rate?p.costLocal/rate-p.costUSD:0;
-    let accruedUSD=rate?fv.accruedLocal/rate:0;
+    let accruedUSD=rate?(fv.accruedLocal+(fv.receivableLocal||0))/rate:0;
     holdings.push({...p,s,rate,price,marketLocal,mvUSD,assetPL,fxPL,accruedUSD,totalPL:mvUSD-p.costUSD,fixed:fv});
   }
   let cash=e.cash.filter(c=>accountVisible(c.account)).map(c=>{
@@ -1973,9 +2063,19 @@ function twrChain(from,to){
     cur=end;
   }
   if(!ok)return {twr:null,months,skipped};
-  let twr=prod-1,days=dayDiff(from,to);
-  let ann=days>365?Math.pow(1+twr,365/days)-1:null;
-  return {twr,ann,months,days,skipped};
+  let days=dayDiff(from,to);
+  const partial=prod-1;
+  /* ==================================================================
+     ถ้ามีเดือนใดวัดไม่ได้ ตัวเลขรวมของงวดนั้นเชื่อถือไม่ได้
+
+     ของเดิมให้เดือนนั้นมีค่าเป็น 1.0 แล้ว chain ต่อ ผู้ใช้จึงเห็นเปอร์เซ็นต์
+     ที่ดูใช้ได้ทั้งที่บางช่วงไม่มีการวัดที่ถูกต้องเลย
+     ตอนนี้ตัวเลขทางการเป็น null (แสดงเป็น "—") และเก็บค่าที่คำนวณได้บางส่วน
+     ไว้ใน twrPartial สำหรับแสดงแยกพร้อมป้ายกำกับว่าไม่รวมเดือนที่วัดไม่ได้
+     ================================================================== */
+  if(skipped.length)return {twr:null,ann:null,twrPartial:partial,months,days,skipped};
+  let ann=days>365?Math.pow(1+partial,365/days)-1:null;
+  return {twr:partial,ann,twrPartial:partial,months,days,skipped};
 }
 function performanceBlock(){
   const val=state.valuationDate,inc=inceptionDate();
@@ -2025,6 +2125,11 @@ function snapshotAt(date){
       return a+(["BUY","FUND SUBSCRIPTION"].includes(t.type)?-q:q)/t.fx;
     },0),
     expense:v.tx.filter(t=>["FEE","TAX"].includes(t.type)).reduce((a,t)=>a+t.cashUSD,0),
+    /* ค่าธรรมเนียม/ภาษีที่ฝังในรายการซื้อขาย — ถูกรวมเข้าต้นทุนสินทรัพย์ตามมาตรฐาน
+       จึงไปปรากฏใน Capital Gain ไม่ใช่ใน Fees & Taxes
+       เก็บไว้เพื่อ "เปิดเผย" ให้เห็นต้นทุนการซื้อขายที่แท้จริง ไม่ได้อยู่ในสมการ */
+    tradeCost:v.tx.filter(t=>TYPE_GROUPS.trade.includes(t.type))
+      .reduce((a,t)=>a-(((Number(t.fee)||0)+(Number(t.tax)||0))/(t.fx||1)),0),
     v
   };
   SNAP_CACHE[key]=s;return s;
@@ -2051,10 +2156,12 @@ function periodBreakdown(from,to){
   /* ดอกเบี้ยค้างรับ: ส่วนที่งอกขึ้นในงวด หักส่วนที่ซื้อมาพร้อมตราสาร บวกส่วนที่ขายไป */
   const accrued=(b.accruedRecv-a.accruedRecv)+(b.tradeAccrued-a.tradeAccrued);
   const expense=b.expense-a.expense;
+  const tradeCost=b.tradeCost-a.tradeCost;          /* memo เท่านั้น ไม่เข้าสมการ */
   const unreconciled=ending-opening-netContrib-capital-income-accrued-expense-fx;
   const tw=twrChain(from,to);
   return {opening,netContrib,capital,realized,unrealized,income,accrued,expense,fx,
-          unreconciled,ending,twr:tw.twr,twrSkipped:tw.skipped||[]};
+          tradeCost,totalCost:expense+tradeCost,
+          unreconciled,ending,twr:tw.twr,twrPartial:tw.twrPartial,twrSkipped:tw.skipped||[]};
 }
 /* ระดับที่ถือว่า "กระทบยอดไม่ลง" — 0.01% ของ NAV หรืออย่างน้อย 1 หน่วยเงิน */
 function reconTolerance(nav){return Math.max(1,Math.abs(nav)*0.0001)}
@@ -2320,8 +2427,8 @@ function renderDashboard(){
       sub+=h.mvUSD;subCost+=h.costUSD;
       const nominal=isFixed(s)?fmt(h.qty*(s.face||0),2):"—";
       const quote=fmt(h.price,4);
-      posRows+=`<tr><td><b>${esc(s.id)}</b></td><td class="n">${s.isin?s.isin:"—"}</td><td class="n">${nominal}</td><td class="n">${esc(s.currency)}</td><td class="n">${fmt(h.qty,2)}</td><td class="n">${fmt(h.rate,4)}</td><td class="n">${dm(h.mvUSD)}</td><td class="n ${h.totalPL>=0?'pos':'neg'}">${dm(h.totalPL)}</td><td class="n">${pctw(h.mvUSD,nav)}</td></tr>`
-           +`<tr class="det"><td colspan="3">${esc(s.name)}${s.coupon?` · ${fmt(s.coupon*100,2)}%`:""}${s.maturity?` · ครบกำหนด ${dmy(s.maturity)}`:""}</td><td class="n">${marketOf(s)}</td><td class="n">Quote ${quote}</td><td class="n">ต้นทุน ${dm(h.costUSD)}</td><td class="n">${dm(h.mvUSD)}</td><td class="n">${h.costUSD?pctSigned(h.totalPL/h.costUSD):"—"}</td><td></td></tr>`;
+      posRows+=`<tr><td><b>${esc(s.id)}</b></td><td class="n">${s.isin?esc(s.isin):"—"}</td><td class="n">${nominal}</td><td class="n">${esc(s.currency)}</td><td class="n">${fmt(h.qty,2)}</td><td class="n">${fmt(h.rate,4)}</td><td class="n">${dm(h.mvUSD)}</td><td class="n ${h.totalPL>=0?'pos':'neg'}">${dm(h.totalPL)}</td><td class="n">${pctw(h.mvUSD,nav)}</td></tr>`
+           +`<tr class="det"><td colspan="3">${esc(s.name)}${s.coupon?` · ${fmt(s.coupon*100,2)}%`:""}${s.maturity?` · ครบกำหนด ${dmy(s.maturity)}`:""}</td><td class="n">${esc(marketOf(s))}</td><td class="n">Quote ${quote}</td><td class="n">ต้นทุน ${dm(h.costUSD)}</td><td class="n">${dm(h.mvUSD)}</td><td class="n">${h.costUSD?pctSigned(h.totalPL/h.costUSD):"—"}</td><td></td></tr>`;
     });
     posRows+=`<tr class="sub"><td colspan="6">Total Cost Value of ${esc(sec2.title)}</td><td class="n">${dm(subCost)}</td><td class="n"></td><td class="n"></td></tr>`
            +`<tr class="sub tot"><td colspan="6">Total Market Value of ${esc(sec2.title)}</td><td class="n">${dm(sub)}</td><td class="n">${dm(sub-subCost)}</td><td class="n">${pctw(sub,nav)}</td></tr>`;
@@ -2445,11 +2552,16 @@ function renderDashboard(){
         <div class="civ-row"><span>Capital Gain (Loss)</span><b>${dm(si.capital)}</b></div>
         <div class="civ-row"><span>Income</span><b>${dm(si.income)}</b></div>
         <div class="civ-row"><span>Accrued Interest Change</span><b>${dm(si.accrued)}</b></div>
-        <div class="civ-row"><span>Fees &amp; Taxes</span><b>${dm(si.expense)}</b></div>
+        <div class="civ-row"><span>Fees &amp; Taxes <small>(รายการค่าธรรมเนียม/ภาษีที่บันทึกแยก)</small></span><b>${dm(si.expense)}</b></div>
+        <div class="civ-row memo"><span>ต้นทุนการซื้อขายที่รวมอยู่ในต้นทุนสินทรัพย์ <small>อยู่ใน Capital Gain แล้ว ไม่นับซ้ำในสมการ</small></span><b>${dm(si.tradeCost)}</b></div>
+        <div class="civ-row memo"><span>รวมต้นทุนและค่าธรรมเนียมทั้งสิ้น</span><b>${dm(si.totalCost)}</b></div>
         <div class="civ-row"><span>Currency Gain (Loss)</span><b>${dm(si.fx)}</b></div>
         ${reconRow(si)}
         <div class="civ-row strong"><span>Ending Portfolio Value on ${dmy(val)}</span><b>${dm(si.ending)}</b></div>
-        <div class="civ-row perf"><span>Period Performance in % (TWR)</span><b>${pctSigned(si.twr)}</b></div>
+        <div class="civ-row perf"><span>Period Performance in % (TWR)</span><b>${si.twr===null&&(si.twrSkipped||[]).length?"N/A":pctSigned(si.twr)}</b></div>
+        ${(si.twrSkipped||[]).length?'<div class="civ-row recon-warn"><span>\u26a0 วัดผลตอบแทนไม่ได้ '
+          +si.twrSkipped.length+' เดือน <small>'+esc(si.twrSkipped.map(x=>x.label).join(", "))
+          +' — ตัวเลขทางการจึงเป็น N/A</small></span><b>'+pctSigned(si.twrPartial)+' <small>(บางส่วน)</small></b></div>':""}
         <div class="small-note" style="padding:10px 18px 14px">
           Net Contribution = เงินเข้า/โอนเข้า − เงินออก/โอนออก · Capital Gain (Loss) = กำไรที่รับรู้แล้ว + การเปลี่ยนแปลงกำไรที่ยังไม่รับรู้ (คำนวณจากธุรกรรมโดยตรง ไม่ใช่ยอดคงเหลือ) · Income = เงินปันผล + ดอกเบี้ย + ดอกเบี้ยหุ้นกู้ที่รับเป็นเงินสด · Accrued Interest Change = ดอกเบี้ยที่งอกแล้วแต่ยังไม่ได้รับ · Fees &amp; Taxes = ค่าธรรมเนียมและภาษีที่บันทึกเป็นรายการแยก
         </div>
@@ -2468,20 +2580,25 @@ function renderDashboard(){
         ${perfRow("Income",x=>x.income)}
         ${perfRow("Accrued Interest Change",x=>x.accrued,{indent:1,sign:1})}
         ${perfRow("Fees & Taxes",x=>x.expense,{sign:1})}
+        ${perfRow("— ต้นทุนการซื้อขาย (รวมในต้นทุนสินทรัพย์)",x=>x.tradeCost,{indent:1,sign:1})}
+        ${perfRow("— รวมต้นทุนทั้งสิ้น",x=>x.totalCost,{indent:1,sign:1})}
         ${perfRow("Currency Gain (Loss)",x=>x.fx,{sign:1})}
         ${perfCols.some(p=>Math.abs(pm[p.key].unreconciled)>reconTolerance(pm[p.key].ending))
           ?perfRow("⚠ Unreconciled",x=>x.unreconciled,{sign:1,cls:"row-unrecon"}):""}
         ${perfRow("Ending Portfolio Value",x=>x.ending,{cls:"sub tot"})}
         ${perfRow("Period Performance in % (TWR)",x=>x.twr,{pct:1,sign:1,cls:"total"})}
         ${perfCols.some(p=>(pm[p.key].twrSkipped||[]).length)
-          ?`<tr class="row-unrecon"><td>\u26a0 เดือนที่คำนวณผลตอบแทนไม่ได้</td>`
+          ?`<tr class="row-unrecon"><td>ผลตอบแทนบางส่วน <small>(ไม่รวมเดือนที่วัดไม่ได้ · ห้ามใช้เทียบผลงาน)</small></td>`
+            +perfCols.map(p=>`<td class="n">${(pm[p.key].twrSkipped||[]).length?pctSigned(pm[p.key].twrPartial):"—"}</td>`).join("")
+            +`</tr><tr class="row-unrecon"><td>\u26a0 เดือนที่คำนวณผลตอบแทนไม่ได้</td>`
             +perfCols.map(p=>{const sk=pm[p.key].twrSkipped||[];
               return `<td class="n">${sk.length?esc(sk.map(x=>x.label+(x.why==="negative"?" (ตัวหารติดลบ)":" (ตัวหารเป็นศูนย์)")).join(", ")):"—"}</td>`}).join("")
             +`</tr>`:""}
       </tbody></table></div>
       <div class="small-note" style="padding:8px 18px 12px">
         ${perfCols.some(p=>(pm[p.key].twrSkipped||[]).length)
-          ?'<b class="neg">เดือนที่คำนวณไม่ได้ถูกนับเป็นผลตอบแทน 0% ในการ chain-link ตัวเลข TWR ของงวดนั้นจึงต่ำหรือสูงกว่าความจริง — '
+          ?'<b class="neg">งวดที่มีเดือนวัดไม่ได้ ตัวเลข TWR ทางการจะเป็น N/A — เพราะช่วงเวลาบางส่วนไม่มีการวัดที่เชื่อถือได้ '
+            +'การ chain-link ต่อโดยให้เดือนนั้นเป็น 0% จะได้ตัวเลขที่ดูใช้ได้แต่ตีความผิด · '
             +'ตัวหารเป็นศูนย์มักเกิดเมื่อเริ่มงวดด้วยมูลค่าศูนย์แล้วเงินเข้าปลายงวด ส่วนตัวหารติดลบเกิดเมื่อเงินไหลออกมากกว่ามูลค่าต้นงวด</b><br>':''}
         ผลตอบแทนคำนวณด้วยวิธี Time-Weighted Return (TWR) — Modified Dietz รายเดือนแล้ว chain-link แบบทวีคูณ ตัดผลกระทบจากจังหวะและขนาดของเงินเข้า-ออก จึงสะท้อนฝีมือการบริหารพอร์ตและเทียบกับ Benchmark ได้ · ตั้งแต่เริ่มลงทุน ${dmy(inc)} จึงยังไม่มีข้อมูลปีก่อนหน้า
       </div>
@@ -2646,7 +2763,7 @@ function renderTransactions(){
 }
 function renderHoldings(){
   let h=viewData().holdings.sort((a,b)=>b.mvUSD-a.mvUSD);byId("holdingCount").textContent=`${h.length} open positions`;
-  byId("holdBody").innerHTML=h.map(x=>`<tr><td><b>${esc(x.s.id)}</b></td><td>${esc(x.s.name)}</td><td>${x.s.assetClass}</td><td>${esc(x.s.currency)}</td><td class="num">${fmt(x.qty,2)}</td><td class="num">${fmt(x.qty?x.costLocal/x.qty:0,2)}</td><td class="num">${fmt(x.price,2)}</td><td class="num">${usd(x.mvUSD)}</td><td class="num ${x.assetPL>=0?'pos':'neg'}">${usd(x.assetPL)}</td><td class="num ${x.fxPL+x.realizedFx>=0?'pos':'neg'}">${usd(x.fxPL+x.realizedFx)}</td><td class="num">${usd(x.accruedUSD)}</td><td class="num ${x.totalPL>=0?'pos':'neg'}"><b>${usd(x.totalPL)}</b></td></tr>`).join("")||`<tr><td colspan="12" class="empty">No positions</td></tr>`;
+  byId("holdBody").innerHTML=h.map(x=>`<tr><td><b>${esc(x.s.id)}</b></td><td>${esc(x.s.name)}</td><td>${esc(x.s.assetClass)}</td><td>${esc(x.s.currency)}</td><td class="num">${fmt(x.qty,2)}</td><td class="num">${fmt(x.qty?x.costLocal/x.qty:0,2)}</td><td class="num">${fmt(x.price,2)}</td><td class="num">${usd(x.mvUSD)}</td><td class="num ${x.assetPL>=0?'pos':'neg'}">${usd(x.assetPL)}</td><td class="num ${x.fxPL+x.realizedFx>=0?'pos':'neg'}">${usd(x.fxPL+x.realizedFx)}</td><td class="num">${usd(x.accruedUSD)}</td><td class="num ${x.totalPL>=0?'pos':'neg'}"><b>${usd(x.totalPL)}</b></td></tr>`).join("")||`<tr><td colspan="12" class="empty">No positions</td></tr>`;
 }
 function renderCashFx(){
   renderCashWarning();
@@ -2658,12 +2775,20 @@ function renderCashFx(){
 }
 function renderFixed(){
   let v=viewData(),rows=v.holdings.filter(h=>isFixed(h.s));
-  byId("fixedBody").innerHTML=rows.map(h=>{let f=h.fixed;return `<tr><td><b>${esc(h.s.id)}</b><br><span class="muted">${esc(h.s.name)}</span></td><td>${esc(h.s.instrument)}</td><td>${h.s.dayCount||"—"}</td><td>${dmy(f.prev)}${f.rolled?' <span class="rolled-tag" title="ตารางดอกเบี้ยที่บันทึกไว้เก่ากว่าวันตีราคา ระบบเลื่อนให้อัตโนมัติ '+f.rolled+' งวด">เลื่อนอัตโนมัติ</span>':""}</td><td>${dmy(f.next)}</td><td class="num">${fmt(h.qty*(h.s.face||0),2)}</td><td class="num">${fmt((h.s.coupon||0)*100,2)}%</td><td class="num">${fmt(f.convDays,2)}</td><td class="num">${fmt(f.accruedLocal,2)}</td><td class="num">${fmt(f.cleanLocal,2)}</td><td class="num">${usd(h.mvUSD)}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="editFixedDates('${escAttr(h.s.id)}')">Edit dates</button></td></tr>`}).join("")||`<tr><td colspan="12" class="empty">No fixed income positions</td></tr>`;
+  byId("fixedBody").innerHTML=rows.map(h=>{let f=h.fixed;return `<tr><td><b>${esc(h.s.id)}</b><br><span class="muted">${esc(h.s.name)}</span></td><td>${esc(h.s.instrument)}</td><td>${esc(h.s.dayCount||"—")}</td><td>${dmy(f.prev)}${f.rolled?' <span class="rolled-tag" title="ตารางดอกเบี้ยที่บันทึกไว้เก่ากว่าวันตีราคา ระบบเลื่อนให้อัตโนมัติ '+f.rolled+' งวด">เลื่อนอัตโนมัติ</span>':""}</td><td>${dmy(f.next)}</td><td class="num">${fmt(h.qty*(h.s.face||0),2)}</td><td class="num">${fmt((h.s.coupon||0)*100,2)}%</td><td class="num">${fmt(f.convDays,2)}</td><td class="num">${fmt(f.accruedLocal,2)}${f.receivableLocal?'<br><span class="rolled-tag" title="งวดที่ถึงกำหนดแล้วแต่ยังไม่พบรายการรับเงิน จึงยกเป็นลูกหนี้ ไม่ตัดออกจาก NAV">+ ลูกหนี้ '+fmt(f.receivableLocal,2)+'</span>':""}</td><td class="num">${fmt(f.cleanLocal,2)}</td><td class="num">${usd(h.mvUSD)}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="editFixedDates('${escAttr(h.s.id)}')">Edit dates</button></td></tr>`}).join("")||`<tr><td colspan="12" class="empty">No fixed income positions</td></tr>`;
   /* ถ้าต้องเลื่อนงวดให้ แปลว่าทะเบียนวันจ่ายดอกเบี้ยเก่ากว่าความเป็นจริง — ควรไปอัปเดต */
+  const owed=rows.filter(h=>h.fixed&&h.fixed.receivableLocal>0);
   const stale=rows.filter(h=>h.fixed&&h.fixed.rolled);
   const nb=byId("fixedRollNote");
   if(nb){
-    if(stale.length){
+    if(owed.length){
+      nb.style.display="block";
+      nb.innerHTML='<div class="gap-bar"><span class="gap-ic">\u26a0</span><div>'
+        +'<b>มีดอกเบี้ยที่ถึงกำหนดแล้วแต่ยังไม่พบรายการรับเงิน '+owed.length+' ตราสาร</b>'
+        +'<div class="gap-list">'+owed.map(h=>esc(h.s.id)+" ("+h.fixed.unpaid.map(dmy).join(", ")+")").join(" · ")+'</div>'
+        +'<div class="gap-list">ยอดนี้ยังนับอยู่ใน NAV ในฐานะ<b>ลูกหนี้ดอกเบี้ย</b> จะหายก็ต่อเมื่อบันทึกรายการรับเงินจริง '
+        +'ถ้าผู้ออกตราสารผิดนัดชำระ ต้องบันทึกการตัดจำหน่ายเอง</div></div></div>';
+    }else if(stale.length){
       nb.style.display="block";
       nb.innerHTML='<div class="gap-bar"><span class="gap-ic">\u26a0</span><div>'
         +'<b>ตารางดอกเบี้ยเก่ากว่าวันตีราคา '+stale.length+' ตราสาร — ระบบเลื่อนงวดให้อัตโนมัติแล้ว</b>'
@@ -2700,24 +2825,40 @@ function renderMarket(){
    ================================================================== */
 function negativeCashScan(uptoDate){
   const end=uptoDate||state.valuationDate;
-  const days=[...new Set((state.transactions||[]).map(t=>t.date))].filter(d=>d<=end).sort();
-  const hits=[]; const seen=new Set();
+  const hits=[]; const idx={};
   /* ต้องนับรายการร่างและรายการที่รออนุมัติด้วย
      เพราะผู้บันทึกต้องเห็นผลของสิ่งที่เพิ่งคีย์ ไม่ใช่รอจนอนุมัติแล้วค่อยรู้
-     (engine() ปกติกรองตามสวิตช์ "เฉพาะที่อนุมัติแล้ว" จึงต้องปิดชั่วคราว) */
+
+     ของเดิมเรียก engine(d) ใหม่ทุกวันที่มีรายการ = คำนวณทั้ง ledger ซ้ำ N รอบ
+     (วัดได้ 92 ครั้งที่ 926 รายการ) ซึ่งโตเป็น O(วัน × รายการ)
+     ตอนนี้เรียกครั้งเดียวแล้วเดินยอดเงินสดไปตามลำดับวันแทน */
   const keep=SHOW_APPROVED_ONLY; SHOW_APPROVED_ONLY=false;
-  try{
-  for(const d of days){
-    let e; try{e=engine(d)}catch(err){continue}
-    for(const c of e.cash){
-      if(c.local<-0.005){
-        const k=c.account+"|"+c.currency;
-        if(!seen.has(k)){seen.add(k);hits.push({key:k,account:c.account,currency:c.currency,from:d,worst:c.local,lastDate:d});}
-        else{const h=hits.find(x=>x.key===k); if(c.local<h.worst)h.worst=c.local; h.lastDate=d;}
+  let e; try{ e=engine(end) }catch(err){ SHOW_APPROVED_ONLY=keep; return hits }
+  SHOW_APPROVED_ONLY=keep;
+  const bal={};
+  for(const t of (e.txDetails||[])){
+    const k=t.account+"|"+t.currency;
+    bal[k]=(bal[k]||0)+(Number(t.cashLocal)||0);
+    if(t.type==="FX CONVERSION"&&t.fxTo){
+      const k2=t.account+"|"+t.fxTo;
+      bal[k2]=(bal[k2]||0)+(Number(t.fxToAmount)||0);
+    }
+    /* ตรวจทุกเส้นหลังจบรายการนี้ ไม่ใช่เฉพาะเส้นที่เพิ่งขยับ
+       เพราะขาแลกเปลี่ยนเงินทำให้เส้นอื่นติดลบได้ */
+    for(const k3 in bal){
+      if(bal[k3]<-0.005){
+        const p=k3.split("|");
+        if(idx[k3]===undefined){
+          idx[k3]=hits.length;
+          hits.push({key:k3,account:p[0],currency:p[1],from:t.date,worst:bal[k3],lastDate:t.date});
+        }else{
+          const h=hits[idx[k3]];
+          if(bal[k3]<h.worst)h.worst=bal[k3];
+          h.lastDate=t.date;
+        }
       }
     }
   }
-  }finally{ SHOW_APPROVED_ONLY=keep; }
   return hits;
 }
 function renderCashWarning(){
@@ -2842,10 +2983,10 @@ function renderTeam(){
   const inp='style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px"';
   el.innerHTML=rows.map(m=>{
     const isNew=!saved.some(x=>x.id===m.id);
-    return '<tr><td><input id="tm_'+m.id+'_title" value="'+(m.title||"").replace(/"/g,"&quot;")+'" placeholder="เช่น Finance Manager" '+inp+dis+'>'
+    return '<tr><td><input id="tm_'+m.id+'_title" value="'+esc(m.title||"")+'" placeholder="เช่น Finance Manager" '+inp+dis+'>'
     +(isNew?'<br><span class="muted" style="font-size:10px">ใหม่ · ยังไม่บันทึก</span>':'')+'</td>'
-    +'<td><input id="tm_'+m.id+'_name" value="'+(m.name||"").replace(/"/g,"&quot;")+'" placeholder="ยังไม่ได้ระบุ" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px"'+dis+'></td>'
-    +'<td><input id="tm_'+m.id+'_email" value="'+(m.email||"").replace(/"/g,"&quot;")+'" placeholder="name@monta.co.th" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px"'+dis+'></td>'
+    +'<td><input id="tm_'+m.id+'_name" value="'+esc(m.name||"")+'" placeholder="ยังไม่ได้ระบุ" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px"'+dis+'></td>'
+    +'<td><input id="tm_'+m.id+'_email" value="'+esc(m.email||"")+'" placeholder="name@monta.co.th" style="width:100%;border:1px solid var(--line);border-radius:8px;padding:7px"'+dis+'></td>'
     +'<td><select id="tm_'+m.id+'_role" style="border:1px solid var(--line);border-radius:8px;padding:7px"'+dis+'>'
     +Object.keys(ROLE_LABEL_BASE).map(r=>'<option value="'+r+'"'+(r===m.role?" selected":"")+'>'+ROLE_LABEL_BASE[r]+'</option>').join("")
     +'</select></td>'
@@ -2873,9 +3014,9 @@ function renderTeam(){
     const ack=byId("entAck");
     if(ack){
       ack.innerHTML='<option value="">ผู้รับทราบบนเอกสาร — ไม่ระบุ</option>'
-        +teamOf().filter(m=>m.name).map(m=>'<option value="'+m.id+'"'
-          +(m.id===(e.ackMemberId||"")?" selected":"")+'>รับทราบ: '+m.name
-          +(m.title?" · "+m.title:"")+'</option>').join("");
+        +teamOf().filter(m=>m.name).map(m=>'<option value="'+escAttr(m.id)+'"'
+          +(m.id===(e.ackMemberId||"")?" selected":"")+'>รับทราบ: '+esc(m.name)
+          +(m.title?" · "+esc(m.title):"")+'</option>').join("");
     }
     ["entName","entTax","entAddr","entIc","entAck"].forEach(id=>{const x=byId(id);if(x)x.disabled=!canEdit()});}
 }
@@ -2883,7 +3024,7 @@ function renderTeam(){
    และเตือนเมื่อทะเบียนอยู่ในสภาพที่ใช้งานจริงไม่ได้ */
 function roleSummary(){
   const t=teamOf();
-  const nm=m=>(m.name||"(ยังไม่ระบุชื่อ)")+(m.title?" · "+m.title:"");
+  const nm=m=>esc((m.name||"(ยังไม่ระบุชื่อ)")+(m.title?" · "+m.title:""));
   const mk=t.filter(m=>m.role==="editor"), ap=t.filter(m=>m.role==="approver");
   const noMail=t.filter(m=>m.role!=="viewer"&&!String(m.email||"").trim());
   let warn="";
@@ -2892,7 +3033,7 @@ function roleSummary(){
   if(mk.length&&ap.length&&mk.some(m=>ap.some(a=>a.id===m.id)))
     warn+='<div style="color:#a8551a">⚠ มีคนที่เป็นทั้งผู้บันทึกและผู้อนุมัติ — ขัดหลักการแบ่งแยกหน้าที่ ควรแยกคนกัน</div>';
   if(noMail.length)
-    warn+='<div style="color:#a8551a">⚠ ยังไม่ได้ใส่อีเมลให้ '+noMail.map(m=>m.title||m.id).join(", ")
+    warn+='<div style="color:#a8551a">⚠ ยังไม่ได้ใส่อีเมลให้ '+esc(noMail.map(m=>m.title||m.id).join(", "))
       +' — ระบบจะส่งอีเมลและยืนยันตัวตนด้วยบัญชีบริษัทไม่ได้</div>';
   return '<div style="margin-top:10px;padding:11px 13px;border-radius:10px;background:#f4f7fb;'
     +'border:1px solid var(--line);font-size:12.5px;line-height:1.75">'
@@ -3044,9 +3185,9 @@ function renderMaster(){
   renderHolidays();
   fillSelect(byId("holCcy"),CURRENCIES,x=>x,x=>x,"ทุกสกุล");
   byId("portfolioBody").innerHTML=state.portfolios.map(x=>`<tr><td><b>${esc(x.id)}</b></td><td>${esc(x.name)}</td><td>${esc(x.currency)}</td></tr>`).join("");
-  byId("brokerBody").innerHTML=state.brokers.map(x=>`<tr><td><b>${esc(x.id)}</b></td><td>${esc(x.name)}</td><td>${x.country}</td><td>${esc(x.currency)}</td></tr>`).join("");
+  byId("brokerBody").innerHTML=state.brokers.map(x=>`<tr><td><b>${esc(x.id)}</b></td><td>${esc(x.name)}</td><td>${esc(x.country)}</td><td>${esc(x.currency)}</td></tr>`).join("");
   byId("accountBody").innerHTML=state.accounts.map(x=>`<tr><td><b>${esc(x.id)}</b></td><td>${esc(x.name)}</td><td>${esc(x.portfolioId)}</td><td>${esc(x.brokerId)}</td><td>${esc(x.currency)}</td></tr>`).join("");
-  byId("securityBody").innerHTML=state.securities.map(x=>`<tr><td><b>${esc(x.id)}</b></td><td>${esc(x.name)}</td><td>${x.assetClass}</td><td>${esc(x.instrument)}</td><td>${esc(x.currency)}</td><td>${x.dayCount||"—"}</td></tr>`).join("");
+  byId("securityBody").innerHTML=state.securities.map(x=>`<tr><td><b>${esc(x.id)}</b></td><td>${esc(x.name)}</td><td>${esc(x.assetClass)}</td><td>${esc(x.instrument)}</td><td>${esc(x.currency)}</td><td>${esc(x.dayCount||"—")}</td></tr>`).join("");
   fillSelect(byId("aPortfolio"),state.portfolios,x=>x.id,x=>x.id,"Portfolio");fillSelect(byId("aBroker"),state.brokers,x=>x.id,x=>x.id,"Broker");
   ["bCcy","aCcy","sCcy"].forEach(id=>fillSelect(byId(id),CURRENCIES,x=>x,x=>x,"Currency"));
   fillSelect(byId("sType"),["Equity","ETF","Mutual Fund","DR/DRx","REIT","Government Bond","Corporate Bond","Perpetual Bond","Fixed Deposit","Structured Note","Other"],x=>x,x=>x,"Instrument");
@@ -3343,8 +3484,8 @@ function transactionDocument(t,printing){
     <div class="doc-row"><span>Portfolio</span><b>${esc(p?.name||t.portfolio)}</b></div><div class="doc-row"><span>Account</span><b>${esc(a?.name||t.account)}</b></div>
     <div class="doc-row"><span>Broker / Custodian</span><b>${esc(b?.name||t.broker)}</b></div><div class="doc-row"><span>Investment Consultant (IC)</span><b>${esc(ENTITY_().ic)}</b></div>
     ${sect("TRADE DETAILS / รายละเอียดการทำรายการ")}
-    <div class="doc-row"><span>Transaction Type</span><b>${esc(t.type)}</b></div><div class="doc-row"><span>Market / Exchange</span><b>${marketOf(s)}</b></div>
-    <div class="doc-row"><span>Security</span><b>${s?`${esc(s.id)} — ${esc(s.name)}`:"CASH"}</b></div><div class="doc-row"><span>ISIN / Security Code</span><b>${s?.isin||"—"}</b></div>
+    <div class="doc-row"><span>Transaction Type</span><b>${esc(t.type)}</b></div><div class="doc-row"><span>Market / Exchange</span><b>${esc(marketOf(s))}</b></div>
+    <div class="doc-row"><span>Security</span><b>${s?`${esc(s.id)} — ${esc(s.name)}`:"CASH"}</b></div><div class="doc-row"><span>ISIN / Security Code</span><b>${esc(s?.isin||"—")}</b></div>
     <div class="doc-row"><span>Symbol</span><b>${esc(s?.id||"—")}</b></div><div class="doc-row"><span>Currency</span><b>${esc(t.currency)}</b></div>
     <div class="doc-row"><span>Trade Date</span><b>${dmy(t.date)}</b></div><div class="doc-row"><span>Settlement Date</span><b>${dmy(settle)}</b></div>
     <div class="doc-row"><span>Quantity</span><b>${t.qty?fmt(t.qty,4):"—"}</b></div><div class="doc-row"><span>Price / % Par</span><b>${t.price?fmt(t.price,4):"—"}</b></div>
@@ -3590,7 +3731,7 @@ function showAuditHistory(id){
     const keys=["date","type","account","security","qty","price","amount","fxOverride","accrued","fee","tax","ref","note"];
     byId("auditBody").innerHTML=entries.map(e=>{
       let changed=keys.filter(k=>String(e.before?.[k]??"")!==String(e.after?.[k]??""));
-      let changes=changed.map(k=>`${k}: ${e.before?.[k]??"—"} → ${e.after?.[k]??"—"}`).join(" · ");
+      let changes=changed.map(k=>`${esc(k)}: ${esc(e.before?.[k]??"—")} → ${esc(e.after?.[k]??"—")}`).join(" · ");
       return `<div class="audit-entry"><div class="audit-entry-head"><b>Version ${e.versionFrom} → ${e.versionTo}</b><span class="muted">${new Date(e.amendedAt).toLocaleString()}</span></div><p><b>Reason:</b> ${esc(e.reason)}</p><div class="audit-change">${changes||"Reference / metadata update"}</div></div>`;
     }).join("");
   }
@@ -3626,9 +3767,9 @@ function candidateFromForm(existingId){
    (ทดสอบจริงในชุดข้อมูลจำลอง: กำไรลอย 17,644.11 USD)
 
    ตอนนี้ตัวตรวจมองชุดเดียวกับที่ engine ใช้คำนวณ */
-function validateTransactionSet(txs){
+function validateTransactionSet(txs,mode){
   let pos={};
-  let sorted=[...txs].filter(t=>txStatus(t)!=="REJECTED")
+  let sorted=[...txs].filter(t=>countsInLedger(t,mode))
     .sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
   for(const t of sorted){
     if(t.type==="FX CONVERSION")continue;
@@ -3644,10 +3785,17 @@ function validateTransactionSet(txs){
 }
 /* จำลองผลของการเปลี่ยนสถานะชุดหนึ่ง แล้วบอกว่า ledger ยังถูกต้องหรือไม่
    decisions = {txnId:"APPROVED"|"REJECTED"|"RETURNED"} */
+/* ตรวจทั้งสองชุด: ชุดทางการต้องไม่พังเด็ดขาด ส่วนชุดทำงานแค่เตือน */
+function validateBothUniverses(txs){
+  return {official:validateTransactionSet(txs,"official"),
+          working :validateTransactionSet(txs,"working")};
+}
 function ledgerAfterDecisions(decisions){
   const sim=state.transactions.map(t=>
     Object.prototype.hasOwnProperty.call(decisions,t.id)?{...t,status:decisions[t.id]}:t);
-  return validateTransactionSet(sim);
+  /* การอนุมัติกระทบ "ชุดทางการ" โดยตรง จึงต้องตรวจชุดนั้นเสมอ
+     ไม่ใช่ตรวจตามสวิตช์หน้าจอที่ผู้ใช้บังเอิญตั้งไว้ */
+  return validateTransactionSet(sim,"official");
 }
 function editTransaction(id){
   if(!guard("edit"))return;
@@ -3697,7 +3845,7 @@ function previewEditImpact(){
   if(!editTxnId||!editOriginal)return;
   let c=candidateFromForm(editTxnId),a=acct(c.account),s=sec(c.security),trade=TYPE_GROUPS.trade.includes(c.type),ccy=trade?s?.currency:a?.currency,rate=Number(c.fxOverride)||getFx(ccy,c.date);
   if(!c.date||!a||!rate||(trade&&(!s||c.qty<=0||c.price<=0))||(!trade&&c.amount<=0)){alert("กรุณากรอกข้อมูลที่จำเป็นให้ครบ");return}
-  let next=state.transactions.map(t=>t.id===editTxnId?c:t),err=validateTransactionSet(next);
+  let next=state.transactions.map(t=>t.id===editTxnId?c:t),err=validateTransactionSet(next,"working");
   if(err){alert(err);return}
   pendingEditCandidate=c;
   let before=snapshotWithTransactions(state.transactions),after=snapshotWithTransactions(next),changes=materialChanges(editOriginal,c),affected=changes.length?affectedTransactions(editOriginal,c):0;
@@ -3813,7 +3961,7 @@ function saveTransaction(){
   if(!date||!a||!rate||(trade&&(!s||qty<=0||price<=0))||(!trade&&amount<=0)){alert("กรุณากรอกข้อมูลที่จำเป็นให้ครบ");return}
   let id=nextTxnId(date);
   let newTxn={id,date,type:currentType,account:a.id,security:trade?s.id:"",qty,price,amount,fxOverride:Number(byId("fFxOverride").value)||0,accrued:Number(byId("fAccrued").value)||0,fee:Number(byId("fFee").value)||0,tax:Number(byId("fTax").value)||0,ref:byId("fRef").value.trim(),note:byId("fNote").value.trim(),version:1,status:"DRAFT",createdAt:new Date().toISOString()};
-  let err=validateTransactionSet([...state.transactions,newTxn]);if(err){alert(err);return}
+  let err=validateTransactionSet([...state.transactions,newTxn],"working");if(err){alert(err);return}
   state.transactions.push(newTxn);
   save();alert(`Saved ${esc(id)}`);
   warnIfGoesNegative();
@@ -3881,28 +4029,79 @@ function byIdMap(arr,key){let m={};(arr||[]).forEach(x=>{if(x&&x[key]!==undefine
    (คอมเมนต์เดิมเขียนว่า "ของใหม่กว่าชนะ" ซึ่งไม่ตรงกับที่โค้ดทำจริง)
 
    ตอนนี้เก็บรายการที่ชนกันไว้ใน onConflict เพื่อให้ผู้ใช้ตัดสินใจเอง */
-function unionByKey(theirs,mine,key,label,onConflict){
-  const out=[...(theirs||[])], idx=new Map(out.map(x=>[x[key],x]));
-  (mine||[]).forEach(x=>{
-    const t=idx.get(x[key]);
-    if(!t){out.push(x);idx.set(x[key],x);return}
-    if(JSON.stringify(t)!==JSON.stringify(x)&&onConflict)
-      onConflict((label||key)+" "+x[key]);
+/* ==================================================================
+   รวมข้อมูลหลักแบบ three-way จริง
+
+   ของเดิมเทียบ mine กับ theirs ตรง ๆ แล้วถือว่า "ต่างกัน = ชนกัน"
+   ซึ่งผิด เพราะถ้าเราไม่ได้แก้อะไรเลยและอีกฝ่ายแก้ฝ่ายเดียว มันก็ต่างกัน
+   ระบบจึงฟ้องชนทั้งที่ไม่มีใครแก้พร้อมกัน ทำให้เผยแพร่ไม่ได้โดยไม่จำเป็น
+   (ผู้ตรวจอิสระชี้ว่าการฟ้องผิด ๆ แบบนี้ผลักให้ผู้ใช้หาทางข้าม control)
+
+   การชนกันจริงต้องครบสามเงื่อนไข: mine ≠ base และ theirs ≠ base และ mine ≠ theirs
+   ================================================================== */
+const MASTER_SETS=[
+  ["portfolios","พอร์ต"],["brokers","โบรกเกอร์"],["accounts","บัญชี"],
+  ["securities","หลักทรัพย์"],["prices","ราคา"],["fx","อัตราแลกเปลี่ยน"],
+  ["holidays","วันหยุด"],["settleRules","รอบการชำระราคา"]
+];
+function masterKeyOf(set,x){
+  if(set==="prices")return x.security+"|"+x.date;
+  if(set==="fx")return x.date;
+  if(set==="holidays")return x.date+"|"+String(x.ccy||"").toUpperCase();
+  if(set==="settleRules")return String(x.ccy||"").toUpperCase()+"|"+String(x.instrument||"");
+  return x.id;
+}
+/* ภาพของข้อมูลหลัก ณ ตอนที่เราเริ่มแก้ — เก็บเป็นสตริงเทียบง่ายและไม่โตเกินไป */
+const asArr=v=>Array.isArray(v)?v:[];
+function buildMasterBase(o){
+  const b={};
+  MASTER_SETS.forEach(([set])=>{
+    const m={};
+    asArr(o&&o[set]).forEach(x=>{if(x&&typeof x==="object")m[masterKeyOf(set,x)]=JSON.stringify(x)});
+    b[set]=m;
+  });
+  const fd={};
+  Object.keys((o&&o.fixedDates)||{}).forEach(k=>{fd[k]=JSON.stringify(o.fixedDates[k])});
+  b.fixedDates=fd;
+  return b;
+}
+/* รวมชุดเดียว โดยรู้ว่าฝั่งไหนเป็นคนแก้ */
+function mergeMasterSet(set,base,mine,theirs,label,onConflict){
+  const M={},T={};
+  asArr(mine).forEach(x=>{if(x&&typeof x==="object")M[masterKeyOf(set,x)]=x});
+  asArr(theirs).forEach(x=>{if(x&&typeof x==="object")T[masterKeyOf(set,x)]=x});
+  const B=(base&&base[set])||{};
+  const out=[];
+  const keys=[...new Set([...Object.keys(T),...Object.keys(M)])];
+  keys.forEach(k=>{
+    const m=M[k],t=T[k];
+    const ms=m===undefined?undefined:JSON.stringify(m);
+    const ts=t===undefined?undefined:JSON.stringify(t);
+    const bs=B[k];
+    if(ms===ts){ if(m!==undefined)out.push(m); return }   /* เหมือนกัน */
+    if(ms===bs){ if(t!==undefined)out.push(t); return }   /* เราไม่ได้แก้ → ของเขาชนะ (รวมกรณีเขาลบ) */
+    if(ts===bs){ if(m!==undefined)out.push(m); return }   /* เขาไม่ได้แก้ → ของเราชนะ */
+    if(onConflict)onConflict(label+" "+k);                /* แก้ทั้งคู่และต่างกัน = ชนจริง */
+    out.push(t!==undefined?t:m);
   });
   return out;
 }
-/* ราคาและ FX ใช้คู่ (security,date) / (date) เป็นกุญแจ
-   ราคาวันเดียวกันที่ต่างกัน = ชนกันเช่นกัน ต้องบอกผู้ใช้ */
-function unionByComposite(theirs,mine,keyFn,label,onConflict){
-  const m=new Map();(theirs||[]).forEach(x=>m.set(keyFn(x),x));
-  (mine||[]).forEach(x=>{
-    const k=keyFn(x),t=m.get(k);
-    if(t===undefined){m.set(k,x);return}
-    if(JSON.stringify(t)!==JSON.stringify(x)&&onConflict)onConflict((label||"")+" "+k);
+/* วันจ่ายดอกเบี้ยเก็บเป็น object ไม่ใช่ array จึงรวมแยก แต่ใช้กติกาเดียวกัน */
+function mergeFixedDates(base,mine,theirs,onConflict){
+  const B=(base&&base.fixedDates)||{},M=mine||{},T=theirs||{};
+  const out={};
+  [...new Set([...Object.keys(T),...Object.keys(M)])].forEach(k=>{
+    const ms=k in M?JSON.stringify(M[k]):undefined;
+    const ts=k in T?JSON.stringify(T[k]):undefined;
+    const bs=B[k];
+    if(ms===ts){ if(k in M)out[k]=M[k]; return }
+    if(ms===bs){ if(k in T)out[k]=T[k]; return }
+    if(ts===bs){ if(k in M)out[k]=M[k]; return }
+    if(onConflict)onConflict("วันจ่ายดอกเบี้ย "+k);
+    out[k]=(k in T)?T[k]:M[k];
   });
-  return [...m.values()];
+  return out;
 }
-
 /* three-way merge: baseIndex = ภาพตอนที่เราเริ่มแก้, mine = state ปัจจุบัน, theirs = data.json ล่าสุด */
 function threeWayMerge(baseIndex, mine, theirs){
   const myIdx=buildIndex(mine.transactions), thIdx=buildIndex(theirs.transactions);
@@ -3928,23 +4127,16 @@ function threeWayMerge(baseIndex, mine, theirs){
   merged.transactions=Object.values(map).sort((a,b)=>
     a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
   const mc=[]; const C=x=>mc.push(x);
-  merged.portfolios = unionByKey(theirs.portfolios, mine.portfolios, "id","พอร์ต",C);
-  merged.brokers    = unionByKey(theirs.brokers,    mine.brokers,    "id","โบรกเกอร์",C);
-  merged.accounts   = unionByKey(theirs.accounts,   mine.accounts,   "id","บัญชี",C);
-  merged.securities = unionByKey(theirs.securities, mine.securities, "id","หลักทรัพย์",C);
-  merged.prices     = unionByComposite(theirs.prices, mine.prices, x=>x.security+"|"+x.date,"ราคา",C);
-  merged.fx         = unionByComposite(theirs.fx,     mine.fx,     x=>x.date,"อัตราแลกเปลี่ยน",C);
-  merged.holidays   = unionByComposite(theirs.holidays||[], mine.holidays||[],
-                        x=>x.date+"|"+String(x.ccy||"").toUpperCase(),"วันหยุด",C);
-  merged.settleRules= unionByComposite(theirs.settleRules||[], mine.settleRules||[],
-                        x=>String(x.ccy||"").toUpperCase()+"|"+String(x.instrument||""),
-                        "รอบการชำระราคา",C);
-  /* วันจ่ายดอกเบี้ย: ของเดิม theirs ทับ mine เสมอ — ต้องฟ้องเมื่อไม่ตรงกัน */
-  const fdM=mine.fixedDates||{}, fdT=theirs.fixedDates||{};
-  Object.keys(fdM).forEach(k=>{
-    if(fdT[k]&&JSON.stringify(fdT[k])!==JSON.stringify(fdM[k]))C("วันจ่ายดอกเบี้ย "+k);
+  /* base ของข้อมูลหลักมาจากภาพที่เก็บไว้ตอนโหลดชุดที่เผยแพร่ล่าสุด
+     ถ้ายังไม่มี (ข้อมูลเก่าก่อนมีฟีเจอร์นี้) ให้ถือว่า theirs คือ base
+     ซึ่งแปลว่า "เราเป็นคนแก้ฝ่ายเดียว" — ปลอดภัยกว่าการฟ้องชนมั่ว */
+  const mBase=mine.__baseMaster||buildMasterBase(theirs);
+  MASTER_SETS.forEach(([set,label])=>{
+    /* ถ้าไม่มีฝั่งไหนเป็น array เลย (ข้อมูลรูปแบบอื่น) ให้ปล่อยของเดิมไว้ ไม่แปลงชนิด */
+    if(!Array.isArray(mine[set])&&!Array.isArray(theirs[set]))return;
+    merged[set]=mergeMasterSet(set,mBase,mine[set],theirs[set],label,C);
   });
-  merged.fixedDates = Object.assign({}, fdM, fdT);
+  merged.fixedDates=mergeFixedDates(mBase,mine.fixedDates,theirs.fixedDates,C);
   if(mc.length)return {ok:false,collisions:[...new Set(mc)],masterOnly:true,myDiff,thDiff};
   merged.auditTrail = [...(theirs.auditTrail||[]),
     ...(mine.auditTrail||[]).filter(e=>!(theirs.auditTrail||[]).some(x=>
@@ -3995,6 +4187,7 @@ async function pullLatest(){
   state=r.merged;
   state.__basedOn=stampOf(remote);
   state.__baseIndex=buildIndex(remote.transactions);
+  state.__baseMaster=buildMasterBase(remote);
   PUBLISHED_STAMP=stampOf(remote);
   STALE_DRAFT=false;
   DRAFT_DIRTY=(r.myDiff.added.length+r.myDiff.modified.length+r.myDiff.removed.length)>0;
@@ -4007,6 +4200,17 @@ async function pullLatest(){
 
 /* ---------- เผยแพร่ พร้อมตรวจการชนกันก่อนเสมอ ---------- */
 async function publishData(){
+  /* เผยแพร่ทั้งที่ข้อมูลตลาดไม่ครบ = ส่งตัวเลขที่ไม่เป็นทางการให้ทั้งทีมใช้
+     ไม่ห้ามเด็ดขาด เพราะบางครั้งต้องเผยแพร่รายการก่อนราคาจะมา
+     แต่ต้องรู้ตัวและยืนยันเอง แล้วรายการที่ขาดจะติดไปกับชุดข้อมูลด้วย */
+  if(typeof officialFigures==="function"&&!officialFigures()){
+    const fxs=Object.keys(DATA_GAPS.fx), pxs=Object.keys(DATA_GAPS.price);
+    if(!confirm("\u26d4 ข้อมูลตลาดไม่ครบ ตัวเลขชุดนี้ยังไม่เป็นทางการ\n\n"
+      +(fxs.length?"ขาดอัตราแลกเปลี่ยน: "+fxs.join(", ")+"\n":"")
+      +(pxs.length?"ขาดราคา: "+pxs.slice(0,10).join(", ")+(pxs.length>10?" และอีก "+(pxs.length-10):"")+"\n":"")
+      +"\nมูลค่าส่วนที่ขาดถูกคิดเป็นศูนย์ NAV และผลตอบแทนจึงต่ำกว่าความจริง\n"
+      +"ถ้าเผยแพร่ ทุกคนในทีมจะเห็นตัวเลขชุดนี้\n\nยืนยันเผยแพร่ทั้งที่ข้อมูลยังไม่ครบ?"))return;
+  }
   let who=meName();
   if(!who){try{who=localStorage.getItem("po_publisher")||""}catch(e){}}
   if(!who){
@@ -4057,7 +4261,8 @@ async function publishData(){
   /* ถ้ารวมกับของส่วนกลางไปแล้ว ให้ยึดผลรวมนั้นเป็นข้อมูลปัจจุบันก่อนเขียน */
   if(outState!==state){
     state=outState;
-    if(remote){state.__basedOn=stampOf(remote); state.__baseIndex=buildIndex(remote.transactions)}
+    if(remote){state.__basedOn=stampOf(remote); state.__baseIndex=buildIndex(remote.transactions);
+               state.__baseMaster=buildMasterBase(remote)}
     STORE.set(KEY,JSON.stringify(state));
   }
 
@@ -4065,9 +4270,11 @@ async function publishData(){
      ทำเป็นฟังก์ชันเพราะถ้าชนกันแล้วต้องรวมใหม่ ต้องสร้างซ้ำจากของที่รวมแล้ว */
   const buildOut=()=>{
     const o=JSON.parse(JSON.stringify(state));
-    delete o.__basedOn; delete o.__baseIndex;
+    delete o.__basedOn; delete o.__baseIndex; delete o.__baseMaster;
     o.publishedAt=new Date().toISOString();
     o.publishedBy=who;
+    o.dataGaps=(typeof dataGapCount==="function"&&dataGapCount())
+      ? {fx:Object.keys(DATA_GAPS.fx),price:Object.keys(DATA_GAPS.price)} : null;
     o.publishedByVersion=APP_VERSION;
     /* บันทึกประวัติการเผยแพร่ไว้ในไฟล์ แบบต่อท้ายอย่างเดียว */
     o.publishLog=[...(o.publishLog||[]).slice(-49),
@@ -4078,6 +4285,7 @@ async function publishData(){
     state=JSON.parse(JSON.stringify(o));
     state.__basedOn=o.publishedAt;
     state.__baseIndex=buildIndex(o.transactions);
+    state.__baseMaster=buildMasterBase(o);
     PUBLISHED_STAMP=o.publishedAt;
     DRAFT_DIRTY=false; DATA_SOURCE="published"; STALE_DRAFT=false;
     STORE.set(KEY,JSON.stringify(state));
@@ -4204,7 +4412,7 @@ function editorTitle(){
 }
 const ROLE_LABEL_BASE={editor:"ผู้บันทึกรายการ (Maker)",approver:"ผู้อนุมัติ (Approver)",viewer:"ดูอย่างเดียว"};
 const ROLE_LABEL=new Proxy(ROLE_LABEL_BASE,{
-  get:(t,k)=>k==="approver"?("ผู้อนุมัติ — "+approverTitle()):t[k],
+  get:(t,k)=>k==="approver"?("ผู้อนุมัติ — "+esc(approverTitle())):t[k],
   has:(t,k)=>k in t, ownKeys:t=>Reflect.ownKeys(t),
   getOwnPropertyDescriptor:(t,k)=>({enumerable:true,configurable:true,value:t[k]})
 });
@@ -4993,36 +5201,32 @@ async function copyDecisionLink(){
 /* ตัวกลางที่ทั้งการนำเข้าไฟล์และการวางข้อความเรียกใช้ร่วมกัน */
 function applyDecisions(d){
   if(!d||d.type!=="portfolio-approvals"||!d.decisions){alert("ไม่ใช่ข้อมูลผลอนุมัติ");return}
-  /* ตรวจก่อนลง ไม่ใช่ลงแล้วค่อยรู้ — ผลอนุมัติที่ทำให้บัญชีขายของที่ไม่มี ต้องไม่ผ่านทั้งชุด */
-  {
-    const simMap={};
-    Object.keys(d.decisions).forEach(id=>{
-      const t=state.transactions.find(x=>x.id===id);
-      if(t&&txStatus(t)==="PENDING")simMap[id]=d.decisions[id].decision;
-    });
-    const bad=Object.keys(simMap).length?ledgerAfterDecisions(simMap):"";
-    if(bad){
-      alert("ไม่นำเข้าผลอนุมัติชุดนี้ เพราะจะทำให้บัญชีไม่ถูกต้อง\n\n"+bad
-        +"\n\nสาเหตุที่พบบ่อย: รายการซื้อถูกปฏิเสธ แต่รายการขายของหลักทรัพย์เดียวกันถูกอนุมัติ\n"
-        +"กรุณาให้ผู้อนุมัติพิจารณาทั้งชุดใหม่ ไม่มีรายการใดถูกบันทึกจากไฟล์นี้");
-      return;
-    }
-  }
-  const applied=[],changed=[],missing=[],skipped=[],unsigned=[],wrongWho=[];
+
+  /* ==================================================================
+     ลำดับที่ถูกต้อง — ทั้งหมดต้องเกิดก่อนแตะ state แม้แต่ฟิลด์เดียว
+
+       1. คัด: ตรวจทีละรายการว่ารับได้ไหม (มีจริง / รออนุมัติ / ลายนิ้วมือ / คนถูก)
+       2. ตรวจ: จำลอง "เฉพาะชุดที่รับ" แล้วดูว่าบัญชีทางการยังถูกต้องไหม
+       3. ลง: ผ่านจึงลงทั้งชุด ไม่ผ่านไม่แตะอะไรเลย
+
+     ของเดิมตรวจ "ทุกรายการในไฟล์" แล้วค่อยไปคัดทิ้งตอนลง ชุดที่ตรวจกับชุดที่ลง
+     จึงเป็นคนละชุด ผลคือไฟล์ที่ BUY ลายนิ้วมือผิด (ถูกทิ้ง) แต่ SELL ถูก (ถูกลง)
+     ผ่านการตรวจแล้วทำให้บัญชีติดลบได้ และการตรวจซ้ำหลังลงก็ทำได้แค่เตือน
+     เพราะ save() เกิดไปแล้ว
+     ================================================================== */
+
+  /* ---------- ขั้นที่ 1: คัด ---------- */
+  const accepted={};                      /* id → decision ที่รับแล้ว */
+  const missing=[],skipped=[],changed=[],unsigned=[],wrongWho=[];
   Object.keys(d.decisions).forEach(id=>{
     const dec=d.decisions[id];
     const t=state.transactions.find(x=>x.id===id);
     if(!t){missing.push(id);return}
     if(txStatus(t)!=="PENDING"){skipped.push(id);return}
-    /* ---------- ด่านที่ 1: ลายนิ้วมือของรายการ ----------
-       ของเดิมเช็ค hash เฉพาะเมื่อมีมาด้วย (dec.hash && ...) แปลว่าไฟล์ที่ "ไม่ใส่ hash"
-       ผ่านฉลุย ใครก็ตามที่เขียน JSON เองก็อนุมัติแทนได้
-       ผลอนุมัติที่ระบบสร้างเองมี hash เสมอ ดังนั้นการบังคับจึงไม่กระทบการใช้งานปกติ */
+    /* ลายนิ้วมือของรายการ — ผลอนุมัติที่ระบบสร้างมีเสมอ ไฟล์ที่ไม่มีจึงไม่ได้มาจากหน้า Approvals */
     if(!dec.hash){unsigned.push(id);return}
     if(dec.hash!==txnHash(t)){changed.push(id);return}
-    /* ---------- ด่านที่ 2: ต้องเป็นผู้อนุมัติที่ถูกมอบหมายรอบนี้ ----------
-       ของเดิมรับ dec.by มาเป็นชื่อผู้อนุมัติดื้อ ๆ แล้วบันทึกลง audit trail
-       ทำให้หลักฐานการอนุมัติระบุชื่อคนที่ไม่เคยอนุมัติได้ */
+    /* ต้องเป็นผู้อนุมัติที่ถูกมอบหมายรอบนี้ */
     const who=memberByIdOrName(dec.by);
     if(t.assignedTo){
       const want=memberByIdOrName(t.assignedTo);
@@ -5030,31 +5234,64 @@ function applyDecisions(d){
     }else if(!who||who.role!=="approver"){
       wrongWho.push(id+" → \""+(dec.by||"(ไม่ระบุ)")+"\"");return;
     }
-    /* บันทึกชื่อจากทะเบียนทีม ไม่ใช่ข้อความที่มากับไฟล์ */
-    dec.by=who.name||who.id;
-    t.status=dec.decision; t.approvedBy=dec.by; t.approvedAt=dec.at;
-    if(dec.note)t.approvalNote=dec.note;
-    if(dec.decision==="RETURNED"){
+    accepted[id]={decision:dec.decision,at:dec.at,note:dec.note||"",
+                  by:who.name||who.id};     /* ชื่อจากทะเบียนทีม ไม่ใช่ข้อความในไฟล์ */
+  });
+
+  const rejectedCount=missing.length+skipped.length+changed.length+unsigned.length+wrongWho.length;
+  const detail=()=>{
+    let m="";
+    if(changed.length)m+="\n\n⚠ ต้องอนุมัติใหม่ "+changed.length+" รายการ (ถูกแก้ไขหลังผู้อนุมัติตรวจ):\n  "+changed.slice(0,8).join("\n  ");
+    if(unsigned.length)m+="\n\n⛔ ปฏิเสธ "+unsigned.length+" รายการ — ไฟล์ไม่มีลายนิ้วมือของรายการ:\n  "+unsigned.slice(0,8).join("\n  ");
+    if(wrongWho.length)m+="\n\n⛔ ปฏิเสธ "+wrongWho.length+" รายการ — ผู้อนุมัติไม่ตรงกับที่มอบหมาย:\n  "+wrongWho.slice(0,8).join("\n  ");
+    if(skipped.length)m+="\n\nข้าม "+skipped.length+" รายการ (ไม่ได้อยู่สถานะรออนุมัติแล้ว)";
+    if(missing.length)m+="\n\nไม่พบ "+missing.length+" รายการในระบบ";
+    return m;
+  };
+
+  const ids=Object.keys(accepted);
+  if(!ids.length){
+    alert("ไม่มีรายการใดผ่านการตรวจสอบ จึงไม่มีอะไรถูกบันทึก"+detail());
+    return;
+  }
+
+  /* ---------- ขั้นที่ 2: ตรวจเฉพาะชุดที่รับ ---------- */
+  const simMap={}; ids.forEach(id=>{simMap[id]=accepted[id].decision});
+  const bad=ledgerAfterDecisions(simMap);
+  if(bad){
+    alert("ไม่นำเข้าผลอนุมัติชุดนี้ เพราะชุดที่ผ่านการตรวจสอบจะทำให้บัญชีไม่ถูกต้อง\n\n"+bad
+      +"\n\nสาเหตุที่พบบ่อย: รายการขายผ่าน แต่รายการซื้อที่คู่กันไม่ผ่าน"
+      +" (ถูกแก้ไขภายหลัง ลายนิ้วมือไม่ตรง หรือผู้อนุมัติไม่ตรง)"
+      +"\n\n⛔ ไม่มีรายการใดถูกบันทึกจากไฟล์นี้ — รวมถึงรายการที่ผ่านการตรวจแล้วด้วย"
+      +"\nกรุณาให้ผู้อนุมัติพิจารณาทั้งชุดใหม่แล้วส่งมาอีกครั้ง"+detail());
+    return;
+  }
+
+  /* ---------- ขั้นที่ 3: ลงทั้งชุด ---------- */
+  ids.forEach(id=>{
+    const a=accepted[id], t=state.transactions.find(x=>x.id===id);
+    t.status=a.decision; t.approvedBy=a.by; t.approvedAt=a.at;
+    if(a.note)t.approvalNote=a.note;
+    if(a.decision==="RETURNED"){
       /* ส่งกลับแก้ไข = ยังไม่ผ่านการอนุมัติ ต้องไม่ค้างชื่อผู้อนุมัติไว้บนเอกสาร */
-      t.returnedBy=dec.by; t.returnedAt=dec.at; t.returnedNote=dec.note||"";
+      t.returnedBy=a.by; t.returnedAt=a.at; t.returnedNote=a.note;
       delete t.approvedBy; delete t.approvedAt;
     }else{ delete t.returnedBy; delete t.returnedAt; delete t.returnedNote; }
     const ACT={APPROVED:"APPROVE",REJECTED:"REJECT",RETURNED:"RETURN"};
-    auditPush(id,ACT[dec.decision]||"DECIDE",(dec.by||"")+(dec.note?" · "+dec.note:""));
-    applied.push(id);
+    auditPush(id,ACT[a.decision]||"DECIDE",a.by+(a.note?" · "+a.note:""));
   });
   save(); renderAll();
-  const post=validateTransactionSet(state.transactions);
-  let msg=(post?"\u26a0 บัญชีไม่สมดุลหลังนำเข้า — "+post+"\n\n":"")
-    +"นำเข้าผลอนุมัติแล้ว\n\nลงระบบสำเร็จ: "+applied.length+" รายการ";
-  if(changed.length)msg+="\n\n⚠ ต้องอนุมัติใหม่ "+changed.length+" รายการ (ถูกแก้ไขหลังผู้อนุมัติตรวจ):\n  "+changed.slice(0,8).join("\n  ");
-  if(unsigned.length)msg+="\n\n\u26d4 ปฏิเสธ "+unsigned.length+" รายการ — ไฟล์ไม่มีลายนิ้วมือของรายการ\n"
-    +"  ผลอนุมัติที่ระบบสร้างจะมีเสมอ ไฟล์นี้จึงไม่ได้มาจากหน้า Approvals:\n  "+unsigned.slice(0,8).join("\n  ");
-  if(wrongWho.length)msg+="\n\n\u26d4 ปฏิเสธ "+wrongWho.length+" รายการ — ผู้อนุมัติไม่ตรงกับที่มอบหมาย\n"
-    +"  (หรือชื่อไม่มีในทะเบียนทีม):\n  "+wrongWho.slice(0,8).join("\n  ");
-  if(skipped.length)msg+="\n\nข้าม "+skipped.length+" รายการ (ไม่ได้อยู่สถานะรออนุมัติแล้ว)";
-  if(missing.length)msg+="\n\nไม่พบ "+missing.length+" รายการในระบบ";
-  if(applied.length)msg+="\n\nอย่าลืมกด \"เผยแพร่ให้ทีม\" เพื่อให้ทุกคนเห็นผลอนุมัตินี้";
+
+  /* ตรวจซ้ำหลังลง — ถึงตรงนี้ต้องสะอาดเสมอ ถ้าไม่ แปลว่ามีบั๊กที่ยังไม่รู้ */
+  const post=validateBothUniverses(state.transactions);
+  let msg=(post.official?"⛔ ผิดปกติ: บัญชีทางการไม่สมดุลหลังนำเข้า ทั้งที่ตรวจผ่านแล้ว\n   "
+             +post.official+"\n   กรุณาแจ้งผู้ดูแลระบบ\n\n":"")
+    +"นำเข้าผลอนุมัติแล้ว\n\nลงระบบสำเร็จ: "+ids.length+" รายการ";
+  if(rejectedCount)msg+="\n\nไม่รับ "+rejectedCount+" รายการ"+detail();
+  if(post.working&&!post.official)
+    msg+="\n\n⚠ เมื่อรวมร่างและรายการที่รออนุมัติแล้วยังไม่สมดุล: "+post.working
+        +"\n   บัญชีทางการถูกต้อง แต่ควรตรวจร่างที่ค้างอยู่";
+  msg+="\n\nอย่าลืมกด \"เผยแพร่ให้ทีม\" เพื่อให้ทุกคนเห็นผลอนุมัตินี้";
   alert(msg);
 }
 
@@ -5088,8 +5325,8 @@ function renderWorkflow(){
 
   const nameFor=r=>{const m=teamOf().find(x=>x.role===r&&x.name);return m?m.name:null};
   const roleTag=w=>w==="editor"
-    ? '<span class="wf-who wf-fin">'+(nameFor("editor")||"ฝ่ายการเงิน")+'</span>'
-    : '<span class="wf-who wf-im">'+(nameFor("approver")||"IM")+'</span>';
+    ? '<span class="wf-who wf-fin">'+esc(nameFor("editor")||"ฝ่ายการเงิน")+'</span>'
+    : '<span class="wf-who wf-im">'+esc(nameFor("approver")||"IM")+'</span>';
 
   el.innerHTML='<div class="wf">'+steps.map((s,i)=>{
     const cls=s.active?"wf-step wf-active":(s.done?"wf-step wf-done":"wf-step");
@@ -5523,7 +5760,7 @@ function renderGovPanel(){
     picker='<div style="font-size:11px;color:#9db2c7;font-weight:800;letter-spacing:.05em;margin-bottom:6px">ผู้ใช้งานเครื่องนี้</div>'
       +'<select onchange="setMe(this.value)" style="width:100%;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#e6eef6;border-radius:9px;padding:8px">'
       +'<option value="">— ยังไม่ระบุ (ดูอย่างเดียว) —</option>'
-      +named.map(m=>'<option value="'+m.id+'"'+(m.id===meId()?" selected":"")+'>'+m.name+' · '+m.title+'</option>').join("")
+      +named.map(m=>'<option value="'+escAttr(m.id)+'"'+(m.id===meId()?" selected":"")+'>'+esc(m.name)+' · '+esc(m.title)+'</option>').join("")
       +'</select>'
       +'<div style="font-size:11px;color:#9db2c7;margin-top:6px">สิทธิ์: <b style="color:#cfe0f0">'+ROLE_LABEL[ROLE]+'</b>'
       +(function(){
@@ -5616,9 +5853,12 @@ function importData(){
       }
       /* ของเดิมแค่ถามแล้วให้กดผ่านได้ ซึ่งไม่สอดคล้องกับการนำเข้าผลอนุมัติ
          ที่ตอนนี้ปฏิเสธทั้งชุดเมื่อบัญชีจะไม่สมดุล — ประตูหลังต้องล็อกเท่าประตูหน้า */
-      let err=validateTransactionSet(data.transactions);
+      const vv=validateBothUniverses(data.transactions);
+      let err=vv.official||vv.working;
       if(err){
-        alert("ไม่นำเข้าไฟล์นี้ เพราะบัญชีในไฟล์ไม่สมดุล\n\n"+err
+        alert("ไม่นำเข้าไฟล์นี้ เพราะบัญชีในไฟล์ไม่สมดุล\n\n"
+          +(vv.official?"[ชุดที่อนุมัติแล้ว] "+vv.official+"\n":"")
+          +(vv.working?"[รวมร่างและรออนุมัติ] "+vv.working:"")
           +"\n\nไฟล์นี้บันทึกการขายมากกว่าจำนวนที่ถืออยู่ ถ้านำเข้าจะได้กำไรและเงินสดที่ไม่มีอยู่จริง\n"
           +"กรุณาแก้ที่ต้นทางแล้ว Export ใหม่ ไม่มีข้อมูลใดถูกเปลี่ยนจากไฟล์นี้");
         return;
@@ -5718,6 +5958,7 @@ function renderAll(){
   const dot=byId("navPendingDot"); if(dot){dot.textContent=pend?pend:"";dot.style.display=pend?"inline-block":"none"}
   byId("approvalView").value=SHOW_APPROVED_ONLY?"1":"0";
   renderDataGaps();
+  renderOfficialStamp();
   renderVersion();
   renderGovPanel();
   initForm();
