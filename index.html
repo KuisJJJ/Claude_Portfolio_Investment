@@ -79,6 +79,9 @@ th,td{padding:11px 12px;border-bottom:1px solid #edf0f3;white-space:nowrap}
 tbody tr:hover{background:#f8fbff}
 .num{text-align:right;font-variant-numeric:tabular-nums}.muted{color:var(--muted)}
 .badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:10px;font-weight:800}
+.civ-row.recon-warn{background:#fff6e5;color:#8a5a00}.civ-row.recon-warn small{display:block;font-weight:400;font-size:11px;opacity:.8}
+tr.row-unrecon td{background:#fff6e5;color:#8a5a00;font-weight:600}
+.gap-bar{display:flex;gap:10px;align-items:flex-start;background:#fff6e5;border:1px solid #f0d9a8;border-radius:8px;padding:11px 14px;margin:0 0 14px;color:#7a4e00;font-size:13px}.gap-bar .gap-ic{font-size:15px;line-height:1.2}.gap-bar .gap-list{font-size:12px;opacity:.9;margin-top:3px}.rolled-tag{display:inline-block;background:#fff1cf;color:#8a5a00;border-radius:5px;padding:1px 5px;font-size:10px;font-weight:700;margin-left:4px}
 .badge.buy{background:#e4f7ef;color:#087a52}.badge.sell{background:#ffe9e7;color:#b23b32}.badge.cash{background:#eaf2ff;color:#225fae}.badge.income{background:#fff4d7;color:#8a5a00}
 .form-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.55fr);gap:18px}
 .form-card{padding:20px}.seg{display:flex;padding:4px;background:#edf2f7;border-radius:12px;gap:4px;margin-bottom:20px;overflow:auto}
@@ -786,7 +789,8 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
       </section>
 
       <section class="page" id="page-fixed">
-        <div class="pagehead"><div><h2>Fixed Income</h2><p>Day Count, Accrued Interest, Clean/Dirty Value และวันครบกำหนด</p></div></div>
+        <div id="fixedRollNote" style="display:none"></div>
+<div class="pagehead"><div><h2>Fixed Income</h2><p>Day Count, Accrued Interest, Clean/Dirty Value และวันครบกำหนด</p></div></div>
         <div class="notice warn">Day Count กำหนดระดับ Security ได้แก่ ACT/365F, ACT/360, ACT/ACT, 30/360 US และ 30E/360. กด “Edit dates” เพื่อระบุ Prev Coupon/Start และ Next Coupon/Maturity</div>
         <div class="card table-card"><div class="table-wrap"><table><thead><tr><th>Security</th><th>Instrument</th><th>Day Count</th><th>Prev / Start</th><th>Next / Maturity</th><th class="num">Face Local</th><th class="num">Rate</th><th class="num">Conv. Days</th><th class="num">Accrued Local</th><th class="num">Clean MV</th><th class="num">Dirty MV USD</th><th></th></tr></thead><tbody id="fixedBody"></tbody></table></div></div>
       </section>
@@ -855,12 +859,37 @@ table.rpt-tbl{width:100%;border-collapse:collapse;font-size:12.5px}
           <div class="card master-card"><h3>Portfolios</h3><div class="mini-form"><input id="pId" placeholder="Portfolio ID"><input id="pName" placeholder="Portfolio name"><button class="btn btn-primary" onclick="addPortfolio()">Add Portfolio</button></div><div class="table-wrap" style="max-height:240px"><table><thead><tr><th>ID</th><th>Name</th><th>CCY</th></tr></thead><tbody id="portfolioBody"></tbody></table></div></div>
           <div class="card master-card"><h3>Brokers / Custodians</h3><div class="mini-form"><input id="bId" placeholder="Broker ID"><input id="bName" placeholder="Broker name"><input id="bCountry" placeholder="Country"><select id="bCcy"></select><button class="btn btn-primary" onclick="addBroker()">Add Broker</button></div><div class="table-wrap" style="max-height:240px"><table><thead><tr><th>ID</th><th>Broker</th><th>Country</th><th>CCY</th></tr></thead><tbody id="brokerBody"></tbody></table></div></div>
           <div class="card master-card"><h3>Accounts</h3><div class="mini-form"><input id="aId" placeholder="Account ID"><input id="aName" placeholder="Account name"><select id="aPortfolio"></select><select id="aBroker"></select><select id="aCcy"></select><button class="btn btn-primary" onclick="addAccount()">Add Account</button></div><div class="table-wrap" style="max-height:280px"><table><thead><tr><th>ID</th><th>Name</th><th>Portfolio</th><th>Broker</th><th>CCY</th></tr></thead><tbody id="accountBody"></tbody></table></div></div>
+          <div class="card master-card span2" style="grid-column:1/-1"><h3>ปฏิทินวันหยุดตลาด</h3>
+            <p class="small-note" style="margin:-6px 0 10px">ใช้คำนวณ<b>วันชำระราคา (T+2)</b> และ<b>วันคาดว่าจะได้รับดอกเบี้ย (+5 วันทำการ)</b> ·
+              ผูกกับสกุลเงิน เพราะใช้กับรายการเงินสดและ FX ได้ด้วย · ปล่อยสกุลว่าง = ถือเป็นวันหยุดของทุกสกุล ·
+              ข้อมูลนี้เผยแพร่ไปพร้อมชุดข้อมูล ทุกเครื่องจึงเห็นตรงกัน</p>
+            <div id="holCoverage"></div>
+            <div class="mini-form">
+              <input type="date" id="holDate">
+              <select id="holCcy"></select>
+              <input id="holName" class="wide" placeholder="ชื่อวันหยุด เช่น วันสงกรานต์">
+              <button class="btn btn-primary" onclick="addHoliday()">เพิ่มวันหยุด</button>
+            </div>
+            <details style="margin:10px 0">
+              <summary style="cursor:pointer;font-size:12.5px;font-weight:700">กรอกทีละหลายวัน (วางทั้งปีได้)</summary>
+              <p class="small-note" style="margin:8px 0 6px">บรรทัดละหนึ่งวัน รูปแบบ <code>YYYY-MM-DD, สกุลเงิน, ชื่อวันหยุด</code>
+                — เว้นสกุลเงินไว้ก็ได้ เช่น <code>2027-01-01, THB, วันขึ้นปีใหม่</code></p>
+              <textarea id="holBulk" rows="6" style="width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px"
+                placeholder="2027-01-01, THB, วันขึ้นปีใหม่&#10;2027-04-13, THB, วันสงกรานต์&#10;2027-07-05, USD, Independence Day (observed)"></textarea>
+              <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+                <button class="btn btn-primary" onclick="addHolidaysBulk()">เพิ่มทั้งหมด</button>
+                <button class="btn btn-secondary" onclick="byId('holBulk').value=''">ล้างช่อง</button>
+              </div>
+            </details>
+            <div class="table-wrap" style="max-height:300px"><table><thead><tr><th>วันที่</th><th>สกุลเงิน</th><th>ชื่อวันหยุด</th><th></th></tr></thead><tbody id="holidayBody"></tbody></table></div>
+          </div>
           <div class="card master-card"><h3>Securities</h3><div class="mini-form"><input id="sId" placeholder="Ticker / Security ID"><input id="sName" placeholder="Security name"><select id="sType"></select><select id="sCcy"></select><input id="sAsset" placeholder="Asset class"><input type="number" id="sFace" placeholder="Face / Unit (optional)"><input id="sIsin" placeholder="ISIN (optional)"><input id="sMarket" placeholder="Market e.g. SET"><select id="sDayCount" class="wide"></select><button class="btn btn-primary" onclick="addSecurity()">Add Security</button></div><div class="table-wrap" style="max-height:280px"><table><thead><tr><th>Security</th><th>Name</th><th>Class</th><th>Instrument</th><th>CCY</th><th>Day Count</th></tr></thead><tbody id="securityBody"></tbody></table></div></div>
         </div>
       </section>
 
       <section class="page" id="page-approvals">
         <div class="pagehead"><div><h2>Approval Queue</h2><p id="apprSubtitle">รายการที่รออนุมัติ ก่อนนับเข้าตัวเลขทางการ</p></div></div>
+        <div id="dataGapBar" style="display:none"></div>
         <div id="wfPanel"></div>
         <div class="card table-card" id="draftCard" style="display:none;margin-bottom:16px;border-color:#f0d9a8">
           <div class="table-tools" style="background:#fffaf0">
@@ -1523,9 +1552,9 @@ function showStorageWarning(){
    กติกา: แก้เลขนี้ทุกครั้งที่อัปโหลด index.html ขึ้น GitHub
           X.Y = เพิ่มความสามารถ · X.Y.Z = แก้บั๊ก/ปรับเล็กน้อย
    ================================================================== */
-const APP_VERSION="1.13.0";
+const APP_VERSION="1.16.0";
 const APP_BUILD="2026-09-14";
-const APP_VERSION_NOTE="เลือกผู้อนุมัติได้รายรอบ · เฉพาะคนที่ถูกมอบหมายเท่านั้นที่ตัดสินได้ · ชื่อบนเอกสารตรงคนจริง";
+const APP_VERSION_NOTE="แยกค่าธรรมเนียม/ภาษี/ดอกเบี้ยค้างออกจาก Capital Gain · สองรายงานกระทบยอดกันแล้ว · ตัวตรวจ ledger นับเฉพาะรายการที่มีผล · ไฟล์ผลอนุมัติต้องมีลายนิ้วมือและตรงผู้รับมอบหมาย · escape ข้อความทุกจุด · เตือนเมื่อข้อมูลตลาดขาด · เลื่อนงวดดอกเบี้ยอัตโนมัติหลังวันจ่าย · ปฏิทินวันหยุดตลาดที่ทีมกรอกเองและใช้คำนวณวันชำระราคา";
 function versionLabel(){return "v"+APP_VERSION}
 function versionFull(){return "v"+APP_VERSION+" · build "+APP_BUILD}
 function byId(id){return document.getElementById(id)}
@@ -1569,6 +1598,19 @@ function setDashboardCurrency(ccy){
   dashboardCurrency=ccy;state.dashboardCurrency=ccy;save();renderDashboard();enhanceMobileTables();
 }
 
+/* ==================================================================
+   ESCAPE — ข้อความทุกอย่างที่ผู้ใช้กรอกเอง ต้องผ่านตัวนี้ก่อนต่อเข้า innerHTML
+   ถ้าไม่ผ่าน ผู้ที่แก้ข้อมูลได้จะฝังสคริปต์ให้ทำงานในเบราว์เซอร์ของผู้อนุมัติได้
+   ซึ่งหมายถึงเข้าถึง token ของ Microsoft 365 ที่เก็บใน sessionStorage
+   ================================================================== */
+const ESC_MAP={"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;","`":"&#96;"};
+function esc(x){return String(x==null?"":x).replace(/[&<>"'`]/g,c=>ESC_MAP[c])}
+/* ใช้กับค่าที่ฝังใน onclick="fn('...')" — ต้องกัน quote ของ JS ก่อน แล้วค่อยกัน HTML
+   ลำดับสำคัญ: ใส่ backslash หน้า ' ก่อน แล้ว esc() จึงเปลี่ยน ' เป็น &#39;
+   เบราว์เซอร์ถอด entity กลับเป็น ' แต่ backslash ยังอยู่ JS จึงอ่านเป็นตัวอักษร ไม่ใช่ปิดสตริง */
+function escAttr(x){
+  return esc(String(x==null?"":x).replace(/\\/g,"\\\\").replace(/'/g,"\\'"));
+}
 function dmy(s){if(!s)return"—";let [y,m,d]=s.split("-");return `${d}/${m}/${y}`}
 function sec(id){return state.securities.find(x=>x.id===id)}
 function acct(id){return state.accounts.find(x=>x.id===id)}
@@ -1576,14 +1618,40 @@ function port(id){return state.portfolios.find(x=>x.id===id)}
 function broker(id){return state.brokers.find(x=>x.id===id)}
 function isFixed(s){return s&&FIXED_TYPES.includes(s.instrument)}
 function txnCurrency(t){if(t.ccy)return t.ccy;let s=sec(t.security),a=acct(t.account);return s?s.currency:(a?a.currency:"USD")}
+/* ==================================================================
+   ช่องว่างของข้อมูลตลาด
+
+   ของเดิม ถ้าไม่มีอัตราแลกเปลี่ยนหรือราคา ฟังก์ชันคืน 0 เงียบ ๆ
+   ผลคือมูลค่าของทั้งสถานะนั้นกลายเป็นศูนย์ แล้วส่วนที่หายไปถูกกลืนเข้า Capital Gain
+   ตอนนี้ยังคืน 0 (เพื่อไม่ให้หน้าจอพัง) แต่ "จดไว้" แล้วขึ้นแถบเตือนให้เห็นทุกครั้ง
+   ================================================================== */
+let DATA_GAPS={fx:{},price:{}};
+function clearDataGaps(){DATA_GAPS={fx:{},price:{}}}
+function dataGapCount(){return Object.keys(DATA_GAPS.fx).length+Object.keys(DATA_GAPS.price).length}
 function getFx(ccy,date){
   if(!ccy||ccy==="USD")return 1;
   let rows=state.fx.filter(x=>x.date<=date&&Number(x[ccy])>0).sort((a,b)=>a.date.localeCompare(b.date));
-  return rows.length?Number(rows[rows.length-1][ccy]):0;
+  if(!rows.length){DATA_GAPS.fx[ccy]=(DATA_GAPS.fx[ccy]||date);return 0}
+  return Number(rows[rows.length-1][ccy]);
 }
 function getPrice(security,date){
   let rows=state.prices.filter(x=>x.security===security&&x.date<=date).sort((a,b)=>a.date.localeCompare(b.date));
-  return rows.length?Number(rows[rows.length-1].price):0;
+  if(!rows.length){DATA_GAPS.price[security]=(DATA_GAPS.price[security]||date);return 0}
+  return Number(rows[rows.length-1].price);
+}
+function renderDataGaps(){
+  const el=byId("dataGapBar"); if(!el)return;
+  const fxs=Object.keys(DATA_GAPS.fx), pxs=Object.keys(DATA_GAPS.price);
+  if(!fxs.length&&!pxs.length){el.style.display="none";el.innerHTML="";return}
+  const list=[];
+  if(fxs.length)list.push("อัตราแลกเปลี่ยนที่ยังไม่มี: <b>"+fxs.map(esc).join(", ")+"</b>");
+  if(pxs.length)list.push("ราคาที่ยังไม่มี: <b>"+pxs.slice(0,12).map(esc).join(", ")
+    +(pxs.length>12?" และอีก "+(pxs.length-12):"")+"</b>");
+  el.style.display="block";
+  el.innerHTML='<div class="gap-bar"><span class="gap-ic">\u26a0</span><div>'
+    +'<b>ข้อมูลตลาดไม่ครบ — มูลค่าส่วนที่ขาดถูกคิดเป็นศูนย์</b><div class="gap-list">'
+    +list.join(" · ")+'</div><div class="gap-list">กรุณาเพิ่มข้อมูลที่หน้า Market Data '
+    +'ก่อนใช้ตัวเลขนี้ตัดสินใจ</div></div></div>';
 }
 function dayDiff(a,b){return Math.max(0,(new Date(b+"T00:00:00Z")-new Date(a+"T00:00:00Z"))/86400000)}
 function isLeap(y){return y%4===0&&(y%100!==0||y%400===0)}
@@ -1697,9 +1765,35 @@ function accountVisible(id){
   if(filterPortfolio)return a.portfolioId===filterPortfolio;
   return true;
 }
+/* ==================================================================
+   งวดดอกเบี้ยที่ใช้จริง ณ วันตีราคา
+
+   ของเดิมใช้ prev/next ที่ผู้ใช้บันทึกไว้ตรง ๆ แล้วตรึง end ไว้ที่ next
+   ถ้าวันตีราคาเลยวันจ่ายดอกเบี้ยไปแล้วแต่ยังไม่มีใครไปแก้วันที่
+   ดอกเบี้ยค้างรับจะค้างอยู่ที่ยอดเต็มงวดตลอดไป ทั้งที่รับเงินไปแล้ว
+   = ตีมูลค่าพอร์ตสูงเกินจริง และจะแย่ลงเรื่อย ๆ ตามเวลา
+
+   ตอนนี้ระบบเลื่อนงวดให้เองตามความถี่ของตราสาร (ข้อมูลที่มีอยู่แล้ว)
+   ไม่ต้องใช้ข้อมูลใหม่ และถ้าผู้ใช้อัปเดตวันที่เองไว้แล้ว การเลื่อนจะไม่ทำอะไรเลย
+   ================================================================== */
+function couponPeriod(s,date){
+  const fd=(state.fixedDates||{})[s.id]||{};
+  let prev=fd.prev||"", next=fd.next||s.maturity||"";
+  const mat=s.maturity||"";
+  if(!prev||!next||next<=prev)return {prev,next,rolled:0};
+  const perYear=s.frequency==="Annual"?1:s.frequency==="Quarterly"?4:2;
+  const step=12/perYear;
+  let rolled=0;
+  while(date>next&&(!mat||next<mat)&&rolled<400){
+    prev=next; next=addMonths(next,step); rolled++;
+  }
+  /* งวดสุดท้ายจบที่วันครบกำหนดไถ่ถอน ไม่เลยไปกว่านั้น */
+  if(mat&&next>mat)next=mat;
+  return {prev,next,rolled};
+}
 function fixedValuation(s,qty,date){
-  if(!s||!isFixed(s)||qty<=0)return {accruedLocal:0,cleanLocal:0,dirtyLocal:0,convDays:0,yf:0,prev:"",next:""};
-  let fd=state.fixedDates[s.id]||{},prev=fd.prev||"",next=fd.next||s.maturity||"";
+  if(!s||!isFixed(s)||qty<=0)return {accruedLocal:0,cleanLocal:0,dirtyLocal:0,convDays:0,yf:0,prev:"",next:"",rolled:0};
+  let cp=couponPeriod(s,date), prev=cp.prev, next=cp.next;
   let end=date;if(next&&end>next)end=next;
   let yf=prev&&end>=prev?yearFrac(prev,end,s.dayCount):0;
   let conv=prev&&end>=prev?conventionDays(prev,end,s.dayCount):0;
@@ -1707,7 +1801,8 @@ function fixedValuation(s,qty,date){
   let price=getPrice(s.id,date)||(s.instrument==="Fixed Deposit"?100:0);
   let clean=s.instrument==="Fixed Deposit"?face:face*price/100;
   let accrued=face*(Number(s.coupon)||0)*yf;
-  return {accruedLocal:accrued,cleanLocal:clean,dirtyLocal:clean+accrued,convDays:conv,yf,prev,next};
+  return {accruedLocal:accrued,cleanLocal:clean,dirtyLocal:clean+accrued,convDays:conv,yf,prev,next,
+          rolled:cp.rolled};
 }
 function viewData(asOf){
   let date=asOf||state.valuationDate,e=engine(asOf?date:undefined);
@@ -1729,7 +1824,11 @@ function viewData(asOf){
     return {...c,rate,mvUSD:mv,unrealFx:unreal,totalFx:unreal+c.realizedFx}
   });
   let tx=e.txDetails.filter(t=>accountVisible(t.account));
-  return {e,holdings,cash,tx,rejected:rejectedView};
+  /* FX ที่รับรู้แล้วต้องนับจาก "ทุกสถานะ" ไม่ใช่เฉพาะที่ยังถืออยู่
+     ถ้าขายหมดก้อน position จะหลุดจาก holdings แต่กำไร FX ที่รับรู้ไปแล้วยังต้องอยู่ในรายงาน */
+  let realizedFxAll=e.positions.filter(p=>accountVisible(p.account)).reduce((a,p)=>a+(p.realizedFx||0),0);
+  let realizedAssetAll=e.positions.filter(p=>accountVisible(p.account)).reduce((a,p)=>a+(p.realizedAsset||0),0);
+  return {e,holdings,cash,tx,rejected:rejectedView,realizedFxAll,realizedAssetAll};
 }
 
 function navInit(){
@@ -1756,8 +1855,8 @@ function fillSelect(el,items,valueFn,labelFn,blank){
 }
 function initSelectors(){
   byId("globalDate").value=state.valuationDate;
-  fillSelect(byId("globalPortfolio"),state.portfolios,x=>x.id,x=>`${x.id} — ${x.name}`,"ALL PORTFOLIOS");
-  fillSelect(byId("globalAccount"),state.accounts,x=>x.id,x=>`${x.id} — ${x.name}`,"ALL ACCOUNTS");
+  fillSelect(byId("globalPortfolio"),state.portfolios,x=>x.id,x=>`${esc(x.id)} — ${esc(x.name)}`,"ALL PORTFOLIOS");
+  fillSelect(byId("globalAccount"),state.accounts,x=>x.id,x=>`${esc(x.id)} — ${esc(x.name)}`,"ALL ACCOUNTS");
   byId("globalPortfolio").value=filterPortfolio;byId("globalAccount").value=filterAccount;
   byId("globalDate").onchange=e=>{state.valuationDate=e.target.value;save();renderAll()}
   byId("globalPortfolio").onchange=e=>{filterPortfolio=e.target.value;filterAccount="";initSelectors();renderAll()}
@@ -1876,25 +1975,58 @@ function snapshotAt(date){
     nav,
     netContrib:v.tx.filter(t=>EXTERNAL_FLOW.includes(t.type)).reduce((a,t)=>a+t.cashUSD,0),
     income:v.tx.filter(t=>INCOME_TYPES.includes(t.type)).reduce((a,t)=>a+t.cashUSD,0),
-    fx:v.holdings.reduce((a,x)=>a+x.fxPL+x.realizedFx,0)+v.cash.reduce((a,x)=>a+x.totalFx,0),
+    fx:v.holdings.reduce((a,x)=>a+x.fxPL,0)+v.realizedFxAll+v.cash.reduce((a,x)=>a+x.totalFx,0),
     realized:v.tx.reduce((a,t)=>a+(t.realizedAsset||0),0),
+    /* ---- องค์ประกอบที่เพิ่มเข้ามาเพื่อเลิกใช้ Capital Gain เป็นยอดคงเหลือ ----
+       unrealAsset = กำไร/ขาดทุนจากราคาสินทรัพย์ที่ยังไม่รับรู้ (ไม่รวมดอกเบี้ยค้างรับ ไม่รวม FX)
+       accruedRecv = ดอกเบี้ยค้างรับคงค้าง ณ วันนั้น
+       tradeAccrued= ดอกเบี้ยค้างที่จ่ายไปตอนซื้อ / รับมาตอนขาย (สะสม)
+       expense     = ค่าธรรมเนียมและภาษีที่บันทึกเป็นรายการของตัวเอง (สะสม, ติดลบ) */
+    unrealAsset:v.holdings.reduce((a,x)=>a+x.assetPL,0),
+    accruedRecv:v.holdings.reduce((a,x)=>a+x.accruedUSD,0),
+    tradeAccrued:v.tx.reduce((a,t)=>{
+      const q=Number(t.accrued)||0;
+      if(!q||!t.fx||!TYPE_GROUPS.trade.includes(t.type))return a;
+      return a+(["BUY","FUND SUBSCRIPTION"].includes(t.type)?-q:q)/t.fx;
+    },0),
+    expense:v.tx.filter(t=>["FEE","TAX"].includes(t.type)).reduce((a,t)=>a+t.cashUSD,0),
     v
   };
   SNAP_CACHE[key]=s;return s;
 }
-/* งวด (from, to] — from คือวันปิดของงวดก่อนหน้า */
+/* งวด (from, to] — from คือวันปิดของงวดก่อนหน้า
+
+   Capital Gain คำนวณจากธุรกรรมจริง (bottom-up) ไม่ใช่ยอดคงเหลืออีกต่อไป
+   ของเดิมใช้ capital = Ending − Opening − NetContrib − Income − FX ซึ่งทำให้
+   ค่าธรรมเนียม ภาษี และดอกเบี้ยค้างรับ ถูกกลืนเข้าไปเป็น "ขาดทุนจากราคา"
+   (วัดได้จริงในชุดข้อมูลจำลอง: เพี้ยน 7,944.11 USD หรือ 0.79% ของ NAV)
+
+   ตอนนี้ทุกองค์ประกอบมีที่มาของตัวเอง แล้ว unreconciled คือส่วนที่อธิบายไม่ได้
+   ซึ่ง "ต้องเป็นศูนย์" — ถ้าไม่เป็นศูนย์แปลว่ามีข้อผิดพลาดที่อื่น และระบบจะฟ้อง
+   แทนที่จะซ่อนไว้ใน Capital Gain เหมือนเดิม */
 function periodBreakdown(from,to){
   const a=snapshotAt(from),b=snapshotAt(to);
   const opening=a.nav, ending=b.nav;
   const netContrib=b.netContrib-a.netContrib;
   const income=b.income-a.income;
   const fx=b.fx-a.fx;
-  /* Capital Gain เป็นตัวปิดสมการ จึงรับประกันว่า
-     Opening + Net Contribution + Capital + Income + Currency = Ending เสมอ */
-  const capital=(ending-opening-netContrib)-income-fx;
   const realized=b.realized-a.realized;
-  return {opening,netContrib,capital,realized,unrealized:capital-realized,income,fx,ending,
-          twr:twrChain(from,to).twr};
+  const unrealized=b.unrealAsset-a.unrealAsset;
+  const capital=realized+unrealized;
+  /* ดอกเบี้ยค้างรับ: ส่วนที่งอกขึ้นในงวด หักส่วนที่ซื้อมาพร้อมตราสาร บวกส่วนที่ขายไป */
+  const accrued=(b.accruedRecv-a.accruedRecv)+(b.tradeAccrued-a.tradeAccrued);
+  const expense=b.expense-a.expense;
+  const unreconciled=ending-opening-netContrib-capital-income-accrued-expense-fx;
+  return {opening,netContrib,capital,realized,unrealized,income,accrued,expense,fx,
+          unreconciled,ending,twr:twrChain(from,to).twr};
+}
+/* ระดับที่ถือว่า "กระทบยอดไม่ลง" — 0.01% ของ NAV หรืออย่างน้อย 1 หน่วยเงิน */
+function reconTolerance(nav){return Math.max(1,Math.abs(nav)*0.0001)}
+/* แสดงบรรทัด Unreconciled เฉพาะเมื่อมีนัยสำคัญ — ปกติต้องไม่โผล่เลย */
+function reconRow(p){
+  if(Math.abs(p.unreconciled)<=reconTolerance(p.ending))return "";
+  return '<div class="civ-row recon-warn"><span>\u26a0 Unreconciled — ยอดที่อธิบายไม่ได้ '
+    +'<small>กรุณาตรวจข้อมูลราคา/อัตราแลกเปลี่ยนที่ขาด</small></span><b>'+dm(p.unreconciled)+'</b></div>';
 }
 
 /* ---------- ช่วงเวลามาตรฐานของรายงาน ---------- */
@@ -1950,7 +2082,7 @@ function futureCashFlows(){
         const amt=h.qty*face*cpn/perYear;
         if(amt>0)rows.push({
           instrument:s.id, name:s.name, account:h.account, detail:fmt(cpn*100,2)+" %",
-          qty:h.qty, nominal:h.qty*face, effective:next, payment:addBusinessDays(next,5),
+          qty:h.qty, nominal:h.qty*face, effective:next, payment:addBusinessDays(next,5,s.currency),
           currency:s.currency, localAmt:amt, usd:amt/(getFx(s.currency,state.valuationDate)||1),
           kind:"Coupon"
         });
@@ -1962,7 +2094,7 @@ function futureCashFlows(){
     if(mat&&mat>start&&mat<=end){
       const amt=h.qty*face;
       rows.push({instrument:s.id,name:s.name,account:h.account,detail:"Redemption at par",
-        qty:h.qty,nominal:amt,effective:mat,payment:addBusinessDays(mat,5),currency:s.currency,
+        qty:h.qty,nominal:amt,effective:mat,payment:addBusinessDays(mat,5,s.currency),currency:s.currency,
         localAmt:amt,usd:amt/(getFx(s.currency,state.valuationDate)||1),kind:"Maturity"});
     }
   }
@@ -1998,39 +2130,74 @@ function bondsByMaturity(){
    ================================================================== */
 function capitalGainIncome(from,to){
   const vFrom=viewData(from), vTo=viewData(to);
-  const openMap={},endMap={};
-  vFrom.holdings.forEach(h=>openMap[h.account+"|"+h.security]=h.mvUSD);
-  vTo.holdings.forEach(h=>endMap[h.account+"|"+h.security]=h.mvUSD);
+  /* --------------------------------------------------------------
+     ของเดิมคิด gain = Ending − Opening − Buy + Sell ซึ่งเป็น "ผลตอบแทนรวม"
+     (รวมอัตราแลกเปลี่ยน รวมค่าธรรมเนียม รวมดอกเบี้ยค้างรับ) แต่ไปแสดงใต้หัวคอลัมน์
+     ว่า Capital Gain จึงขัดกับตาราง 3 ที่ Capital Gain หมายถึงเฉพาะส่วนราคาสินทรัพย์
+     ในชุดข้อมูลจำลองสองตารางต่างกันถึง 15,205.63 USD
+
+     ตอนนี้แยกเป็น capital / fx / accrued ต่อบรรทัด โดยใช้นิยามเดียวกับตาราง 3
+     ยอดรวมของทุกคอลัมน์จึงตรงกับ periodBreakdown() พอดี
+     -------------------------------------------------------------- */
+  const M=(v,f)=>{const m={};v.holdings.forEach(h=>m[h.account+"|"+h.security]=f(h));return m};
+  const PM=(v,f)=>{const m={};v.e.positions.filter(p=>accountVisible(p.account))
+    .forEach(p=>m[p.account+"|"+p.security]=f(p));return m};
+  const openMap=M(vFrom,h=>h.mvUSD),        endMap=M(vTo,h=>h.mvUSD);
+  const openAst=M(vFrom,h=>h.assetPL),      endAst=M(vTo,h=>h.assetPL);
+  const openFxU=M(vFrom,h=>h.fxPL),         endFxU=M(vTo,h=>h.fxPL);
+  const openAcc=M(vFrom,h=>h.accruedUSD),   endAcc=M(vTo,h=>h.accruedUSD);
+  const openRFx=PM(vFrom,p=>p.realizedFx),  endRFx=PM(vTo,p=>p.realizedFx);
+  const openRAs=PM(vFrom,p=>p.realizedAsset),endRAs=PM(vTo,p=>p.realizedAsset);
+  const g=(m,k)=>m[k]||0;
+
   const flows={};
-  vTo.tx.filter(t=>t.date>from&&t.date<=to&&t.security).forEach(t=>{
-    const k=t.account+"|"+t.security;
-    const f=flows[k]||(flows[k]={buyQty:0,buyAmt:0,sellQty:0,sellAmt:0,income:0});
+  const F=k=>flows[k]||(flows[k]={buyQty:0,buyAmt:0,sellQty:0,sellAmt:0,income:0,expense:0,tradeAcc:0});
+  vTo.tx.filter(t=>t.date>from&&t.date<=to).forEach(t=>{
+    const isTrade=TYPE_GROUPS.trade.includes(t.type);
+    const k=t.security?(t.account+"|"+t.security):("CASH:"+t.account+"|"+t.currency);
+    const f=F(k);
     if(["BUY","FUND SUBSCRIPTION"].includes(t.type)){f.buyQty+=Number(t.qty)||0;f.buyAmt+=-t.cashUSD}
     else if(["SELL","FUND REDEMPTION"].includes(t.type)){f.sellQty+=Number(t.qty)||0;f.sellAmt+=t.cashUSD}
     else if(INCOME_TYPES.includes(t.type)){f.income+=t.cashUSD}
+    else if(["FEE","TAX"].includes(t.type)){f.expense+=t.cashUSD}
+    if(isTrade){const q=Number(t.accrued)||0;
+      if(q&&t.fx)f.tradeAcc+=(["BUY","FUND SUBSCRIPTION"].includes(t.type)?-q:q)/t.fx}
   });
-  const keys=[...new Set([...Object.keys(openMap),...Object.keys(endMap),...Object.keys(flows)])];
+
+  const secKeys=[...new Set([...Object.keys(openMap),...Object.keys(endMap),
+    ...Object.keys(openRAs),...Object.keys(endRAs),
+    ...Object.keys(flows).filter(k=>k.indexOf("CASH:")!==0)])];
   const rows=[];
-  for(const k of keys){
+  for(const k of secKeys){
     const [acc,sid]=k.split("|"),s=sec(sid);if(!s)continue;
-    const f=flows[k]||{buyQty:0,buyAmt:0,sellQty:0,sellAmt:0,income:0};
-    const opening=openMap[k]||0, ending=endMap[k]||0;
-    const gain=ending-opening-f.buyAmt+f.sellAmt;
-    if(Math.abs(opening)<1e-6&&Math.abs(ending)<1e-6&&!f.buyQty&&!f.sellQty&&Math.abs(f.income)<1e-6)continue;
-    rows.push({account:acc,s,opening,ending,gain,income:f.income,...f,
+    const f=flows[k]||{buyQty:0,buyAmt:0,sellQty:0,sellAmt:0,income:0,expense:0,tradeAcc:0};
+    const opening=g(openMap,k), ending=g(endMap,k);
+    const capital=(g(endAst,k)-g(openAst,k))+(g(endRAs,k)-g(openRAs,k));
+    const fx=(g(endFxU,k)-g(openFxU,k))+(g(endRFx,k)-g(openRFx,k));
+    const accrued=(g(endAcc,k)-g(openAcc,k))+f.tradeAcc;
+    if(Math.abs(opening)<1e-6&&Math.abs(ending)<1e-6&&!f.buyQty&&!f.sellQty
+       &&Math.abs(f.income)<1e-6&&Math.abs(capital)<1e-6&&Math.abs(fx)<1e-6)continue;
+    rows.push({account:acc,s,opening,ending,capital,fx,accrued,income:f.income,expense:f.expense,
+      buyQty:f.buyQty,buyAmt:f.buyAmt,sellQty:f.sellQty,sellAmt:f.sellAmt,
       zone:s.currency==="THB"?"Onshore Investment":"Offshore Investment",
       group:assetGroup(s)});
   }
   /* เงินสดแต่ละสกุลถือเป็นบรรทัดหนึ่งเช่นกัน */
-  const cashOpen={},cashEnd={};
-  vFrom.cash.forEach(c=>cashOpen[c.account+"|"+c.currency]=c.mvUSD);
-  vTo.cash.forEach(c=>cashEnd[c.account+"|"+c.currency]=c.mvUSD);
-  for(const k of new Set([...Object.keys(cashOpen),...Object.keys(cashEnd)])){
+  const cashOpen={},cashEnd={},cashFx0={},cashFx1={};
+  vFrom.cash.forEach(c=>{cashOpen[c.account+"|"+c.currency]=c.mvUSD;cashFx0[c.account+"|"+c.currency]=c.totalFx});
+  vTo.cash.forEach(c=>{cashEnd[c.account+"|"+c.currency]=c.mvUSD;cashFx1[c.account+"|"+c.currency]=c.totalFx});
+  const cashKeys=new Set([...Object.keys(cashOpen),...Object.keys(cashEnd),
+    ...Object.keys(flows).filter(k=>k.indexOf("CASH:")===0).map(k=>k.slice(5))]);
+  for(const k of cashKeys){
     const [acc,ccy]=k.split("|");
-    const opening=cashOpen[k]||0,ending=cashEnd[k]||0;
-    if(Math.abs(opening)<1e-6&&Math.abs(ending)<1e-6)continue;
+    const f=flows["CASH:"+k]||{income:0,expense:0};
+    const opening=g(cashOpen,k),ending=g(cashEnd,k);
+    const fx=g(cashFx1,k)-g(cashFx0,k);
+    if(Math.abs(opening)<1e-6&&Math.abs(ending)<1e-6&&Math.abs(fx)<1e-6
+       &&Math.abs(f.income)<1e-6&&Math.abs(f.expense)<1e-6)continue;
     rows.push({account:acc,s:{id:"Cash "+ccy,name:"Cash balance",currency:ccy,instrument:"Cash"},
-      opening,ending,gain:0,income:0,buyQty:0,buyAmt:0,sellQty:0,sellAmt:0,isCash:true,
+      opening,ending,capital:0,fx,accrued:0,income:f.income,expense:f.expense,
+      buyQty:0,buyAmt:0,sellQty:0,sellAmt:0,isCash:true,
       zone:ccy==="THB"?"Onshore Investment":"Offshore Investment",group:"Cash & Cash Equivalent"});
   }
   return rows;
@@ -2098,26 +2265,26 @@ function renderDashboard(){
       posRows+=`<tr class="grp"><td colspan="9">Cash</td></tr>`;
       let sub=0;
       list.forEach(c=>{sub+=c.mvUSD;
-        posRows+=`<tr><td><b>Cash ${c.currency}</b></td><td class="n">—</td><td class="n">${fmt(c.local,2)}</td><td class="n">${c.currency}</td><td class="n">—</td><td class="n">${fmt(c.rate,4)}</td><td class="n">${dm(c.mvUSD)}</td><td class="n ${c.totalFx>=0?'pos':'neg'}">${dm(c.totalFx)}</td><td class="n">${pctw(c.mvUSD,nav)}</td></tr>`
-             +`<tr class="det"><td colspan="9">${acct(c.account)?.name||c.account} · Trading Account ${c.account}</td></tr>`;
+        posRows+=`<tr><td><b>Cash ${esc(c.currency)}</b></td><td class="n">—</td><td class="n">${fmt(c.local,2)}</td><td class="n">${esc(c.currency)}</td><td class="n">—</td><td class="n">${fmt(c.rate,4)}</td><td class="n">${dm(c.mvUSD)}</td><td class="n ${c.totalFx>=0?'pos':'neg'}">${dm(c.totalFx)}</td><td class="n">${pctw(c.mvUSD,nav)}</td></tr>`
+             +`<tr class="det"><td colspan="9">${esc(acct(c.account)?.name||c.account)} · Trading Account ${esc(c.account)}</td></tr>`;
       });
       posRows+=`<tr class="sub"><td colspan="6">Total Market Value of Cash</td><td class="n">${dm(sub)}</td><td class="n"></td><td class="n">${pctw(sub,nav)}</td></tr>`;
       return;
     }
     const list=v.holdings.filter(sec2.test).sort((a,b)=>b.mvUSD-a.mvUSD);
     if(!list.length)return;
-    posRows+=`<tr class="grp"><td colspan="9">${sec2.title}</td></tr>`;
+    posRows+=`<tr class="grp"><td colspan="9">${esc(sec2.title)}</td></tr>`;
     let sub=0,subCost=0;
     list.forEach(h=>{
       const s=h.s,fx=state.fixedDates[s.id]||{};
       sub+=h.mvUSD;subCost+=h.costUSD;
       const nominal=isFixed(s)?fmt(h.qty*(s.face||0),2):"—";
       const quote=fmt(h.price,4);
-      posRows+=`<tr><td><b>${s.id}</b></td><td class="n">${s.isin?s.isin:"—"}</td><td class="n">${nominal}</td><td class="n">${s.currency}</td><td class="n">${fmt(h.qty,2)}</td><td class="n">${fmt(h.rate,4)}</td><td class="n">${dm(h.mvUSD)}</td><td class="n ${h.totalPL>=0?'pos':'neg'}">${dm(h.totalPL)}</td><td class="n">${pctw(h.mvUSD,nav)}</td></tr>`
-           +`<tr class="det"><td colspan="3">${s.name}${s.coupon?` · ${fmt(s.coupon*100,2)}%`:""}${s.maturity?` · ครบกำหนด ${dmy(s.maturity)}`:""}</td><td class="n">${marketOf(s)}</td><td class="n">Quote ${quote}</td><td class="n">ต้นทุน ${dm(h.costUSD)}</td><td class="n">${dm(h.mvUSD)}</td><td class="n">${h.costUSD?pctSigned(h.totalPL/h.costUSD):"—"}</td><td></td></tr>`;
+      posRows+=`<tr><td><b>${esc(s.id)}</b></td><td class="n">${s.isin?s.isin:"—"}</td><td class="n">${nominal}</td><td class="n">${esc(s.currency)}</td><td class="n">${fmt(h.qty,2)}</td><td class="n">${fmt(h.rate,4)}</td><td class="n">${dm(h.mvUSD)}</td><td class="n ${h.totalPL>=0?'pos':'neg'}">${dm(h.totalPL)}</td><td class="n">${pctw(h.mvUSD,nav)}</td></tr>`
+           +`<tr class="det"><td colspan="3">${esc(s.name)}${s.coupon?` · ${fmt(s.coupon*100,2)}%`:""}${s.maturity?` · ครบกำหนด ${dmy(s.maturity)}`:""}</td><td class="n">${marketOf(s)}</td><td class="n">Quote ${quote}</td><td class="n">ต้นทุน ${dm(h.costUSD)}</td><td class="n">${dm(h.mvUSD)}</td><td class="n">${h.costUSD?pctSigned(h.totalPL/h.costUSD):"—"}</td><td></td></tr>`;
     });
-    posRows+=`<tr class="sub"><td colspan="6">Total Cost Value of ${sec2.title}</td><td class="n">${dm(subCost)}</td><td class="n"></td><td class="n"></td></tr>`
-           +`<tr class="sub tot"><td colspan="6">Total Market Value of ${sec2.title}</td><td class="n">${dm(sub)}</td><td class="n">${dm(sub-subCost)}</td><td class="n">${pctw(sub,nav)}</td></tr>`;
+    posRows+=`<tr class="sub"><td colspan="6">Total Cost Value of ${esc(sec2.title)}</td><td class="n">${dm(subCost)}</td><td class="n"></td><td class="n"></td></tr>`
+           +`<tr class="sub tot"><td colspan="6">Total Market Value of ${esc(sec2.title)}</td><td class="n">${dm(sub)}</td><td class="n">${dm(sub-subCost)}</td><td class="n">${pctw(sub,nav)}</td></tr>`;
   });
   posRows+=`<tr class="total"><td colspan="6">Total Portfolio</td><td class="n">${dm(nav)}</td><td></td><td class="n">100.00%</td></tr>`;
 
@@ -2126,32 +2293,47 @@ function renderDashboard(){
   const cg=capitalGainIncome(cgPeriod.from,cgPeriod.to);
   let cgRows="";
   const zones=["Onshore Investment","Offshore Investment"];
-  let cgTot={opening:0,buyAmt:0,sellAmt:0,gain:0,ending:0,income:0};
+  const CGK=["opening","buyAmt","sellAmt","capital","fx","ending","income","expense","accrued"];
+  let cgTot=Object.fromEntries(CGK.map(k=>[k,0]));
   zones.forEach(z=>{
     const inZone=cg.filter(r=>r.zone===z);
     if(!inZone.length)return;
-    cgRows+=`<tr class="grp"><td colspan="8">${z}</td></tr>`;
+    cgRows+=`<tr class="grp"><td colspan="9">${z}</td></tr>`;
     const byCcy={};inZone.forEach(r=>(byCcy[r.s.currency]=byCcy[r.s.currency]||[]).push(r));
     Object.keys(byCcy).sort().forEach(ccy=>{
-      cgRows+=`<tr class="grp2"><td colspan="8">${ccy} Currency</td></tr>`;
+      cgRows+=`<tr class="grp2"><td colspan="9">${ccy} Currency</td></tr>`;
       const byGrp={};byCcy[ccy].forEach(r=>(byGrp[r.group]=byGrp[r.group]||[]).push(r));
-      let ccyTot={opening:0,buyAmt:0,sellAmt:0,gain:0,ending:0,income:0};
+      let ccyTot=Object.fromEntries(CGK.map(k=>[k,0]));
       GORDER.filter(g=>byGrp[g]).forEach(g=>{
-        cgRows+=`<tr class="grp3"><td colspan="8">${g}</td></tr>`;
-        let st={opening:0,buyAmt:0,sellAmt:0,gain:0,ending:0,income:0};
+        cgRows+=`<tr class="grp3"><td colspan="9">${g}</td></tr>`;
+        let st=Object.fromEntries(CGK.map(k=>[k,0]));
         byGrp[g].sort((a,b)=>b.ending-a.ending).forEach(r=>{
-          ["opening","buyAmt","sellAmt","gain","ending","income"].forEach(k=>{st[k]+=r[k];ccyTot[k]+=r[k];cgTot[k]+=r[k]});
-          cgRows+=`<tr><td style="padding-left:26px"><b>${r.s.id}</b> <span class="muted">${r.account}</span></td>`
+          CGK.forEach(k=>{st[k]+=r[k]||0;ccyTot[k]+=r[k]||0;cgTot[k]+=r[k]||0});
+          cgRows+=`<tr><td style="padding-left:26px"><b>${esc(r.s.id)}</b> <span class="muted">${esc(r.account)}</span></td>`
             +`<td class="n">${dm(r.opening)}</td><td class="n">${r.buyQty?fmt(r.buyQty,2):"–"}</td><td class="n">${r.buyAmt?dm(r.buyAmt):"–"}</td>`
             +`<td class="n">${r.sellQty?fmt(r.sellQty,2):"–"}</td><td class="n">${r.sellAmt?dm(r.sellAmt):"–"}</td>`
-            +`<td class="n ${r.gain>=0?'pos':'neg'}">${dm(r.gain)}</td><td class="n">${dm(r.ending)}</td></tr>`;
+            +`<td class="n ${r.capital>=0?'pos':'neg'}">${dm(r.capital)}</td>`
+            +`<td class="n ${r.fx>=0?'pos':'neg'}">${dm(r.fx)}</td><td class="n">${dm(r.ending)}</td></tr>`;
         });
-        cgRows+=`<tr class="sub"><td>Sub Total for ${g}</td><td class="n">${dm(st.opening)}</td><td class="n">–</td><td class="n">${dm(st.buyAmt)}</td><td class="n">–</td><td class="n">${dm(st.sellAmt)}</td><td class="n ${st.gain>=0?'pos':'neg'}">${dm(st.gain)}</td><td class="n">${dm(st.ending)}</td></tr>`;
+        cgRows+=`<tr class="sub"><td>Sub Total for ${g}</td><td class="n">${dm(st.opening)}</td><td class="n">–</td><td class="n">${dm(st.buyAmt)}</td><td class="n">–</td><td class="n">${dm(st.sellAmt)}</td><td class="n ${st.capital>=0?'pos':'neg'}">${dm(st.capital)}</td><td class="n ${st.fx>=0?'pos':'neg'}">${dm(st.fx)}</td><td class="n">${dm(st.ending)}</td></tr>`;
       });
-      cgRows+=`<tr class="sub tot"><td>Total Amount for ${ccy}</td><td class="n">${dm(ccyTot.opening)}</td><td class="n">–</td><td class="n">${dm(ccyTot.buyAmt)}</td><td class="n">–</td><td class="n">${dm(ccyTot.sellAmt)}</td><td class="n ${ccyTot.gain>=0?'pos':'neg'}">${dm(ccyTot.gain)}</td><td class="n">${dm(ccyTot.ending)}</td></tr>`;
+      cgRows+=`<tr class="sub tot"><td>Total Amount for ${ccy}</td><td class="n">${dm(ccyTot.opening)}</td><td class="n">–</td><td class="n">${dm(ccyTot.buyAmt)}</td><td class="n">–</td><td class="n">${dm(ccyTot.sellAmt)}</td><td class="n ${ccyTot.capital>=0?'pos':'neg'}">${dm(ccyTot.capital)}</td><td class="n ${ccyTot.fx>=0?'pos':'neg'}">${dm(ccyTot.fx)}</td><td class="n">${dm(ccyTot.ending)}</td></tr>`;
     });
   });
-  cgRows+=`<tr class="total"><td>Total Portfolio</td><td class="n">${dm(cgTot.opening)}</td><td class="n">–</td><td class="n">${dm(cgTot.buyAmt)}</td><td class="n">–</td><td class="n">${dm(cgTot.sellAmt)}</td><td class="n">${dm(cgTot.gain)}</td><td class="n">${dm(cgTot.ending)}</td></tr>`;
+  cgRows+=`<tr class="total"><td>Total Portfolio</td><td class="n">${dm(cgTot.opening)}</td><td class="n">–</td><td class="n">${dm(cgTot.buyAmt)}</td><td class="n">–</td><td class="n">${dm(cgTot.sellAmt)}</td><td class="n">${dm(cgTot.capital)}</td><td class="n">${dm(cgTot.fx)}</td><td class="n">${dm(cgTot.ending)}</td></tr>`;
+  /* กระทบยอดกับตาราง 3 ของงวดเดียวกัน — ถ้าไม่ตรง ต้องเห็นทันที */
+  const cgRef=pm[cgPeriod.key];
+  const cgDiff={capital:cgTot.capital-cgRef.capital, fx:cgTot.fx-cgRef.fx,
+                income:cgTot.income-cgRef.income, expense:cgTot.expense-cgRef.expense,
+                accrued:cgTot.accrued-cgRef.accrued};
+  const cgTolr=reconTolerance(cgRef.ending);
+  const cgBad=Object.keys(cgDiff).filter(k=>Math.abs(cgDiff[k])>cgTolr);
+  const cgRecon=`<tr class="${cgBad.length?"row-unrecon":"sub"}"><td colspan="9" style="text-align:left;font-weight:600">`
+    +(cgBad.length
+      ?`\u26a0 ตารางนี้ไม่ตรงกับตาราง 3 — ${cgBad.map(k=>k+" ต่าง "+dm(cgDiff[k])).join(" · ")}`
+      :`\u2713 กระทบยอดกับตาราง 3 แล้ว · Capital ${dm(cgTot.capital)} · Currency ${dm(cgTot.fx)} · Income ${dm(cgTot.income)} · Accrued ${dm(cgTot.accrued)} · Fees &amp; Taxes ${dm(cgTot.expense)}`)
+    +`</td></tr>`;
+  cgRows+=cgRecon;
 
   /* ---------- 7-8-10. Future Event Cash Flows ---------- */
   const fcf=futureCashFlows();
@@ -2186,7 +2368,7 @@ function renderDashboard(){
     fcfDetail+=`<tr class="grp"><td colspan="10">${monthLabel(m+"-01")}</td></tr>`;
     let t=0;
     byMonth[m].forEach(r=>{t+=r.usd;
-      fcfDetail+=`<tr><td><b>${r.instrument}</b> <span class="muted">${r.kind}</span></td><td>${r.account}</td><td>${r.detail}</td><td class="n">${fmt(r.qty,2)}</td><td class="n">${fmt(r.nominal,2)}</td><td class="n">${dmy(r.effective)}</td><td class="n">${dmy(r.payment)}</td><td class="n">${r.currency}</td><td class="n">${fmt(r.localAmt,2)}</td><td class="n">${dm(r.usd)}</td></tr>`;
+      fcfDetail+=`<tr><td><b>${esc(r.instrument)}</b> <span class="muted">${r.kind}</span></td><td>${esc(r.account)}</td><td>${r.detail}</td><td class="n">${fmt(r.qty,2)}</td><td class="n">${fmt(r.nominal,2)}</td><td class="n">${dmy(r.effective)}</td><td class="n">${dmy(r.payment)}</td><td class="n">${esc(r.currency)}</td><td class="n">${fmt(r.localAmt,2)}</td><td class="n">${dm(r.usd)}</td></tr>`;
     });
     fcfDetail+=`<tr class="sub"><td colspan="9">Total amount for ${monthLabel(m+"-01")}</td><td class="n">${dm(t)}</td></tr>`;
   });
@@ -2222,11 +2404,14 @@ function renderDashboard(){
         <div class="civ-row"><span>Net Contribution</span><b>${dm(si.netContrib)}</b></div>
         <div class="civ-row"><span>Capital Gain (Loss)</span><b>${dm(si.capital)}</b></div>
         <div class="civ-row"><span>Income</span><b>${dm(si.income)}</b></div>
+        <div class="civ-row"><span>Accrued Interest Change</span><b>${dm(si.accrued)}</b></div>
+        <div class="civ-row"><span>Fees &amp; Taxes</span><b>${dm(si.expense)}</b></div>
         <div class="civ-row"><span>Currency Gain (Loss)</span><b>${dm(si.fx)}</b></div>
+        ${reconRow(si)}
         <div class="civ-row strong"><span>Ending Portfolio Value on ${dmy(val)}</span><b>${dm(si.ending)}</b></div>
         <div class="civ-row perf"><span>Period Performance in % (TWR)</span><b>${pctSigned(si.twr)}</b></div>
         <div class="small-note" style="padding:10px 18px 14px">
-          Net Contribution = เงินเข้า/โอนเข้า − เงินออก/โอนออก · Capital Gain (Loss) = กำไรที่รับรู้แล้ว + การเปลี่ยนแปลงกำไรที่ยังไม่รับรู้ · Income = เงินปันผล + ดอกเบี้ย + ดอกเบี้ยหุ้นกู้ ± ค่าธรรมเนียม
+          Net Contribution = เงินเข้า/โอนเข้า − เงินออก/โอนออก · Capital Gain (Loss) = กำไรที่รับรู้แล้ว + การเปลี่ยนแปลงกำไรที่ยังไม่รับรู้ (คำนวณจากธุรกรรมโดยตรง ไม่ใช่ยอดคงเหลือ) · Income = เงินปันผล + ดอกเบี้ย + ดอกเบี้ยหุ้นกู้ที่รับเป็นเงินสด · Accrued Interest Change = ดอกเบี้ยที่งอกแล้วแต่ยังไม่ได้รับ · Fees &amp; Taxes = ค่าธรรมเนียมและภาษีที่บันทึกเป็นรายการแยก
         </div>
       </div>
     </div>
@@ -2241,7 +2426,11 @@ function renderDashboard(){
         ${perfRow("Realized Gain (Loss)",x=>x.realized,{indent:1,sign:1})}
         ${perfRow("Change in Unrealized Gain (Loss)",x=>x.unrealized,{indent:1,sign:1})}
         ${perfRow("Income",x=>x.income)}
+        ${perfRow("Accrued Interest Change",x=>x.accrued,{indent:1,sign:1})}
+        ${perfRow("Fees & Taxes",x=>x.expense,{sign:1})}
         ${perfRow("Currency Gain (Loss)",x=>x.fx,{sign:1})}
+        ${perfCols.some(p=>Math.abs(pm[p.key].unreconciled)>reconTolerance(pm[p.key].ending))
+          ?perfRow("⚠ Unreconciled",x=>x.unreconciled,{sign:1,cls:"row-unrecon"}):""}
         ${perfRow("Ending Portfolio Value",x=>x.ending,{cls:"sub tot"})}
         ${perfRow("Period Performance in % (TWR)",x=>x.twr,{pct:1,sign:1,cls:"total"})}
       </tbody></table></div>
@@ -2270,10 +2459,10 @@ function renderDashboard(){
     <div class="rpt-card">
       <h4>6 · Capital Gain &amp; Income <span class="muted" style="font-weight:400">(${dmy(cgPeriod.from)} → ${dmy(cgPeriod.to)})</span></h4>
       <div class="table-wrap"><table class="rpt-tbl cg-tbl"><thead>
-        <tr><th>Asset Type / Instrument</th><th class="n">Opening Value</th><th class="n" colspan="2">Buy / Transfer In</th><th class="n" colspan="2">Sell / Transfer Out</th><th class="n">Capital Gain</th><th class="n">Ending Value</th></tr>
-        <tr class="subhead"><th></th><th></th><th class="n">Quantity</th><th class="n">Amount</th><th class="n">Quantity</th><th class="n">Amount</th><th></th><th></th></tr>
+        <tr><th>Asset Type / Instrument</th><th class="n">Opening Value</th><th class="n" colspan="2">Buy / Transfer In</th><th class="n" colspan="2">Sell / Transfer Out</th><th class="n">Capital Gain</th><th class="n">Currency Gain</th><th class="n">Ending Value</th></tr>
+        <tr class="subhead"><th></th><th></th><th class="n">Quantity</th><th class="n">Amount</th><th class="n">Quantity</th><th class="n">Amount</th><th></th><th></th><th></th></tr>
       </thead><tbody>${cgRows}</tbody></table></div>
-      <div class="small-note" style="padding:8px 18px 12px">Capital Gain = มูลค่าปลายงวด − มูลค่าต้นงวด − เงินที่ซื้อเพิ่ม + เงินที่ขายออก · Income แสดงแยกในหัวข้อ 2 และ 3</div>
+      <div class="small-note" style="padding:8px 18px 12px">Capital Gain = กำไรที่รับรู้แล้ว + การเปลี่ยนแปลงกำไรที่ยังไม่รับรู้ เฉพาะส่วนราคาสินทรัพย์ · Currency Gain = ส่วนอัตราแลกเปลี่ยน · ใช้นิยามเดียวกับตาราง 3 ยอดรวมจึงต้องตรงกัน</div>
     </div>
 
     <div class="rpt-card">
@@ -2319,7 +2508,7 @@ function moreRow(key,fn,total,shown,cols){
   if(shown>=total)return "";
   return `<tr class="more-row"><td colspan="${cols}" style="text-align:center;background:#fbfcfd;padding:14px"><button class="btn btn-secondary" onclick="showMore('${key}','${fn}')">แสดงเพิ่ม ${PAGE_STEP[key]} รายการ · เหลืออีก ${total-shown}</button> <span class="muted" style="margin-left:8px">แสดง ${shown} จาก ${total}</span></td></tr>`;
 }
-function typeBadge(t){let cls=t==="FX CONVERSION"?"cash":TYPE_GROUPS.trade.includes(t)?(t.includes("SELL")||t.includes("REDEMPTION")?"sell":"buy"):TYPE_GROUPS.positive.includes(t)?"income":"cash";return `<span class="badge ${cls}">${t}</span>`}
+function typeBadge(t){let cls=t==="FX CONVERSION"?"cash":TYPE_GROUPS.trade.includes(t)?(t.includes("SELL")||t.includes("REDEMPTION")?"sell":"buy"):TYPE_GROUPS.positive.includes(t)?"income":"cash";return `<span class="badge ${cls}">${esc(t)}</span>`}
 /* เวลาที่ "สร้างเอกสาร" — ใช้ createdAt ถ้ามี
    รายการเก่าที่ยังไม่มีฟิลด์นี้ ใช้เลขที่เอกสารแทน (ฝังวันที่+ลำดับไว้แล้ว) */
 function createdKey(t){ return (t.createdAt||"") + "|" + (t.id||"") }
@@ -2405,28 +2594,41 @@ function renderTransactions(){
     +(nRej?` · ไม่อนุมัติ ${nRej} (ไม่นับเข้าพอร์ต)`:"");
   let txTotal=tx.length; if(q)PAGE_LIMIT.txn=Math.max(PAGE_LIMIT.txn,PAGE_STEP.txn);
   tx=tx.slice(0,PAGE_LIMIT.txn);
-  byId("txnBody").innerHTML=tx.map(t=>`<tr class="${t.excluded?"row-rejected ":""}${txStatus(t)==="RETURNED"?"row-returned ":""}${t.id===previewTxn?"row-selected":""}" data-txn="${t.id}"><td>${dmy(t.date)}</td><td><b>${t.id}</b>${t.id===previewTxn?'<span class="now-tag">กำลังดู</span>':""}${(t.version||1)>1?`<span class="amended-tag">v${t.version} AMENDED</span>`:""}</td><td>${typeBadge(t.type)}${statusBadge(t)}</td><td>${t.portfolio}</td><td>${t.broker}</td><td>${t.account}</td><td>${t.security||"CASH"}</td><td>${t.currency}</td><td class="num">${t.qty?fmt(t.qty,2):"—"}</td><td class="num">${fmt(t.gross,2)}</td><td class="num ${t.cashUSD>=0?'pos':'neg'}">${usd(t.cashUSD)}</td><td>${t.ref||"—"}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="editTransaction('${t.id}')">Edit</button> ${(t.version||1)>1?`<button class="btn btn-secondary" style="padding:6px 8px" onclick="showAuditHistory('${t.id}')">History</button>`:""} <button class="btn btn-secondary" style="padding:6px 8px" onclick="previewDocument('${t.id}')">View</button></td></tr>`).join("")+moreRow("txn","renderTransactions",txTotal,tx.length,13)||`<tr><td colspan="13" class="empty">ไม่พบรายการที่ตรงกับตัวกรอง</td></tr>`;
+  byId("txnBody").innerHTML=tx.map(t=>`<tr class="${t.excluded?"row-rejected ":""}${txStatus(t)==="RETURNED"?"row-returned ":""}${t.id===previewTxn?"row-selected":""}" data-txn="${esc(t.id)}"><td>${dmy(t.date)}</td><td><b>${esc(t.id)}</b>${t.id===previewTxn?'<span class="now-tag">กำลังดู</span>':""}${(t.version||1)>1?`<span class="amended-tag">v${t.version} AMENDED</span>`:""}</td><td>${typeBadge(t.type)}${statusBadge(t)}</td><td>${esc(t.portfolio)}</td><td>${esc(t.broker)}</td><td>${esc(t.account)}</td><td>${esc(t.security||"CASH")}</td><td>${esc(t.currency)}</td><td class="num">${t.qty?fmt(t.qty,2):"—"}</td><td class="num">${fmt(t.gross,2)}</td><td class="num ${t.cashUSD>=0?'pos':'neg'}">${usd(t.cashUSD)}</td><td>${esc(t.ref||"—")}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="editTransaction('${escAttr(t.id)}')">Edit</button> ${(t.version||1)>1?`<button class="btn btn-secondary" style="padding:6px 8px" onclick="showAuditHistory('${escAttr(t.id)}')">History</button>`:""} <button class="btn btn-secondary" style="padding:6px 8px" onclick="previewDocument('${escAttr(t.id)}')">View</button></td></tr>`).join("")+moreRow("txn","renderTransactions",txTotal,tx.length,13)||`<tr><td colspan="13" class="empty">ไม่พบรายการที่ตรงกับตัวกรอง</td></tr>`;
 }
 function renderHoldings(){
   let h=viewData().holdings.sort((a,b)=>b.mvUSD-a.mvUSD);byId("holdingCount").textContent=`${h.length} open positions`;
-  byId("holdBody").innerHTML=h.map(x=>`<tr><td><b>${x.s.id}</b></td><td>${x.s.name}</td><td>${x.s.assetClass}</td><td>${x.s.currency}</td><td class="num">${fmt(x.qty,2)}</td><td class="num">${fmt(x.qty?x.costLocal/x.qty:0,2)}</td><td class="num">${fmt(x.price,2)}</td><td class="num">${usd(x.mvUSD)}</td><td class="num ${x.assetPL>=0?'pos':'neg'}">${usd(x.assetPL)}</td><td class="num ${x.fxPL+x.realizedFx>=0?'pos':'neg'}">${usd(x.fxPL+x.realizedFx)}</td><td class="num">${usd(x.accruedUSD)}</td><td class="num ${x.totalPL>=0?'pos':'neg'}"><b>${usd(x.totalPL)}</b></td></tr>`).join("")||`<tr><td colspan="12" class="empty">No positions</td></tr>`;
+  byId("holdBody").innerHTML=h.map(x=>`<tr><td><b>${esc(x.s.id)}</b></td><td>${esc(x.s.name)}</td><td>${x.s.assetClass}</td><td>${esc(x.s.currency)}</td><td class="num">${fmt(x.qty,2)}</td><td class="num">${fmt(x.qty?x.costLocal/x.qty:0,2)}</td><td class="num">${fmt(x.price,2)}</td><td class="num">${usd(x.mvUSD)}</td><td class="num ${x.assetPL>=0?'pos':'neg'}">${usd(x.assetPL)}</td><td class="num ${x.fxPL+x.realizedFx>=0?'pos':'neg'}">${usd(x.fxPL+x.realizedFx)}</td><td class="num">${usd(x.accruedUSD)}</td><td class="num ${x.totalPL>=0?'pos':'neg'}"><b>${usd(x.totalPL)}</b></td></tr>`).join("")||`<tr><td colspan="12" class="empty">No positions</td></tr>`;
 }
 function renderCashFx(){
   renderCashWarning();
   let v=viewData(),c=v.cash.filter(x=>Math.abs(x.local)>1e-8||Math.abs(x.costUSD)>1e-8);
-  byId("cashBody").innerHTML=c.map(x=>`<tr><td><b>${x.currency}</b></td><td class="num">${fmt(x.local,2)}</td><td class="num">${fmt(x.rate,4)}</td><td class="num">${usd(x.mvUSD)}</td><td class="num ${x.unrealFx>=0?'pos':'neg'}">${usd(x.unrealFx)}</td><td class="num ${x.realizedFx>=0?'pos':'neg'}">${usd(x.realizedFx)}</td></tr>`).join("")||`<tr><td colspan="6" class="empty">No cash balances</td></tr>`;
+  byId("cashBody").innerHTML=c.map(x=>`<tr><td><b>${esc(x.currency)}</b></td><td class="num">${fmt(x.local,2)}</td><td class="num">${fmt(x.rate,4)}</td><td class="num">${usd(x.mvUSD)}</td><td class="num ${x.unrealFx>=0?'pos':'neg'}">${usd(x.unrealFx)}</td><td class="num ${x.realizedFx>=0?'pos':'neg'}">${usd(x.realizedFx)}</td></tr>`).join("")||`<tr><td colspan="6" class="empty">No cash balances</td></tr>`;
   let exposure={};v.holdings.forEach(h=>exposure[h.s.currency]=(exposure[h.s.currency]||0)+h.mvUSD);v.cash.forEach(x=>exposure[x.currency]=(exposure[x.currency]||0)+x.mvUSD);
   let arr=Object.entries(exposure).filter(x=>Math.abs(x[1])>.01).sort((a,b)=>b[1]-a[1]),tot=arr.reduce((a,x)=>a+x[1],0);
   byId("fxExposureDetail").innerHTML=arr.map((x,i)=>`<div class="bar-row"><div class="bar-top"><b>${x[0]}</b><span>${usd(x[1])} · ${tot?fmt(x[1]/tot*100,1):0}%</span></div><div class="bar-track"><div class="bar-fill" style="width:${tot?Math.abs(x[1])/Math.max(...arr.map(z=>Math.abs(z[1])))*100:0}%"></div></div></div>`).join("");
 }
 function renderFixed(){
   let v=viewData(),rows=v.holdings.filter(h=>isFixed(h.s));
-  byId("fixedBody").innerHTML=rows.map(h=>{let f=h.fixed;return `<tr><td><b>${h.s.id}</b><br><span class="muted">${h.s.name}</span></td><td>${h.s.instrument}</td><td>${h.s.dayCount||"—"}</td><td>${dmy(f.prev)}</td><td>${dmy(f.next)}</td><td class="num">${fmt(h.qty*(h.s.face||0),2)}</td><td class="num">${fmt((h.s.coupon||0)*100,2)}%</td><td class="num">${fmt(f.convDays,2)}</td><td class="num">${fmt(f.accruedLocal,2)}</td><td class="num">${fmt(f.cleanLocal,2)}</td><td class="num">${usd(h.mvUSD)}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="editFixedDates('${h.s.id}')">Edit dates</button></td></tr>`}).join("")||`<tr><td colspan="12" class="empty">No fixed income positions</td></tr>`;
+  byId("fixedBody").innerHTML=rows.map(h=>{let f=h.fixed;return `<tr><td><b>${esc(h.s.id)}</b><br><span class="muted">${esc(h.s.name)}</span></td><td>${esc(h.s.instrument)}</td><td>${h.s.dayCount||"—"}</td><td>${dmy(f.prev)}${f.rolled?' <span class="rolled-tag" title="ตารางดอกเบี้ยที่บันทึกไว้เก่ากว่าวันตีราคา ระบบเลื่อนให้อัตโนมัติ '+f.rolled+' งวด">เลื่อนอัตโนมัติ</span>':""}</td><td>${dmy(f.next)}</td><td class="num">${fmt(h.qty*(h.s.face||0),2)}</td><td class="num">${fmt((h.s.coupon||0)*100,2)}%</td><td class="num">${fmt(f.convDays,2)}</td><td class="num">${fmt(f.accruedLocal,2)}</td><td class="num">${fmt(f.cleanLocal,2)}</td><td class="num">${usd(h.mvUSD)}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="editFixedDates('${escAttr(h.s.id)}')">Edit dates</button></td></tr>`}).join("")||`<tr><td colspan="12" class="empty">No fixed income positions</td></tr>`;
+  /* ถ้าต้องเลื่อนงวดให้ แปลว่าทะเบียนวันจ่ายดอกเบี้ยเก่ากว่าความเป็นจริง — ควรไปอัปเดต */
+  const stale=rows.filter(h=>h.fixed&&h.fixed.rolled);
+  const nb=byId("fixedRollNote");
+  if(nb){
+    if(stale.length){
+      nb.style.display="block";
+      nb.innerHTML='<div class="gap-bar"><span class="gap-ic">\u26a0</span><div>'
+        +'<b>ตารางดอกเบี้ยเก่ากว่าวันตีราคา '+stale.length+' ตราสาร — ระบบเลื่อนงวดให้อัตโนมัติแล้ว</b>'
+        +'<div class="gap-list">'+stale.map(h=>esc(h.s.id)+" (เลื่อน "+h.fixed.rolled+" งวด)").join(" · ")+'</div>'
+        +'<div class="gap-list">ตัวเลขถูกต้องแล้ว แต่ควรกด Edit dates เพื่อบันทึกวันจ่ายจริงจาก custodian '
+        +'เพราะการเลื่อนอัตโนมัติสมมติว่าจ่ายตรงกำหนดทุกงวด</div></div></div>';
+    }else{nb.style.display="none";nb.innerHTML=""}
+  }
 }
 let marketShowAll=false;
 function toggleMarketHistory(){marketShowAll=!marketShowAll;PAGE_LIMIT.market=PAGE_STEP.market;renderMarket()}
 function renderMarket(){
-  fillSelect(byId("mSec"),state.securities,x=>x.id,x=>`${x.id} — ${x.name}`,"Select security");
+  fillSelect(byId("mSec"),state.securities,x=>x.id,x=>`${esc(x.id)} — ${esc(x.name)}`,"Select security");
   let all=[...state.prices].sort((a,b)=>b.date.localeCompare(a.date)||a.security.localeCompare(b.security));
   let rows,total,note;
   if(marketShowAll){
@@ -2438,8 +2640,8 @@ function renderMarket(){
     total=rows.length;
     note=`ราคาล่าสุดของแต่ละหลักทรัพย์ (${total} รายการ) — ประวัติทั้งหมด ${all.length.toLocaleString()} แถว`;
   }
-  byId("marketBody").innerHTML=rows.map(x=>`<tr><td><b>${x.security}</b></td><td>${dmy(x.date)}</td><td class="num">${fmt(x.price,2)}</td><td>${sec(x.security)?.currency||""}</td></tr>`).join("")
-    +`<tr class="more-row"><td colspan="4" style="text-align:center;background:#fbfcfd;padding:14px"><button class="btn btn-secondary" onclick="toggleMarketHistory()">${marketShowAll?"แสดงเฉพาะราคาล่าสุด":"แสดงประวัติราคาทั้งหมด"}</button> <span class="muted" style="margin-left:8px">${note}</span></td></tr>`
+  byId("marketBody").innerHTML=rows.map(x=>`<tr><td><b>${esc(x.security)}</b></td><td>${dmy(x.date)}</td><td class="num">${fmt(x.price,2)}</td><td>${esc(sec(x.security)?.currency||"")}</td></tr>`).join("")
+    +`<tr class="more-row"><td colspan="4" style="text-align:center;background:#fbfcfd;padding:14px"><button class="btn btn-secondary" onclick="toggleMarketHistory()">${marketShowAll?"แสดงเฉพาะราคาล่าสุด":"แสดงประวัติราคาทั้งหมด"}</button> <span class="muted" style="margin-left:8px">${esc(note)}</span></td></tr>`
     +(marketShowAll?moreRow("market","renderMarket",total,rows.length,4):"");
   byId("fxDailyBody").innerHTML=[...state.fx].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,30).map(x=>`<tr><td>${dmy(x.date)}</td><td class="num">${fmt(x.THB,4)}</td><td class="num">${fmt(x.HKD,4)}</td><td class="num">${fmt(x.JPY,4)}</td><td class="num">${fmt(x.EUR,4)}</td></tr>`).join("");
 }
@@ -2652,12 +2854,93 @@ function roleSummary(){
     +(warn?'<div style="margin-top:7px">'+warn+'</div>':'')
     +'</div>';
 }
+function addHoliday(){
+  if(!guard("edit"))return;
+  const d=(byId("holDate").value||"").trim();
+  const c=(byId("holCcy").value||"").trim().toUpperCase();
+  const n=(byId("holName").value||"").trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){alert("กรุณาเลือกวันที่ให้ถูกต้อง");return}
+  state.holidays=holidayList();
+  if(state.holidays.some(h=>h.date===d&&String(h.ccy||"").toUpperCase()===c)){
+    alert("มีวันหยุดนี้อยู่แล้ว ("+d+(c?" · "+c:" · ทุกสกุล")+")");return;
+  }
+  state.holidays.push({date:d,ccy:c,name:n});
+  byId("holName").value="";
+  save();renderAll();toast("เพิ่มวันหยุด "+d+(c?" · "+c:""));
+}
+function addHolidaysBulk(){
+  if(!guard("edit"))return;
+  const raw=(byId("holBulk").value||"").split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  if(!raw.length){alert("ยังไม่ได้วางข้อมูล");return}
+  state.holidays=holidayList();
+  const have=new Set(state.holidays.map(h=>h.date+"|"+String(h.ccy||"").toUpperCase()));
+  const added=[],bad=[],dup=[];
+  raw.forEach(line=>{
+    const p=line.split(",").map(x=>x.trim());
+    const d=p[0]||"";
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(d)){bad.push(line);return}
+    let c=(p[1]||"").toUpperCase(), nm=p.slice(2).join(", ");
+    /* ถ้าช่องที่สองไม่ใช่รหัสสกุลเงิน ให้ถือว่าเป็นชื่อวันหยุด และเป็นวันหยุดของทุกสกุล */
+    if(c&&CURRENCIES.indexOf(c)<0){nm=p.slice(1).join(", ");c=""}
+    const k=d+"|"+c;
+    if(have.has(k)){dup.push(line);return}
+    have.add(k);state.holidays.push({date:d,ccy:c,name:nm});added.push(d);
+  });
+  save();renderAll();
+  let msg="เพิ่มวันหยุด "+added.length+" วัน";
+  if(dup.length)msg+="\n\nข้าม "+dup.length+" บรรทัด (มีอยู่แล้ว)";
+  if(bad.length)msg+="\n\nอ่านไม่ออก "+bad.length+" บรรทัด — วันที่ต้องเป็นรูปแบบ YYYY-MM-DD:\n  "+bad.slice(0,6).join("\n  ");
+  alert(msg);
+  if(!bad.length)byId("holBulk").value="";
+}
+function removeHoliday(date,ccy){
+  if(!guard("edit"))return;
+  const c=String(ccy||"").toUpperCase();
+  if(!confirm("ลบวันหยุด "+date+(c?" · "+c:" · ทุกสกุล")+" ?"))return;
+  state.holidays=holidayList().filter(h=>!(h.date===date&&String(h.ccy||"").toUpperCase()===c));
+  save();renderAll();toast("ลบวันหยุด "+date);
+}
+function renderHolidays(){
+  const tb=byId("holidayBody"); if(!tb)return;
+  const rows=holidayList().slice().sort((a,b)=>
+    b.date.localeCompare(a.date)||String(a.ccy||"").localeCompare(String(b.ccy||"")));
+  tb.innerHTML=rows.map(h=>{
+    const c=String(h.ccy||"").toUpperCase();
+    return '<tr><td>'+dmy(h.date)+' <span class="muted" style="font-size:11px">'+esc(h.date)+'</span></td>'
+      +'<td>'+(c?'<b>'+esc(c)+'</b>':'<span class="muted">ทุกสกุล</span>')+'</td>'
+      +'<td>'+esc(h.name||"—")+'</td>'
+      +'<td><button class="btn btn-secondary" style="padding:4px 8px" onclick="removeHoliday(\''
+        +escAttr(h.date)+'\',\''+escAttr(c)+'\')">ลบ</button></td></tr>';
+  }).join("")||'<tr><td colspan="4" class="empty">ยังไม่ได้กรอกวันหยุด — วันชำระราคานับเฉพาะเสาร์-อาทิตย์</td></tr>';
+
+  /* บอกให้เห็นว่าปฏิทินครอบคลุมสกุลไหน ปีไหนบ้าง และสกุลที่ใช้จริงแต่ยังไม่มีวันหยุด */
+  const el=byId("holCoverage"); if(!el)return;
+  const cov=holidayCoverage();
+  /* เตือนเฉพาะสกุลที่ใช้งานจริง — บัญชีที่มีอยู่ กับหลักทรัพย์ที่ถืออยู่จริง
+     ไม่ใช่ทุกสกุลในทะเบียนหลักทรัพย์ ไม่งั้นจะเตือนสกุลที่ไม่เคยซื้อเลย */
+  let usedSec=[];
+  try{usedSec=viewData().holdings.map(h=>h.s&&h.s.currency)}catch(e){}
+  const used=[...new Set([...state.accounts.map(a=>a.currency),...usedSec].filter(Boolean))].sort();
+  const thisYear=String(state.valuationDate||"").slice(0,4);
+  const missing=used.filter(c=>!(cov[c]&&cov[c][thisYear])&&!(cov["ทุกสกุล"]&&cov["ทุกสกุล"][thisYear]));
+  const have=Object.keys(cov).sort().map(k=>esc(k)+" ("
+    +Object.keys(cov[k]).sort().map(y=>esc(y)+": "+cov[k][y]+" วัน").join(", ")+")");
+  el.innerHTML=(missing.length
+      ?'<div class="gap-bar"><span class="gap-ic">\u26a0</span><div>'
+        +'<b>ยังไม่มีวันหยุดปี '+esc(thisYear)+' ของสกุล '+missing.map(esc).join(", ")+'</b>'
+        +'<div class="gap-list">วันชำระราคาของสกุลเหล่านี้นับเฉพาะเสาร์-อาทิตย์ จึงอาจเร็วกว่าความจริง '
+        +'— ห้ามใช้ยืนยันกับ custodian จนกว่าจะกรอกครบ</div></div></div>'
+      :'')
+    +(have.length?'<p class="small-note" style="margin:0 0 10px">ปฏิทินที่มีอยู่: '+have.join(" · ")+'</p>':"");
+}
 function renderMaster(){
   renderTeam();
-  byId("portfolioBody").innerHTML=state.portfolios.map(x=>`<tr><td><b>${x.id}</b></td><td>${x.name}</td><td>${x.currency}</td></tr>`).join("");
-  byId("brokerBody").innerHTML=state.brokers.map(x=>`<tr><td><b>${x.id}</b></td><td>${x.name}</td><td>${x.country}</td><td>${x.currency}</td></tr>`).join("");
-  byId("accountBody").innerHTML=state.accounts.map(x=>`<tr><td><b>${x.id}</b></td><td>${x.name}</td><td>${x.portfolioId}</td><td>${x.brokerId}</td><td>${x.currency}</td></tr>`).join("");
-  byId("securityBody").innerHTML=state.securities.map(x=>`<tr><td><b>${x.id}</b></td><td>${x.name}</td><td>${x.assetClass}</td><td>${x.instrument}</td><td>${x.currency}</td><td>${x.dayCount||"—"}</td></tr>`).join("");
+  renderHolidays();
+  fillSelect(byId("holCcy"),CURRENCIES,x=>x,x=>x,"ทุกสกุล");
+  byId("portfolioBody").innerHTML=state.portfolios.map(x=>`<tr><td><b>${esc(x.id)}</b></td><td>${esc(x.name)}</td><td>${esc(x.currency)}</td></tr>`).join("");
+  byId("brokerBody").innerHTML=state.brokers.map(x=>`<tr><td><b>${esc(x.id)}</b></td><td>${esc(x.name)}</td><td>${x.country}</td><td>${esc(x.currency)}</td></tr>`).join("");
+  byId("accountBody").innerHTML=state.accounts.map(x=>`<tr><td><b>${esc(x.id)}</b></td><td>${esc(x.name)}</td><td>${esc(x.portfolioId)}</td><td>${esc(x.brokerId)}</td><td>${esc(x.currency)}</td></tr>`).join("");
+  byId("securityBody").innerHTML=state.securities.map(x=>`<tr><td><b>${esc(x.id)}</b></td><td>${esc(x.name)}</td><td>${x.assetClass}</td><td>${esc(x.instrument)}</td><td>${esc(x.currency)}</td><td>${x.dayCount||"—"}</td></tr>`).join("");
   fillSelect(byId("aPortfolio"),state.portfolios,x=>x.id,x=>x.id,"Portfolio");fillSelect(byId("aBroker"),state.brokers,x=>x.id,x=>x.id,"Broker");
   ["bCcy","aCcy","sCcy"].forEach(id=>fillSelect(byId(id),CURRENCIES,x=>x,x=>x,"Currency"));
   fillSelect(byId("sType"),["Equity","ETF","Mutual Fund","DR/DRx","REIT","Government Bond","Corporate Bond","Perpetual Bond","Fixed Deposit","Structured Note","Other"],x=>x,x=>x,"Instrument");
@@ -2690,7 +2973,7 @@ function renderDocuments(){
     : "กด View เพื่อ Preview หรือ Print เพื่อเปิดหน้าพิมพ์";
 
   let docTotal=tx.length; tx=tx.slice(0,PAGE_LIMIT.doc);
-  byId("docBody").innerHTML=tx.map(t=>`<tr class="${t.excluded?"row-rejected ":""}${t.id===previewTxn?"row-selected":""}" data-txn="${t.id}"><td>${dmy(t.date)}</td><td><b>${t.id}</b>${t.id===previewTxn?'<span class="now-tag">กำลังดู</span>':""}${(t.version||1)>1?`<span class="amended-tag">v${t.version}</span>`:""}</td><td>${typeBadge(t.type)}${statusBadge(t)}</td><td>${t.security||"CASH"}</td><td>${t.account}</td><td>${t.ref||"—"}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="previewDocument('${t.id}')">View</button> <button class="btn btn-dark" style="padding:6px 8px" onclick="printTransaction('${t.id}')">Print</button></td></tr>`).join("")
+  byId("docBody").innerHTML=tx.map(t=>`<tr class="${t.excluded?"row-rejected ":""}${t.id===previewTxn?"row-selected":""}" data-txn="${esc(t.id)}"><td>${dmy(t.date)}</td><td><b>${esc(t.id)}</b>${t.id===previewTxn?'<span class="now-tag">กำลังดู</span>':""}${(t.version||1)>1?`<span class="amended-tag">v${t.version}</span>`:""}</td><td>${typeBadge(t.type)}${statusBadge(t)}</td><td>${esc(t.security||"CASH")}</td><td>${esc(t.account)}</td><td>${esc(t.ref||"—")}</td><td><button class="btn btn-secondary" style="padding:6px 8px" onclick="previewDocument('${escAttr(t.id)}')">View</button> <button class="btn btn-dark" style="padding:6px 8px" onclick="printTransaction('${escAttr(t.id)}')">Print</button></td></tr>`).join("")
     +moreRow("doc","renderDocuments",docTotal,tx.length,7)
     ||`<tr><td colspan="7" class="empty">ไม่พบเอกสารที่ตรงกับตัวกรอง</td></tr>`;
   if(previewTxn)drawDoc(previewTxn); else renderDocJump();
@@ -2781,12 +3064,62 @@ function ENTITY_(){
           address:e.address||"‹ยังไม่ได้ระบุที่อยู่›",
           ic:e.ic||"‹ยังไม่ได้ระบุผู้แนะนำการลงทุน›"};
 }
-function addBusinessDays(d,n){if(!d)return "";let x=new Date(d+"T00:00:00Z"),added=0;while(added<n){x.setUTCDate(x.getUTCDate()+1);let g=x.getUTCDay();if(g!==0&&g!==6)added++;}return x.toISOString().slice(0,10);}
+/* ==================================================================
+   ปฏิทินวันหยุดตลาด
+
+   ของเดิม addBusinessDays() นับเฉพาะเสาร์-อาทิตย์ จึงได้วันชำระราคา (T+2)
+   และวันคาดว่าจะได้รับดอกเบี้ย (+5 วันทำการ) ผิดทุกครั้งที่มีวันหยุดคั่น
+
+   เก็บเป็นรายการที่ทีมกรอกเองที่หน้า Master Data แล้วเผยแพร่ไปพร้อมชุดข้อมูล
+   ผูกกับ "สกุลเงิน" ไม่ใช่ชื่อตลาด เพราะชื่อตลาดในทะเบียนเป็นข้อความอิสระ
+   (SET / NYSE Arca / OTC / TRACE …) ส่วนสกุลเงินเป็นรายการปิดและใช้ได้กับ
+   รายการเงินสดและ FX ที่ไม่มีหลักทรัพย์ด้วย · ปล่อยช่องสกุลว่าง = ทุกสกุล
+   ================================================================== */
+function holidayList(){return Array.isArray(state.holidays)?state.holidays:[]}
+let HOL_CACHE=null, HOL_STAMP="";
+function holidaySet(){
+  const stamp=JSON.stringify(holidayList());
+  if(HOL_CACHE&&HOL_STAMP===stamp)return HOL_CACHE;
+  const set=new Set();
+  holidayList().forEach(h=>{
+    if(!h||!h.date)return;
+    set.add((h.ccy?String(h.ccy).toUpperCase():"*")+"|"+h.date);
+  });
+  HOL_CACHE=set;HOL_STAMP=stamp;return set;
+}
+function isHoliday(d,ccy){
+  if(!d)return false;
+  const set=holidaySet();
+  return set.has("*|"+d)||(!!ccy&&set.has(String(ccy).toUpperCase()+"|"+d));
+}
+/* สกุลเงินที่มีวันหยุดบันทึกไว้แล้ว ใช้บอกผู้ใช้ว่าปฏิทินครอบคลุมแค่ไหน */
+function holidayCoverage(){
+  const by={};
+  holidayList().forEach(h=>{
+    if(!h||!h.date)return;
+    const k=h.ccy?String(h.ccy).toUpperCase():"ทุกสกุล";
+    const y=h.date.slice(0,4);
+    (by[k]=by[k]||{})[y]=(by[k][y]||0)+1;
+  });
+  return by;
+}
+function addBusinessDays(d,n,ccy){
+  if(!d)return "";
+  let x=new Date(d+"T00:00:00Z"),added=0,guard=0;
+  while(added<n&&guard++<400){
+    x.setUTCDate(x.getUTCDate()+1);
+    const g=x.getUTCDay();
+    if(g===0||g===6)continue;
+    if(isHoliday(x.toISOString().slice(0,10),ccy))continue;
+    added++;
+  }
+  return x.toISOString().slice(0,10);
+}
 function marketOf(s){if(!s)return "—";if(s.market)return s.market;if(s.currency==="THB")return isFixed(s)?"ThaiBMA / OTC":"SET";return "—";}
 function transactionDocument(t,printing){
   let a=acct(t.account),s=sec(t.security),p=port(a?.portfolioId),b=broker(a?.brokerId);
   let trade=TYPE_GROUPS.trade.includes(t.type), isSell=/SELL|REDEMPTION/.test(t.type);
-  let settle=addBusinessDays(t.date,2);
+  let settle=addBusinessDays(t.date,2,t.currency||txnCurrency(t));
   let commission=Number(t.fee)||0, wht=Number(t.tax)||0, vatEst=commission*0.07;
   let payLabel=(Number(t.cashLocal)||0)<0?"Payable":"Receivable";
   let sect=(txt)=>`<div class="doc-row" style="grid-column:1/-1;background:#f4f7fb;color:#0a1f33;font-weight:800;letter-spacing:.03em"><span>${txt}</span><b></b></div>`;
@@ -2800,16 +3133,16 @@ function transactionDocument(t,printing){
   let realizedBlock = isSell ? sect("REALIZED GAIN / LOSS (FIFO)")+
     `<div class="doc-row"><span>Realized Asset P/L (USD)</span><b>${usd(t.realizedAsset||0)}</b></div><div class="doc-row"><span>Realized FX P/L (USD)</span><b>${usd(t.realizedFx||0)}</b></div>`+
     `<div class="doc-row" style="grid-column:1/-1"><span>Total Realized P/L (USD)</span><b>${usd((t.realizedAsset||0)+(t.realizedFx||0))}</b></div>` : "";
-  return `<div class="doc-header"><div><h2>INVESTMENT TRANSACTION RECORD</h2><div class="muted">${ENTITY_().name} · ${ENTITY_().address}</div><div class="muted">Internal Portfolio Administration Document</div></div><div style="text-align:right"><b>${t.id}</b>${(t.version||1)>1?`<br><span style="color:#8b6300;font-weight:700">Version ${t.version} · AMENDED</span>`:""}<br><span class="muted">Trade Date: ${dmy(t.date)}</span></div></div>
+  return `<div class="doc-header"><div><h2>INVESTMENT TRANSACTION RECORD</h2><div class="muted">${esc(ENTITY_().name)} · ${esc(ENTITY_().address)}</div><div class="muted">Internal Portfolio Administration Document</div></div><div style="text-align:right"><b>${esc(t.id)}</b>${(t.version||1)>1?`<br><span style="color:#8b6300;font-weight:700">Version ${t.version} · AMENDED</span>`:""}<br><span class="muted">Trade Date: ${dmy(t.date)}</span></div></div>
   <div class="doc-grid">
     ${sect("PARTIES / คู่สัญญา")}
-    <div class="doc-row"><span>Entity / นิติบุคคล</span><b>${ENTITY_().name}</b></div><div class="doc-row"><span>Tax ID / เลขผู้เสียภาษี</span><b>${ENTITY_().taxId}</b></div>
-    <div class="doc-row"><span>Portfolio</span><b>${p?.name||t.portfolio}</b></div><div class="doc-row"><span>Account</span><b>${a?.name||t.account}</b></div>
-    <div class="doc-row"><span>Broker / Custodian</span><b>${b?.name||t.broker}</b></div><div class="doc-row"><span>Investment Consultant (IC)</span><b>${ENTITY_().ic}</b></div>
+    <div class="doc-row"><span>Entity / นิติบุคคล</span><b>${esc(ENTITY_().name)}</b></div><div class="doc-row"><span>Tax ID / เลขผู้เสียภาษี</span><b>${esc(ENTITY_().taxId)}</b></div>
+    <div class="doc-row"><span>Portfolio</span><b>${esc(p?.name||t.portfolio)}</b></div><div class="doc-row"><span>Account</span><b>${esc(a?.name||t.account)}</b></div>
+    <div class="doc-row"><span>Broker / Custodian</span><b>${esc(b?.name||t.broker)}</b></div><div class="doc-row"><span>Investment Consultant (IC)</span><b>${esc(ENTITY_().ic)}</b></div>
     ${sect("TRADE DETAILS / รายละเอียดการทำรายการ")}
-    <div class="doc-row"><span>Transaction Type</span><b>${t.type}</b></div><div class="doc-row"><span>Market / Exchange</span><b>${marketOf(s)}</b></div>
-    <div class="doc-row"><span>Security</span><b>${s?`${s.id} — ${s.name}`:"CASH"}</b></div><div class="doc-row"><span>ISIN / Security Code</span><b>${s?.isin||"—"}</b></div>
-    <div class="doc-row"><span>Symbol</span><b>${s?.id||"—"}</b></div><div class="doc-row"><span>Currency</span><b>${t.currency}</b></div>
+    <div class="doc-row"><span>Transaction Type</span><b>${esc(t.type)}</b></div><div class="doc-row"><span>Market / Exchange</span><b>${marketOf(s)}</b></div>
+    <div class="doc-row"><span>Security</span><b>${s?`${esc(s.id)} — ${esc(s.name)}`:"CASH"}</b></div><div class="doc-row"><span>ISIN / Security Code</span><b>${s?.isin||"—"}</b></div>
+    <div class="doc-row"><span>Symbol</span><b>${esc(s?.id||"—")}</b></div><div class="doc-row"><span>Currency</span><b>${esc(t.currency)}</b></div>
     <div class="doc-row"><span>Trade Date</span><b>${dmy(t.date)}</b></div><div class="doc-row"><span>Settlement Date</span><b>${dmy(settle)}</b></div>
     <div class="doc-row"><span>Quantity</span><b>${t.qty?fmt(t.qty,4):"—"}</b></div><div class="doc-row"><span>Price / % Par</span><b>${t.price?fmt(t.price,4):"—"}</b></div>
     ${sect("AMOUNTS & FEES / จำนวนเงินและค่าธรรมเนียม")}
@@ -2817,15 +3150,15 @@ function transactionDocument(t,printing){
     <div class="doc-row"><span>Brokerage Commission</span><b>${fmt(commission,2)}</b></div><div class="doc-row"><span>VAT 7% (est. · เพื่อกระทบยอด)</span><b>${fmt(vatEst,2)}</b></div>
     <div class="doc-row"><span>Withholding Tax (WHT)</span><b>${fmt(wht,2)}</b></div><div class="doc-row"><span>Regulatory / TSD Fees</span><b>— (ตรวจกับ contract note)</b></div>
     <div class="doc-row"><span>Accrued Interest</span><b>${fmt(t.accrued||0,2)}</b></div><div class="doc-row"><span>—</span><b></b></div>
-    <div class="doc-row" style="grid-column:1/-1;border-top:2px solid #0a1f33;font-weight:800"><span>${isFxc?"Total Debited from "+(t.fxFrom||"")+" Cash":"Net Settlement — "+payLabel+" (Local)"}</span><b>${t.currency} ${fmt(Math.abs(t.cashLocal),2)}</b></div>
+    <div class="doc-row" style="grid-column:1/-1;border-top:2px solid #0a1f33;font-weight:800"><span>${isFxc?"Total Debited from "+(t.fxFrom||"")+" Cash":"Net Settlement — "+payLabel+" (Local)"}</span><b>${esc(t.currency)} ${fmt(Math.abs(t.cashLocal),2)}</b></div>
     <div class="doc-row" style="grid-column:1/-1;font-weight:800"><span>${isFxc?"Net Cash Effect (USD)":"Net Settlement — "+payLabel+" (USD)"}</span><b>${usd(t.cashUSD)}</b></div>
     ${fxBlock}
     ${realizedBlock}
     ${sect("GOVERNANCE / การกำกับดูแล")}
-    <div class="doc-row" style="grid-column:1/-1"><span>Note / Investment Rationale</span><b>${t.note||"—"}</b></div>
+    <div class="doc-row" style="grid-column:1/-1"><span>Note / Investment Rationale</span><b>${esc(t.note||"—")}</b></div>
     <div class="doc-row" style="grid-column:1/-1"><span>Mandate Compliance</span><b>☐ ตรวจสอบแล้วว่าเป็นไปตามนโยบายการลงทุน (Risk Profile / Limits)</b></div>
-    <div class="doc-row"><span>Reference No.</span><b>${t.ref||"—"}</b></div><div class="doc-row"><span>Document Version</span><b>v${t.version||1}</b></div>
-    ${(t.version||1)>1?`<div class="doc-row" style="grid-column:1/-1"><span>Amendment Reason</span><b>${(state.auditTrail||[]).filter(x=>x.txnId===t.id).slice(-1)[0]?.reason||"Amended"}</b></div>`:""}
+    <div class="doc-row"><span>Reference No.</span><b>${esc(t.ref||"—")}</b></div><div class="doc-row"><span>Document Version</span><b>v${t.version||1}</b></div>
+    ${(t.version||1)>1?`<div class="doc-row" style="grid-column:1/-1"><span>Amendment Reason</span><b>${esc((state.auditTrail||[]).filter(x=>x.txnId===t.id).slice(-1)[0]?.reason||"Amended")}</b></div>`:""}
   </div>
   <div style="margin-top:22px;border-top:1px solid #dfe5eb;padding-top:15px"><b>ATTACHMENT CHECKLIST</b><p>☐ Broker / Fund Confirmation &nbsp;&nbsp; ☐ Bank / Settlement Slip &nbsp;&nbsp; ☐ FX Evidence &nbsp;&nbsp; ☐ Tax / WHT Certificate &nbsp;&nbsp; ☐ Other</p></div>
   ${(function(){
@@ -2839,8 +3172,8 @@ function transactionDocument(t,printing){
       const ti=mem&&mem.title?mem.title:"";
       const dl=dateLine?'<span class="muted" style="font-size:11px">Date: '+dateLine+'</span>'
                        :'Date: ____________';
-      return '<div>'+label+'<br><span class="muted">'+ti+'</span><br><br>'
-        +(mem&&mem.name?'<b>'+nm+'</b>':nm)
+      return '<div>'+label+'<br><span class="muted">'+esc(ti)+'</span><br><br>'
+        +(mem&&mem.name?'<b>'+esc(nm)+'</b>':esc(nm))
         +(stamp?'<br><span class="muted" style="font-size:11px">'+stamp+'</span>':'')
         +'<br>'+dl+'</div>';
     };
@@ -2867,7 +3200,7 @@ function transactionDocument(t,printing){
 }
 function printTransaction(id){
   let t=engine().txDetails.find(x=>x.id===id);if(!t)return;
-  let w=window.open("","_blank","width=900,height=900");w.document.write(`<html><head><title>${t.id}</title><style>body{font-family:'Leelawadee UI','Noto Sans Thai','IBM Plex Sans Thai',Tahoma,'Segoe UI',system-ui,sans-serif;color:#17212b;padding:35px}.muted{color:#697789}.doc-header{border-bottom:3px solid #0a1f33;padding-bottom:12px;display:flex;justify-content:space-between}.doc-header h2{margin:0;color:#0a1f33}.doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;margin-top:18px}.doc-row{display:flex;justify-content:space-between;border-bottom:1px solid #e7ebef;padding:9px 0;font-size:12px}.doc-row span:first-child{color:#667085}@page{size:A4;margin:15mm}
+  let w=window.open("","_blank","width=900,height=900");w.document.write(`<html><head><title>${esc(t.id)}</title><style>body{font-family:'Leelawadee UI','Noto Sans Thai','IBM Plex Sans Thai',Tahoma,'Segoe UI',system-ui,sans-serif;color:#17212b;padding:35px}.muted{color:#697789}.doc-header{border-bottom:3px solid #0a1f33;padding-bottom:12px;display:flex;justify-content:space-between}.doc-header h2{margin:0;color:#0a1f33}.doc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;margin-top:18px}.doc-row{display:flex;justify-content:space-between;border-bottom:1px solid #e7ebef;padding:9px 0;font-size:12px}.doc-row span:first-child{color:#667085}@page{size:A4;margin:15mm}
 /* ===== MOBILE APP EXPERIENCE ===== */
 .mobile-bottom-nav,.mobile-more-sheet{display:none}
 .mobile-only{display:none}
@@ -3047,7 +3380,7 @@ function goNoRender(page){currentPage=page;document.querySelectorAll(".page").fo
 
 function showAuditHistory(id){
   let entries=(state.auditTrail||[]).filter(x=>x.txnId===id).sort((a,b)=>b.versionTo-a.versionTo);
-  byId("auditSubtitle").textContent=`${id} · ${entries.length} amendment${entries.length===1?"":"s"}`;
+  byId("auditSubtitle").textContent=`${esc(id)} · ${entries.length} amendment${entries.length===1?"":"s"}`;
   if(!entries.length){
     byId("auditBody").innerHTML=`<div class="empty">ยังไม่มี Amendment history</div>`;
   }else{
@@ -3055,7 +3388,7 @@ function showAuditHistory(id){
     byId("auditBody").innerHTML=entries.map(e=>{
       let changed=keys.filter(k=>String(e.before?.[k]??"")!==String(e.after?.[k]??""));
       let changes=changed.map(k=>`${k}: ${e.before?.[k]??"—"} → ${e.after?.[k]??"—"}`).join(" · ");
-      return `<div class="audit-entry"><div class="audit-entry-head"><b>Version ${e.versionFrom} → ${e.versionTo}</b><span class="muted">${new Date(e.amendedAt).toLocaleString()}</span></div><p><b>Reason:</b> ${e.reason}</p><div class="audit-change">${changes||"Reference / metadata update"}</div></div>`;
+      return `<div class="audit-entry"><div class="audit-entry-head"><b>Version ${e.versionFrom} → ${e.versionTo}</b><span class="muted">${new Date(e.amendedAt).toLocaleString()}</span></div><p><b>Reason:</b> ${esc(e.reason)}</p><div class="audit-change">${changes||"Reference / metadata update"}</div></div>`;
     }).join("");
   }
   byId("auditModal").classList.add("open");
@@ -3082,20 +3415,36 @@ function candidateFromForm(existingId){
     ...(currentType==="FX CONVERSION"?(()=>{let L=fxLegs(byId("fDate").value);return {ccy:L.from,fxFrom:L.from,fxTo:L.to,fxFromAmount:L.fromAmt,fxToAmount:L.toAmt,dealRate:L.deal,amount:L.fromAmt,fxOverride:L.rF}})():{})
   };
 }
+/* ตรวจว่า ledger ขายเกินที่ถือหรือไม่
+
+   ของเดิมนับ "ทุกสถานะ" รวมรายการที่ถูกปฏิเสธด้วย ทั้งที่ engine() ตัด REJECTED ออก
+   ผลคือ ปฏิเสธ BUY แล้วอนุมัติ SELL ของหลักทรัพย์เดียวกัน ตัวตรวจบอกว่าไม่มีปัญหา
+   แต่ระบบสร้างกำไรลอยและเงินสดขึ้นมาจากของที่ไม่เคยมี
+   (ทดสอบจริงในชุดข้อมูลจำลอง: กำไรลอย 17,644.11 USD)
+
+   ตอนนี้ตัวตรวจมองชุดเดียวกับที่ engine ใช้คำนวณ */
 function validateTransactionSet(txs){
   let pos={};
-  let sorted=[...txs].sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+  let sorted=[...txs].filter(t=>txStatus(t)!=="REJECTED")
+    .sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
   for(const t of sorted){
     if(t.type==="FX CONVERSION")continue;
     if(!TYPE_GROUPS.trade.includes(t.type)||!t.security)continue;
     let k=t.account+"|"+t.security,q=Number(t.qty)||0,have=pos[k]||0;
     if(["BUY","FUND SUBSCRIPTION"].includes(t.type))pos[k]=have+q;
     else{
-      if(q>have+1e-9)return `Transaction ${t.id}: ขาย ${fmt(q,4)} มากกว่าคงเหลือ ${fmt(have,4)}`;
+      if(q>have+1e-9)return `Transaction ${esc(t.id)}: ขาย ${fmt(q,4)} มากกว่าคงเหลือ ${fmt(have,4)}`;
       pos[k]=have-q;
     }
   }
   return "";
+}
+/* จำลองผลของการเปลี่ยนสถานะชุดหนึ่ง แล้วบอกว่า ledger ยังถูกต้องหรือไม่
+   decisions = {txnId:"APPROVED"|"REJECTED"|"RETURNED"} */
+function ledgerAfterDecisions(decisions){
+  const sim=state.transactions.map(t=>
+    Object.prototype.hasOwnProperty.call(decisions,t.id)?{...t,status:decisions[t.id]}:t);
+  return validateTransactionSet(sim);
 }
 function editTransaction(id){
   if(!guard("edit"))return;
@@ -3128,7 +3477,7 @@ function snapshotWithTransactions(txs){
   let old=state.transactions;state.transactions=txs;
   let v=viewData(),nav=v.holdings.reduce((a,x)=>a+x.mvUSD,0)+v.cash.reduce((a,x)=>a+x.mvUSD,0);
   let net=v.tx.filter(t=>["CASH IN","CASH OUT"].includes(t.type)).reduce((a,t)=>a+t.cashUSD,0);
-  let fxpl=v.holdings.reduce((a,x)=>a+x.fxPL+x.realizedFx,0)+v.cash.reduce((a,x)=>a+x.totalFx,0);
+  let fxpl=v.holdings.reduce((a,x)=>a+x.fxPL,0)+v.realizedFxAll+v.cash.reduce((a,x)=>a+x.totalFx,0);
   state.transactions=old;
   return {nav,totalPL:nav-net,fxPL:fxpl};
 }
@@ -3181,8 +3530,8 @@ function initForm(){
   let seg=["BUY","SELL","CASH IN","CASH OUT","DIVIDEND","INTEREST","COUPON","FX CONVERSION"];
   byId("typeSeg").innerHTML=seg.map(t=>`<button data-type="${t}" class="${t===currentType?'active':''}">${t}</button>`).join("");
   byId("typeSeg").querySelectorAll("button").forEach(b=>b.onclick=()=>{currentType=b.dataset.type;initForm();updateForm()});
-  fillSelect(byId("fAccount"),state.accounts,x=>x.id,x=>`${x.id} — ${x.name}`,"Select account");
-  fillSelect(byId("fSecurity"),state.securities,x=>x.id,x=>`${x.id} — ${x.name}`,"Select security");
+  fillSelect(byId("fAccount"),state.accounts,x=>x.id,x=>`${esc(x.id)} — ${esc(x.name)}`,"Select account");
+  fillSelect(byId("fSecurity"),state.securities,x=>x.id,x=>`${esc(x.id)} — ${esc(x.name)}`,"Select security");
   fillSelect(byId("fFxFrom"),CURRENCIES.map(c=>({c})),x=>x.c,x=>x.c);
   fillSelect(byId("fFxTo"),CURRENCIES.map(c=>({c})),x=>x.c,x=>x.c);
   if(!byId("fFxFrom").value)byId("fFxFrom").value="USD";
@@ -3210,8 +3559,8 @@ function updateForm(){
   document.querySelectorAll(".nonfx-field").forEach(x=>x.style.display=isFx?"none":"block");
   if(isFx){
     let a0=acct(byId("fAccount").value),d0=byId("fDate").value,L=fxLegs(d0);
-    byId("fPortfolio").value=a0?`${a0.portfolioId} — ${port(a0.portfolioId)?.name||""}`:"";
-    byId("fBroker").value=a0?`${a0.brokerId} — ${broker(a0.brokerId)?.name||""}`:"";
+    byId("fPortfolio").value=a0?`${esc(a0.portfolioId)} — ${esc(port(a0.portfolioId)?.name||"")}`:"";
+    byId("fBroker").value=a0?`${esc(a0.brokerId)} — ${esc(broker(a0.brokerId)?.name||"")}`:"";
     byId("fCurrency").value=L.from+" → "+L.to;
     byId("fFxToAmount").value=L.toAmt?`${L.to} ${fmt(L.toAmt,2)}`:"—";
     byId("fxCrossHint").textContent=L.cross?`Cross รายวัน ${L.from}→${L.to} = ${fmt(L.cross,6)}`:"FX รายวันไม่ครบ";
@@ -3228,7 +3577,7 @@ function updateForm(){
     return;
   }
   let a=acct(byId("fAccount").value),s=sec(byId("fSecurity").value),ccy=trade?(s?.currency||""):(a?.currency||"");
-  byId("fPortfolio").value=a?`${a.portfolioId} — ${port(a.portfolioId)?.name||""}`:"";byId("fBroker").value=a?`${a.brokerId} — ${broker(a.brokerId)?.name||""}`:"";byId("fCurrency").value=ccy;
+  byId("fPortfolio").value=a?`${esc(a.portfolioId)} — ${esc(port(a.portfolioId)?.name||"")}`:"";byId("fBroker").value=a?`${esc(a.brokerId)} — ${esc(broker(a.brokerId)?.name||"")}`:"";byId("fCurrency").value=ccy;
   byId("priceHint").textContent=s&&isFixed(s)?"Bond/Deposit ใช้ % of Par":"ราคาต่อหน่วย";
   let t={type:currentType,account:a?.id||"",security:s?.id||"",qty:Number(byId("fQty").value)||0,price:Number(byId("fPrice").value)||0,amount:Number(byId("fAmount").value)||0,fxOverride:Number(byId("fFxOverride").value)||0,accrued:Number(byId("fAccrued").value)||0,fee:Number(byId("fFee").value)||0,tax:Number(byId("fTax").value)||0,date:byId("fDate").value};
   let rate=t.fxOverride||getFx(ccy,t.date),gross=tradeGross(t,s),impact=cashImpact(t,gross);
@@ -3250,7 +3599,7 @@ function saveFxConversion(){
     amount:simRound(L.fromAmt,2),fxFrom:L.from,fxTo:L.to,fxFromAmount:simRound(L.fromAmt,2),fxToAmount:simRound(L.toAmt,2),
     dealRate:L.deal,fxOverride:L.rF,accrued:0,fee:Number(byId("fFee").value)||0,tax:0,
     ref:byId("fRef").value.trim(),note:byId("fNote").value.trim()||`Spot conversion ${L.from} → ${L.to} @ ${fmt(L.deal,6)}`,version:1});
-  save();alert(`Saved ${id}`);previewTxn=id;clearTransaction();renderAll();previewDocument(id);
+  save();alert(`Saved ${esc(id)}`);previewTxn=id;clearTransaction();renderAll();previewDocument(id);
 }
 function saveTransaction(){
   if(!guard("edit"))return;
@@ -3263,7 +3612,7 @@ function saveTransaction(){
   let newTxn={id,date,type:currentType,account:a.id,security:trade?s.id:"",qty,price,amount,fxOverride:Number(byId("fFxOverride").value)||0,accrued:Number(byId("fAccrued").value)||0,fee:Number(byId("fFee").value)||0,tax:Number(byId("fTax").value)||0,ref:byId("fRef").value.trim(),note:byId("fNote").value.trim(),version:1,status:"DRAFT",createdAt:new Date().toISOString()};
   let err=validateTransactionSet([...state.transactions,newTxn]);if(err){alert(err);return}
   state.transactions.push(newTxn);
-  save();alert(`Saved ${id}`);
+  save();alert(`Saved ${esc(id)}`);
   warnIfGoesNegative();
   previewTxn=id;clearTransaction();renderAll();previewDocument(id);
 }
@@ -3274,7 +3623,7 @@ function addPortfolio(){let id=byId("pId").value.trim().toUpperCase(),name=byId(
 function addBroker(){let id=byId("bId").value.trim().toUpperCase(),name=byId("bName").value.trim();if(!id||!name)return alert("กรอก Broker ID และชื่อ");state.brokers.push({id,name,country:byId("bCountry").value.trim(),currency:byId("bCcy").value||"USD"});save();renderAll()}
 function addAccount(){let id=byId("aId").value.trim().toUpperCase(),name=byId("aName").value.trim(),portfolioId=byId("aPortfolio").value,brokerId=byId("aBroker").value;if(!id||!name||!portfolioId||!brokerId)return alert("กรอก Account ให้ครบ");state.accounts.push({id,name,portfolioId,brokerId,currency:byId("aCcy").value||"USD"});save();renderAll()}
 function addSecurity(){let id=byId("sId").value.trim().toUpperCase(),name=byId("sName").value.trim(),instrument=byId("sType").value,currency=byId("sCcy").value;if(!id||!name||!instrument||!currency)return alert("กรอก Security ให้ครบ");state.securities.push({id,name,assetClass:byId("sAsset").value.trim()||instrument,instrument,currency,face:Number(byId("sFace").value)||0,coupon:0,frequency:"",dayCount:byId("sDayCount").value,maturity:"",isin:(byId("sIsin")?.value||"").trim().toUpperCase(),market:(byId("sMarket")?.value||"").trim()});save();renderAll()}
-function editFixedDates(id){let x=state.fixedDates[id]||{},p=prompt(`Prev Coupon / Start (${id}) YYYY-MM-DD`,x.prev||"");if(p===null)return;let n=prompt(`Next Coupon / Maturity (${id}) YYYY-MM-DD`,x.next||sec(id)?.maturity||"");if(n===null)return;state.fixedDates[id]={prev:p,next:n};save();renderAll()}
+function editFixedDates(id){let x=state.fixedDates[id]||{},p=prompt(`Prev Coupon / Start (${esc(id)}) YYYY-MM-DD`,x.prev||"");if(p===null)return;let n=prompt(`Next Coupon / Maturity (${esc(id)}) YYYY-MM-DD`,x.next||sec(id)?.maturity||"");if(n===null)return;state.fixedDates[id]={prev:p,next:n};save();renderAll()}
 /* ==================================================================
    IMPORT / EXPORT
    ข้อมูลถูกเก็บใน Local Storage ของเบราว์เซอร์แต่ละเครื่อง จึงไม่แชร์กันเอง
@@ -3321,15 +3670,32 @@ function diffIndex(base,cur){
 function byIdMap(arr,key){let m={};(arr||[]).forEach(x=>{if(x&&x[key]!==undefined)m[x[key]]=x});return m}
 
 /* รวมรายการอ้างอิง (securities/accounts/...) แบบ union — ของใครเพิ่มมาก็เก็บไว้ทั้งคู่ */
-function unionByKey(theirs,mine,key){
-  const out=[...(theirs||[])], seen=new Set(out.map(x=>x[key]));
-  (mine||[]).forEach(x=>{if(!seen.has(x[key])){out.push(x);seen.add(x[key])}});
+/* รวมข้อมูลหลัก (พอร์ต โบรก บัญชี หลักทรัพย์)
+
+   ของเดิม ถ้ารหัสเดียวกันแต่เนื้อหาต่างกัน ฝั่ง theirs ชนะเสมอโดยไม่มีคำเตือน
+   สองคนแก้ชื่อบัญชีเดียวกันคนละแบบ การแก้ของคนที่กดทีหลังจะหายไปเงียบ ๆ
+   (คอมเมนต์เดิมเขียนว่า "ของใหม่กว่าชนะ" ซึ่งไม่ตรงกับที่โค้ดทำจริง)
+
+   ตอนนี้เก็บรายการที่ชนกันไว้ใน onConflict เพื่อให้ผู้ใช้ตัดสินใจเอง */
+function unionByKey(theirs,mine,key,label,onConflict){
+  const out=[...(theirs||[])], idx=new Map(out.map(x=>[x[key],x]));
+  (mine||[]).forEach(x=>{
+    const t=idx.get(x[key]);
+    if(!t){out.push(x);idx.set(x[key],x);return}
+    if(JSON.stringify(t)!==JSON.stringify(x)&&onConflict)
+      onConflict((label||key)+" "+x[key]);
+  });
   return out;
 }
-/* ราคาและ FX ใช้คู่ (security,date) / (date) เป็นกุญแจ ของใหม่กว่าชนะ */
-function unionByComposite(theirs,mine,keyFn){
+/* ราคาและ FX ใช้คู่ (security,date) / (date) เป็นกุญแจ
+   ราคาวันเดียวกันที่ต่างกัน = ชนกันเช่นกัน ต้องบอกผู้ใช้ */
+function unionByComposite(theirs,mine,keyFn,label,onConflict){
   const m=new Map();(theirs||[]).forEach(x=>m.set(keyFn(x),x));
-  (mine||[]).forEach(x=>{if(!m.has(keyFn(x)))m.set(keyFn(x),x)});
+  (mine||[]).forEach(x=>{
+    const k=keyFn(x),t=m.get(k);
+    if(t===undefined){m.set(k,x);return}
+    if(JSON.stringify(t)!==JSON.stringify(x)&&onConflict)onConflict((label||"")+" "+k);
+  });
   return [...m.values()];
 }
 
@@ -3357,13 +3723,22 @@ function threeWayMerge(baseIndex, mine, theirs){
   const merged=JSON.parse(JSON.stringify(theirs));
   merged.transactions=Object.values(map).sort((a,b)=>
     a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
-  merged.portfolios = unionByKey(theirs.portfolios, mine.portfolios, "id");
-  merged.brokers    = unionByKey(theirs.brokers,    mine.brokers,    "id");
-  merged.accounts   = unionByKey(theirs.accounts,   mine.accounts,   "id");
-  merged.securities = unionByKey(theirs.securities, mine.securities, "id");
-  merged.prices     = unionByComposite(theirs.prices, mine.prices, x=>x.security+"|"+x.date);
-  merged.fx         = unionByComposite(theirs.fx,     mine.fx,     x=>x.date);
-  merged.fixedDates = Object.assign({}, mine.fixedDates||{}, theirs.fixedDates||{});
+  const mc=[]; const C=x=>mc.push(x);
+  merged.portfolios = unionByKey(theirs.portfolios, mine.portfolios, "id","พอร์ต",C);
+  merged.brokers    = unionByKey(theirs.brokers,    mine.brokers,    "id","โบรกเกอร์",C);
+  merged.accounts   = unionByKey(theirs.accounts,   mine.accounts,   "id","บัญชี",C);
+  merged.securities = unionByKey(theirs.securities, mine.securities, "id","หลักทรัพย์",C);
+  merged.prices     = unionByComposite(theirs.prices, mine.prices, x=>x.security+"|"+x.date,"ราคา",C);
+  merged.fx         = unionByComposite(theirs.fx,     mine.fx,     x=>x.date,"อัตราแลกเปลี่ยน",C);
+  merged.holidays   = unionByComposite(theirs.holidays||[], mine.holidays||[],
+                        x=>x.date+"|"+String(x.ccy||"").toUpperCase(),"วันหยุด",C);
+  /* วันจ่ายดอกเบี้ย: ของเดิม theirs ทับ mine เสมอ — ต้องฟ้องเมื่อไม่ตรงกัน */
+  const fdM=mine.fixedDates||{}, fdT=theirs.fixedDates||{};
+  Object.keys(fdM).forEach(k=>{
+    if(fdT[k]&&JSON.stringify(fdT[k])!==JSON.stringify(fdM[k]))C("วันจ่ายดอกเบี้ย "+k);
+  });
+  merged.fixedDates = Object.assign({}, fdM, fdT);
+  if(mc.length)return {ok:false,collisions:[...new Set(mc)],masterOnly:true,myDiff,thDiff};
   merged.auditTrail = [...(theirs.auditTrail||[]),
     ...(mine.auditTrail||[]).filter(e=>!(theirs.auditTrail||[]).some(x=>
       x.txnId===e.txnId&&x.versionTo===e.versionTo&&x.amendedAt===e.amendedAt))];
@@ -3401,7 +3776,7 @@ async function pullLatest(){
   const r=threeWayMerge(base,state,remote);
   if(!r.ok){
     alert("ไม่สามารถรวมข้อมูลอัตโนมัติได้\n\n"+
-      "รายการต่อไปนี้ถูกแก้ทั้งจากคุณและจากผู้อื่น:\n  "+r.collisions.slice(0,12).join("\n  ")+
+      (r.masterOnly?"ข้อมูลหลักต่อไปนี้ถูกแก้ทั้งจากคุณและจากผู้อื่น (คนละค่า):\n  ":"รายการต่อไปนี้ถูกแก้ทั้งจากคุณและจากผู้อื่น:\n  ")+r.collisions.slice(0,12).join("\n  ")+
       (r.collisions.length>12?"\n  … และอีก "+(r.collisions.length-12)+" รายการ":"")+
       "\n\nกรุณา Export JSON เก็บงานของคุณไว้ก่อน แล้วปรึกษากับผู้ที่แก้รายการเดียวกัน");
     return false;
@@ -3695,6 +4070,18 @@ function decide(id,decision){
       +"ถ้าต้องการเปลี่ยนผู้อนุมัติ ให้ผู้บันทึกรายการส่งเข้าอนุมัติใหม่");
     return;
   }
+  /* ปฏิเสธรายการซื้อ อาจทำให้รายการขายที่อนุมัติไปแล้วกลายเป็นขายของที่ไม่มี
+     ต้องบอกผู้อนุมัติตั้งแต่ตอนกด ไม่ใช่ปล่อยให้ไปพังตอนฝ่ายการเงินนำเข้าผล */
+  if(decision==="REJECTED"){
+    const pending=Object.fromEntries(Object.keys(LOCAL_DECISIONS)
+      .map(k=>[k,LOCAL_DECISIONS[k].decision]));
+    pending[id]="REJECTED";
+    const bad=ledgerAfterDecisions(pending);
+    if(bad&&!confirm("เตือน: ถ้าไม่อนุมัติ "+id+" บัญชีจะกลายเป็นขายของที่ไม่มี\n\n"+bad
+        +"\n\nปกติต้องจัดการรายการขายที่เกี่ยวข้องด้วย หรือใช้ \"ส่งกลับแก้ไข\" แทน\n"
+        +"ถ้ายืนยัน ผลชุดนี้จะถูกปฏิเสธทั้งชุดตอนฝ่ายการเงินนำเข้า จนกว่าจะแก้ให้ครบ\n\n"
+        +"ยืนยันบันทึกผล \"ไม่อนุมัติ\" ต่อหรือไม่"))return;
+  }
   let note="";
   if(decision==="REJECTED"){
     note=prompt("เหตุผลที่ไม่อนุมัติ "+id+" (จำเป็น)\n\n"
@@ -3969,7 +4356,7 @@ function pasteApLink(){
 const CSV_COLUMNS=[
   ["Transaction ID",    t=>t.id],
   ["Trade Date",        t=>t.date],
-  ["Settlement Date",   t=>addBusinessDays(t.date,2)],
+  ["Settlement Date",   t=>addBusinessDays(t.date,2,t.currency||txnCurrency(t))],
   ["Transaction Type",  t=>t.type],
   ["Portfolio",         t=>t.portfolio||""],
   ["Account",           t=>t.account||""],
@@ -4179,7 +4566,7 @@ async function emailExternalInstruction(){
     const a=acct(acc), b=a?broker(a.brokerId):null;
     L.push("Account: "+acc+(b?"  |  Broker: "+b.name:""));
     byAcct[acc].forEach(t=>{
-      const sd=addBusinessDays(t.date,2);
+      const sd=addBusinessDays(t.date,2,t.currency||txnCurrency(t));
       L.push("  - "+t.id+"  "+t.type+"  "+(t.security||"CASH")
         +(t.qty?"  Qty "+num4(t.qty):"")
         +(t.price?"  @ "+num4(t.price):"")
@@ -4366,13 +4753,45 @@ async function copyDecisionLink(){
 /* ตัวกลางที่ทั้งการนำเข้าไฟล์และการวางข้อความเรียกใช้ร่วมกัน */
 function applyDecisions(d){
   if(!d||d.type!=="portfolio-approvals"||!d.decisions){alert("ไม่ใช่ข้อมูลผลอนุมัติ");return}
-  const applied=[],changed=[],missing=[],skipped=[];
+  /* ตรวจก่อนลง ไม่ใช่ลงแล้วค่อยรู้ — ผลอนุมัติที่ทำให้บัญชีขายของที่ไม่มี ต้องไม่ผ่านทั้งชุด */
+  {
+    const simMap={};
+    Object.keys(d.decisions).forEach(id=>{
+      const t=state.transactions.find(x=>x.id===id);
+      if(t&&txStatus(t)==="PENDING")simMap[id]=d.decisions[id].decision;
+    });
+    const bad=Object.keys(simMap).length?ledgerAfterDecisions(simMap):"";
+    if(bad){
+      alert("ไม่นำเข้าผลอนุมัติชุดนี้ เพราะจะทำให้บัญชีไม่ถูกต้อง\n\n"+bad
+        +"\n\nสาเหตุที่พบบ่อย: รายการซื้อถูกปฏิเสธ แต่รายการขายของหลักทรัพย์เดียวกันถูกอนุมัติ\n"
+        +"กรุณาให้ผู้อนุมัติพิจารณาทั้งชุดใหม่ ไม่มีรายการใดถูกบันทึกจากไฟล์นี้");
+      return;
+    }
+  }
+  const applied=[],changed=[],missing=[],skipped=[],unsigned=[],wrongWho=[];
   Object.keys(d.decisions).forEach(id=>{
     const dec=d.decisions[id];
     const t=state.transactions.find(x=>x.id===id);
     if(!t){missing.push(id);return}
     if(txStatus(t)!=="PENDING"){skipped.push(id);return}
-    if(dec.hash&&dec.hash!==txnHash(t)){changed.push(id);return}
+    /* ---------- ด่านที่ 1: ลายนิ้วมือของรายการ ----------
+       ของเดิมเช็ค hash เฉพาะเมื่อมีมาด้วย (dec.hash && ...) แปลว่าไฟล์ที่ "ไม่ใส่ hash"
+       ผ่านฉลุย ใครก็ตามที่เขียน JSON เองก็อนุมัติแทนได้
+       ผลอนุมัติที่ระบบสร้างเองมี hash เสมอ ดังนั้นการบังคับจึงไม่กระทบการใช้งานปกติ */
+    if(!dec.hash){unsigned.push(id);return}
+    if(dec.hash!==txnHash(t)){changed.push(id);return}
+    /* ---------- ด่านที่ 2: ต้องเป็นผู้อนุมัติที่ถูกมอบหมายรอบนี้ ----------
+       ของเดิมรับ dec.by มาเป็นชื่อผู้อนุมัติดื้อ ๆ แล้วบันทึกลง audit trail
+       ทำให้หลักฐานการอนุมัติระบุชื่อคนที่ไม่เคยอนุมัติได้ */
+    const who=memberByIdOrName(dec.by);
+    if(t.assignedTo){
+      const want=memberByIdOrName(t.assignedTo);
+      if(!who||!want||who.id!==want.id){wrongWho.push(id+" → \""+(dec.by||"(ไม่ระบุ)")+"\"");return}
+    }else if(!who||who.role!=="approver"){
+      wrongWho.push(id+" → \""+(dec.by||"(ไม่ระบุ)")+"\"");return;
+    }
+    /* บันทึกชื่อจากทะเบียนทีม ไม่ใช่ข้อความที่มากับไฟล์ */
+    dec.by=who.name||who.id;
     t.status=dec.decision; t.approvedBy=dec.by; t.approvedAt=dec.at;
     if(dec.note)t.approvalNote=dec.note;
     if(dec.decision==="RETURNED"){
@@ -4385,8 +4804,14 @@ function applyDecisions(d){
     applied.push(id);
   });
   save(); renderAll();
-  let msg="นำเข้าผลอนุมัติแล้ว\n\nลงระบบสำเร็จ: "+applied.length+" รายการ";
+  const post=validateTransactionSet(state.transactions);
+  let msg=(post?"\u26a0 บัญชีไม่สมดุลหลังนำเข้า — "+post+"\n\n":"")
+    +"นำเข้าผลอนุมัติแล้ว\n\nลงระบบสำเร็จ: "+applied.length+" รายการ";
   if(changed.length)msg+="\n\n⚠ ต้องอนุมัติใหม่ "+changed.length+" รายการ (ถูกแก้ไขหลังผู้อนุมัติตรวจ):\n  "+changed.slice(0,8).join("\n  ");
+  if(unsigned.length)msg+="\n\n\u26d4 ปฏิเสธ "+unsigned.length+" รายการ — ไฟล์ไม่มีลายนิ้วมือของรายการ\n"
+    +"  ผลอนุมัติที่ระบบสร้างจะมีเสมอ ไฟล์นี้จึงไม่ได้มาจากหน้า Approvals:\n  "+unsigned.slice(0,8).join("\n  ");
+  if(wrongWho.length)msg+="\n\n\u26d4 ปฏิเสธ "+wrongWho.length+" รายการ — ผู้อนุมัติไม่ตรงกับที่มอบหมาย\n"
+    +"  (หรือชื่อไม่มีในทะเบียนทีม):\n  "+wrongWho.slice(0,8).join("\n  ");
   if(skipped.length)msg+="\n\nข้าม "+skipped.length+" รายการ (ไม่ได้อยู่สถานะรออนุมัติแล้ว)";
   if(missing.length)msg+="\n\nไม่พบ "+missing.length+" รายการในระบบ";
   if(applied.length)msg+="\n\nอย่าลืมกด \"เผยแพร่ให้ทีม\" เพื่อให้ทุกคนเห็นผลอนุมัตินี้";
@@ -4507,8 +4932,8 @@ function renderDraftReview(){
     +'<span style="font-size:12.5px;font-weight:700">ส่งให้ใครอนุมัติ</span>'
     +(aps.length
        ? '<select id="apprAssign" style="border:1px solid var(--line);border-radius:9px;padding:7px 10px;min-width:260px">'
-         +aps.map(m=>'<option value="'+m.id+'"'+(m.id===last?" selected":"")+'>'
-           +((m.name||"(ยังไม่ระบุชื่อ)")+(m.title?" · "+m.title:""))
+         +aps.map(m=>'<option value="'+esc(m.id)+'"'+(m.id===last?" selected":"")+'>'
+           +esc((m.name||"(ยังไม่ระบุชื่อ)")+(m.title?" · "+m.title:""))
            +(String(m.email||"").trim()?"":"  — ยังไม่มีอีเมล")+'</option>').join("")
          +'</select>'
          +'<span class="muted" style="font-size:11.5px">เฉพาะคนที่เลือกเท่านั้นที่ตัดสินรายการรอบนี้ได้</span>'
@@ -4518,13 +4943,13 @@ function renderDraftReview(){
     '<tr'+(txStatus(t)==="RETURNED"?' class="row-returned"':'')+'><td class="muted" style="font-size:11px">'+(t.createdAt
         ? new Date(t.createdAt).toLocaleString("th-TH",{dateStyle:"short",timeStyle:"short"})
         : "—")+'</td>'
-    +'<td><b>'+t.id+'</b>'+(txStatus(t)==="RETURNED"?statusBadge(t):"")
-      +(t.returnedNote?'<br><span class="warn" style="font-size:10.5px">ให้แก้: '+t.returnedNote+'</span>'
-        +(t.returnedBy?'<br><span class="muted" style="font-size:10px">โดย '+t.returnedBy
+    +'<td><b>'+esc(t.id)+'</b>'+(txStatus(t)==="RETURNED"?statusBadge(t):"")
+      +(t.returnedNote?'<br><span class="warn" style="font-size:10.5px">ให้แก้: '+esc(t.returnedNote)+'</span>'
+        +(t.returnedBy?'<br><span class="muted" style="font-size:10px">โดย '+esc(t.returnedBy)
           +(t.returnedAt?" · "+new Date(t.returnedAt).toLocaleString("th-TH",{dateStyle:"short",timeStyle:"short"}):"")+'</span>':"")
         :"")
       +'</td><td>'+dmy(t.date)+'</td><td>'+typeBadge(t.type)+'</td>'
-    +'<td>'+(t.security||"CASH")+'</td><td>'+t.account+'</td>'
+    +'<td>'+esc(t.security||"CASH")+'</td><td>'+esc(t.account)+'</td>'
     +'<td class="num">'+(t.qty?fmt(t.qty,2):"—")+'</td>'
     +'<td class="num">'+fmt(t.gross,2)+' '+t.currency+'</td>'
     +'<td class="num '+(t.cashUSD>=0?"pos":"neg")+'">'+usd(t.cashUSD)+'</td>'
@@ -4905,7 +5330,7 @@ function renderDataStatus(){
   let html="";
   if(DATA_SOURCE==="published"){
     html='<b style="color:#8fe3b8">● ข้อมูลจากส่วนกลาง</b><br>เผยแพร่เมื่อ '+when+
-         (state.publishedBy?'<br>โดย '+state.publishedBy:'')+'<br>ทุกคนที่เปิดลิงก์นี้เห็นชุดเดียวกัน';
+         (state.publishedBy?'<br>โดย '+esc(state.publishedBy):'')+'<br>ทุกคนที่เปิดลิงก์นี้เห็นชุดเดียวกัน';
   }else if(DATA_SOURCE==="draft"){
     html='<b style="color:#ffc9a3">● มีการแก้ไขที่ยังไม่เผยแพร่</b><br>'+
          (when?'ต่อยอดจากชุดที่เผยแพร่ '+when+'<br>':'')+
@@ -5025,6 +5450,7 @@ const PAGE_RENDER={
 };
 function renderAll(){
   if(!STORAGE_OK)showStorageWarning();
+  clearDataGaps();
   state.auditTrail=state.auditTrail||[];
   initSelectors();
   let f=PAGE_RENDER[currentPage];
@@ -5037,6 +5463,7 @@ function renderAll(){
     : state.transactions.filter(t=>txStatus(t)==="PENDING").length;
   const dot=byId("navPendingDot"); if(dot){dot.textContent=pend?pend:"";dot.style.display=pend?"inline-block":"none"}
   byId("approvalView").value=SHOW_APPROVED_ONLY?"1":"0";
+  renderDataGaps();
   renderVersion();
   renderGovPanel();
   initForm();
