@@ -81,6 +81,7 @@ tbody tr:hover{background:#f8fbff}
 .badge{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;font-size:10px;font-weight:800}
 .civ-row.recon-warn{background:#fff6e5;color:#8a5a00}.civ-row.recon-warn small{display:block;font-weight:400;font-size:11px;opacity:.8}
 tr.row-unrecon td{background:#fff6e5;color:#8a5a00;font-weight:600}
+tr.row-other-approver td{background:#fafbfc;opacity:.92}
 .gap-bar{display:flex;gap:10px;align-items:flex-start;background:#fff6e5;border:1px solid #f0d9a8;border-radius:8px;padding:11px 14px;margin:0 0 14px;color:#7a4e00;font-size:13px}.gap-bar .gap-ic{font-size:15px;line-height:1.2}.gap-bar .gap-list{font-size:12px;opacity:.9;margin-top:3px}.rolled-tag{display:inline-block;background:#fff1cf;color:#8a5a00;border-radius:5px;padding:1px 5px;font-size:10px;font-weight:700;margin-left:4px}
 .badge.buy{background:#e4f7ef;color:#087a52}.badge.sell{background:#ffe9e7;color:#b23b32}.badge.cash{background:#eaf2ff;color:#225fae}.badge.income{background:#fff4d7;color:#8a5a00}
 .form-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(320px,.55fr);gap:18px}
@@ -1568,9 +1569,9 @@ function showStorageWarning(){
    กติกา: แก้เลขนี้ทุกครั้งที่อัปโหลด index.html ขึ้น GitHub
           X.Y = เพิ่มความสามารถ · X.Y.Z = แก้บั๊ก/ปรับเล็กน้อย
    ================================================================== */
-const APP_VERSION="1.18.0";
+const APP_VERSION="1.19.0";
 const APP_BUILD="2026-09-14";
-const APP_VERSION_NOTE="แยกค่าธรรมเนียม/ภาษี/ดอกเบี้ยค้างออกจาก Capital Gain · สองรายงานกระทบยอดกันแล้ว · ตัวตรวจ ledger นับเฉพาะรายการที่มีผล · ไฟล์ผลอนุมัติต้องมีลายนิ้วมือและตรงผู้รับมอบหมาย · escape ข้อความทุกจุด · เตือนเมื่อข้อมูลตลาดขาด · เลื่อนงวดดอกเบี้ยอัตโนมัติหลังวันจ่าย · ปฏิทินวันหยุดตลาดที่ทีมกรอกเองและใช้คำนวณวันชำระราคา · วันจ่ายดอกเบี้ยเลื่อนวันทำการตามหลักสากล (ดอกเบี้ยยังเดินแบบไม่ปรับ) · รอบการชำระราคาแก้ได้เอง ไม่ฝังตายที่ T+2";
+const APP_VERSION_NOTE="แยกค่าธรรมเนียม/ภาษี/ดอกเบี้ยค้างออกจาก Capital Gain · สองรายงานกระทบยอดกันแล้ว · ตัวตรวจ ledger นับเฉพาะรายการที่มีผล · ไฟล์ผลอนุมัติต้องมีลายนิ้วมือและตรงผู้รับมอบหมาย · escape ข้อความทุกจุด · เตือนเมื่อข้อมูลตลาดขาด · เลื่อนงวดดอกเบี้ยอัตโนมัติหลังวันจ่าย · ปฏิทินวันหยุดตลาดที่ทีมกรอกเองและใช้คำนวณวันชำระราคา · วันจ่ายดอกเบี้ยเลื่อนวันทำการตามหลักสากล (ดอกเบี้ยยังเดินแบบไม่ปรับ) · รอบการชำระราคาแก้ได้เอง ไม่ฝังตายที่ T+2 · ผู้อนุมัติคนอื่นรับช่วงได้เมื่อเจ้าของเดิมไม่อยู่ · TWR ฟ้องเดือนที่คำนวณไม่ได้ · ไฟล์ JSON ที่บัญชีไม่สมดุลถูกปฏิเสธ";
 function versionLabel(){return "v"+APP_VERSION}
 function versionFull(){return "v"+APP_VERSION+" · build "+APP_BUILD}
 function byId(id){return document.getElementById(id)}
@@ -1930,19 +1931,32 @@ function externalFlows(from,to){
 function shiftDay(ds,n){let d=new Date(ds+"T00:00:00Z");d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
 function monthEnd(ds){let [y,m]=ds.split("-").map(Number);let d=new Date(Date.UTC(y,m,0));return d.toISOString().slice(0,10)}
 /* Modified Dietz over (from, to]; `from` is the previous close. */
+/* Modified Dietz — ผลตอบแทนของงวดย่อยหนึ่งเดือน
+
+   ตัวหาร = มูลค่าต้นงวด + กระแสเงินถ่วงน้ำหนักตามเวลา
+   มีสองกรณีที่คำนวณต่อไม่ได้ และ "ทั้งสองกรณีต้องไม่เงียบ":
+
+   zero     ตัวหารเกือบศูนย์ — เช่น เริ่มงวดด้วยมูลค่าศูนย์ แล้วเงินเข้าวันสุดท้าย
+            ของเดิมคืน null แล้ว twrChain ข้ามเดือนนั้นไปเฉย ๆ
+            = นับผลตอบแทนเดือนนั้นเป็น 0% โดยไม่มีใครรู้
+   negative ตัวหารติดลบ — เงินไหลออกมากกว่ามูลค่าต้นงวด (ใช้วงเงินเบิกเกิน)
+            สูตรยังคำนวณได้แต่ผลตอบแทน "กลับเครื่องหมาย" ซึ่งไม่มีความหมายทางการเงิน
+
+   ตอนนี้คืนเหตุผลกลับไปด้วย (skip) เพื่อให้รายงานฟ้องได้ */
 function modifiedDietz(from,to){
   if(to<=from)return null;
   let bmv=navAt(from),emv=navAt(to);
   let D=dayDiff(from,to)||1,cf=0,wcf=0;
   externalFlows(from,to).forEach(f=>{cf+=f.usd;wcf+=f.usd*((D-dayDiff(from,f.date))/D)});
   let den=bmv+wcf;
-  if(Math.abs(den)<1e-6)return null;
-  return {r:(emv-bmv-cf)/den,bmv,emv,cf,den,days:D};
+  if(Math.abs(den)<1e-6)return {r:null,skip:"zero",bmv,emv,cf,den,days:D};
+  if(den<0)          return {r:null,skip:"negative",bmv,emv,cf,den,days:D};
+  return {r:(emv-bmv-cf)/den,skip:"",bmv,emv,cf,den,days:D};
 }
 /* Chain-linked monthly TWR over (from, to] */
 function twrChain(from,to){
   if(!from||!to||to<=from)return {twr:null,months:[]};
-  let months=[],cur=from,prod=1,ok=false,guard=0;
+  let months=[],skipped=[],cur=from,prod=1,ok=false,guard=0;
   while(cur<to){
     /* กันลูปค้าง: ถ้าขอบเขตงวดไม่ขยับไปข้างหน้า ให้เลิกทันที
        (เคยเกิดจริงเมื่อคำนวณวันที่ข้ามเขตเวลาแล้ว end ย้อนกลับมาเท่ากับ cur) */
@@ -1950,13 +1964,18 @@ function twrChain(from,to){
     let me=monthEnd(shiftDay(cur,1)),end=me<to?me:to;
     if(end<=cur){console.error("twrChain: งวดไม่คืบหน้า ที่",cur,"->",end);break}
     let md=modifiedDietz(cur,end);
-    if(md){prod*=(1+md.r);ok=true;months.push({from:cur,to:end,label:new Date(end+"T00:00:00Z").toLocaleDateString("en-GB",{month:"short",year:"numeric",timeZone:"UTC"}),...md})}
+    if(md){
+      const lbl=new Date(end+"T00:00:00Z").toLocaleDateString("en-GB",{month:"short",year:"numeric",timeZone:"UTC"});
+      if(md.skip){ skipped.push({from:cur,to:end,label:lbl,why:md.skip,bmv:md.bmv,den:md.den}) }
+      else { prod*=(1+md.r); ok=true }
+      months.push({from:cur,to:end,label:lbl,...md});
+    }
     cur=end;
   }
-  if(!ok)return {twr:null,months};
+  if(!ok)return {twr:null,months,skipped};
   let twr=prod-1,days=dayDiff(from,to);
   let ann=days>365?Math.pow(1+twr,365/days)-1:null;
-  return {twr,ann,months,days};
+  return {twr,ann,months,days,skipped};
 }
 function performanceBlock(){
   const val=state.valuationDate,inc=inceptionDate();
@@ -2033,8 +2052,9 @@ function periodBreakdown(from,to){
   const accrued=(b.accruedRecv-a.accruedRecv)+(b.tradeAccrued-a.tradeAccrued);
   const expense=b.expense-a.expense;
   const unreconciled=ending-opening-netContrib-capital-income-accrued-expense-fx;
+  const tw=twrChain(from,to);
   return {opening,netContrib,capital,realized,unrealized,income,accrued,expense,fx,
-          unreconciled,ending,twr:twrChain(from,to).twr};
+          unreconciled,ending,twr:tw.twr,twrSkipped:tw.skipped||[]};
 }
 /* ระดับที่ถือว่า "กระทบยอดไม่ลง" — 0.01% ของ NAV หรืออย่างน้อย 1 หน่วยเงิน */
 function reconTolerance(nav){return Math.max(1,Math.abs(nav)*0.0001)}
@@ -2453,8 +2473,16 @@ function renderDashboard(){
           ?perfRow("⚠ Unreconciled",x=>x.unreconciled,{sign:1,cls:"row-unrecon"}):""}
         ${perfRow("Ending Portfolio Value",x=>x.ending,{cls:"sub tot"})}
         ${perfRow("Period Performance in % (TWR)",x=>x.twr,{pct:1,sign:1,cls:"total"})}
+        ${perfCols.some(p=>(pm[p.key].twrSkipped||[]).length)
+          ?`<tr class="row-unrecon"><td>\u26a0 เดือนที่คำนวณผลตอบแทนไม่ได้</td>`
+            +perfCols.map(p=>{const sk=pm[p.key].twrSkipped||[];
+              return `<td class="n">${sk.length?esc(sk.map(x=>x.label+(x.why==="negative"?" (ตัวหารติดลบ)":" (ตัวหารเป็นศูนย์)")).join(", ")):"—"}</td>`}).join("")
+            +`</tr>`:""}
       </tbody></table></div>
       <div class="small-note" style="padding:8px 18px 12px">
+        ${perfCols.some(p=>(pm[p.key].twrSkipped||[]).length)
+          ?'<b class="neg">เดือนที่คำนวณไม่ได้ถูกนับเป็นผลตอบแทน 0% ในการ chain-link ตัวเลข TWR ของงวดนั้นจึงต่ำหรือสูงกว่าความจริง — '
+            +'ตัวหารเป็นศูนย์มักเกิดเมื่อเริ่มงวดด้วยมูลค่าศูนย์แล้วเงินเข้าปลายงวด ส่วนตัวหารติดลบเกิดเมื่อเงินไหลออกมากกว่ามูลค่าต้นงวด</b><br>':''}
         ผลตอบแทนคำนวณด้วยวิธี Time-Weighted Return (TWR) — Modified Dietz รายเดือนแล้ว chain-link แบบทวีคูณ ตัดผลกระทบจากจังหวะและขนาดของเงินเข้า-ออก จึงสะท้อนฝีมือการบริหารพอร์ตและเทียบกับ Benchmark ได้ · ตั้งแต่เริ่มลงทุน ${dmy(inc)} จึงยังไม่มีข้อมูลปีก่อนหน้า
       </div>
     </div>
@@ -4127,6 +4155,39 @@ function approverOf(t){
   return memberByIdOrName(t.approvedBy)||memberByIdOrName(t.returnedBy)
        ||memberByIdOrName(t.assignedTo)||null;
 }
+/* ผู้อนุมัติคนอื่นรับช่วงรายการที่มอบหมายให้คนที่ไม่อยู่
+
+   ของเดิม assignedTo ถูกตั้งตอนกดส่งเข้าอนุมัติแล้วเปลี่ยนไม่ได้เลย
+   ถ้าผู้อนุมัติคนนั้นลา ลาออก หรือเข้าระบบไม่ได้ รายการจะค้างถาวร
+   เพราะผู้บันทึกก็แก้รายการสถานะ "รออนุมัติ" ไม่ได้เช่นกัน
+
+   เจตนาเดิมของการมอบหมายคือ "ให้มีผู้ตัดสินคนเดียวต่อรอบ ผลจะได้ไม่ขัดกัน"
+   การรับช่วงไม่ทำลายเจตนานั้น เพราะเป็นการ "ย้าย" ไม่ใช่ "เพิ่ม" ผู้ตัดสิน
+   และยังแยกผู้บันทึกกับผู้อนุมัติออกจากกันเหมือนเดิม
+
+   สิ่งที่ไม่ยอมให้ทำคือ "ผู้บันทึกเปลี่ยนผู้อนุมัติเอง" เพราะจะกลายเป็น
+   ผู้บันทึกเลือกได้ว่าจะให้ใครตรวจงานตัวเอง */
+function takeoverApproval(id){
+  if(!canApprove()){alert("เฉพาะผู้อนุมัติเท่านั้นที่รับช่วงได้");return}
+  const t=state.transactions.find(x=>x.id===id);
+  if(!t){alert("ไม่พบรายการ "+id);return}
+  if(txStatus(t)!=="PENDING"){alert("รายการนี้ไม่ได้อยู่ในสถานะรออนุมัติแล้ว");return}
+  const me2=memberByIdOrName(meId());
+  if(!me2){alert("ยังไม่ได้ระบุว่าคุณคือใคร\n\nเลือกชื่อของคุณจากทะเบียนทีมที่แถบซ้ายก่อน");return}
+  if(t.assignedTo===me2.id){alert("รายการนี้เป็นของคุณอยู่แล้ว");return}
+  const from=assignedName(t)||t.assignedTo||"(ไม่ระบุ)";
+  const why=prompt("รับช่วงพิจารณา "+id+" จาก "+from+"\n\n"
+    +"เหตุผล (จำเป็น) เช่น ผู้อนุมัติลาพักร้อน / เข้าระบบไม่ได้\n"
+    +"เหตุผลนี้จะถูกบันทึกถาวรลงประวัติการตรวจสอบ","");
+  if(why===null)return;
+  const reason=why.trim();
+  if(!reason){alert("ต้องระบุเหตุผลในการรับช่วง");return}
+  t.assignedTo=me2.id;
+  delete LOCAL_DECISIONS[id];
+  auditPush(id,"REASSIGN",(me2.name||me2.id)+" รับช่วงจาก "+from+" · "+reason);
+  save();renderAll();
+  toast("รับช่วง "+id+" แล้ว · อย่าลืมแจ้งฝ่ายการเงินให้เผยแพร่ชุดข้อมูลใหม่");
+}
 function assignedName(t){
   const m=memberByIdOrName(t&&t.assignedTo);
   return m?(m.name||m.title||m.id):"";
@@ -5168,11 +5229,13 @@ function renderApprovals(){
     .sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
   /* ผู้อนุมัติเห็นเฉพาะรายการที่มอบหมายให้ตน (รายการเก่าที่ยังไม่มีการมอบหมาย ให้เห็นได้ทุกคน)
      ส่วนผู้บันทึกและผู้ดูอย่างเดียว เห็นทั้งหมดเพื่อติดตามสถานะ */
-  const mine=pending.filter(t=>!t.assignedTo||t.assignedTo===meId());
-  const others=pending.length-mine.length;
-  if(ROLE==="approver"&&!canEdit())pending=mine;
+  /* ผู้อนุมัติเห็นทุกรายการ แต่ตัดสินได้เฉพาะของตน
+     ของคนอื่นจะขึ้นปุ่ม "รับช่วง" แทน เพื่อไม่ให้งานค้างเมื่อเจ้าของเดิมไม่อยู่ */
+  const isMine=t=>!t.assignedTo||t.assignedTo===meId();
+  const nMine=pending.filter(isMine).length;
+  const others=pending.length-nMine;
   byId("approvalCount").textContent=pending.length+" รายการรออนุมัติ"
-    +(ROLE==="approver"&&!canEdit()&&others?" (อีก "+others+" รายการมอบหมายให้ผู้อนุมัติคนอื่น)":"");
+    +(canApprove()&&others?" · ของคุณ "+nMine+" รายการ · มอบหมายให้ผู้อนุมัติคนอื่น "+others+" รายการ (รับช่วงได้)":"");
   const decided=Object.keys(LOCAL_DECISIONS).length;
   const bar=byId("approvalActions");
   if(bar){
@@ -5227,21 +5290,26 @@ function renderApprovals(){
   if(!pending.length){el.innerHTML='<tr><td colspan="9" class="empty">ไม่มีรายการรออนุมัติ</td></tr>';return}
   el.innerHTML=pending.map(t=>{
     const d=LOCAL_DECISIONS[t.id];
-    const act = canApprove()
+    const act = (canApprove()&&!isMine(t))
+      ? '<span class="muted" style="font-size:11.5px">มอบหมายให้ <b>'+esc(assignedName(t)||t.assignedTo)+'</b></span>'
+        +'<br><button class="btn btn-warn" style="padding:5px 8px;margin-top:4px" onclick="takeoverApproval(\''+escAttr(t.id)+'\')"'
+        +' title="ใช้เมื่อผู้อนุมัติที่ถูกมอบหมายไม่อยู่ ต้องระบุเหตุผลและจะถูกบันทึกลงประวัติ">รับช่วงพิจารณา</button>'
+      : canApprove()
       ? (d ? '<span class="'+(d.decision==="APPROVED"?"pos":(d.decision==="RETURNED"?"warn":"neg"))+'"><b>'+(DECISION_TH[d.decision]||d.decision)+'</b></span>'
               +(d.sentAt
                  ? '<br><span class="muted" style="font-size:10px">✓ ส่งอีเมลแล้ว '+new Date(d.sentAt).toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})+'</span>'
                  : '<br><span style="font-size:10px;color:#b7791f">● ยังไม่ได้ส่ง</span>')
-              +' <button class="btn btn-secondary" style="padding:5px 8px" onclick="undecide(\''+t.id+'\')">แก้</button>'
-              : '<button class="btn btn-primary" style="padding:6px 10px" onclick="decide(\''+t.id+'\',\'APPROVED\')">อนุมัติ</button> '
-                +'<button class="btn btn-warn" style="padding:6px 10px" onclick="decide(\''+t.id+'\',\'RETURNED\')" title="ส่งกลับให้ผู้บันทึกแก้ไข แล้วส่งเข้าอนุมัติใหม่ได้">ส่งกลับแก้ไข</button> '
-                +'<button class="btn btn-danger" style="padding:6px 10px" onclick="decide(\''+t.id+'\',\'REJECTED\')" title="ปฏิเสธถาวร เก็บเป็นหลักฐานแต่ไม่นับเข้าพอร์ต">ไม่อนุมัติ</button>')
+              +' <button class="btn btn-secondary" style="padding:5px 8px" onclick="undecide(\''+escAttr(t.id)+'\')">แก้</button>'
+              : '<button class="btn btn-primary" style="padding:6px 10px" onclick="decide(\''+escAttr(t.id)+'\',\'APPROVED\')">อนุมัติ</button> '
+                +'<button class="btn btn-warn" style="padding:6px 10px" onclick="decide(\''+escAttr(t.id)+'\',\'RETURNED\')" title="ส่งกลับให้ผู้บันทึกแก้ไข แล้วส่งเข้าอนุมัติใหม่ได้">ส่งกลับแก้ไข</button> '
+                +'<button class="btn btn-danger" style="padding:6px 10px" onclick="decide(\''+escAttr(t.id)+'\',\'REJECTED\')" title="ปฏิเสธถาวร เก็บเป็นหลักฐานแต่ไม่นับเข้าพอร์ต">ไม่อนุมัติ</button>')
       : '<span class="muted">—</span>';
-    return '<tr><td>'+dmy(t.date)+'</td><td><b>'+t.id+'</b></td><td>'+typeBadge(t.type)+'</td>'
-      +'<td>'+(t.security||"CASH")+'</td><td>'+t.account+'</td><td class="num">'+(t.qty?fmt(t.qty,2):"—")+'</td>'
-      +'<td class="num">'+fmt(t.gross,2)+' '+t.currency+'</td>'
+    return '<tr'+(canApprove()&&!isMine(t)?' class="row-other-approver"':'')+'>'
+      +'<td>'+dmy(t.date)+'</td><td><b>'+esc(t.id)+'</b></td><td>'+typeBadge(t.type)+'</td>'
+      +'<td>'+esc(t.security||"CASH")+'</td><td>'+esc(t.account)+'</td><td class="num">'+(t.qty?fmt(t.qty,2):"—")+'</td>'
+      +'<td class="num">'+fmt(t.gross,2)+' '+esc(t.currency)+'</td>'
       +'<td class="num">'+dm(t.cashUSD)+'</td>'
-      +'<td>'+act+' <button class="btn btn-secondary" style="padding:5px 8px" onclick="previewDocument(\''+t.id+'\')">ดูเอกสาร</button></td></tr>';
+      +'<td>'+act+' <button class="btn btn-secondary" style="padding:5px 8px" onclick="previewDocument(\''+escAttr(t.id)+'\')">ดูเอกสาร</button></td></tr>';
   }).join("");
 }
 
@@ -5546,8 +5614,15 @@ function importData(){
               "\n\nกรุณาใช้ไฟล์ที่ได้จากปุ่ม Export JSON เท่านั้น");
         return;
       }
+      /* ของเดิมแค่ถามแล้วให้กดผ่านได้ ซึ่งไม่สอดคล้องกับการนำเข้าผลอนุมัติ
+         ที่ตอนนี้ปฏิเสธทั้งชุดเมื่อบัญชีจะไม่สมดุล — ประตูหลังต้องล็อกเท่าประตูหน้า */
       let err=validateTransactionSet(data.transactions);
-      if(err&&!confirm("ข้อมูลในไฟล์มีปัญหา:\n"+err+"\n\nต้องการนำเข้าต่อหรือไม่?"))return;
+      if(err){
+        alert("ไม่นำเข้าไฟล์นี้ เพราะบัญชีในไฟล์ไม่สมดุล\n\n"+err
+          +"\n\nไฟล์นี้บันทึกการขายมากกว่าจำนวนที่ถืออยู่ ถ้านำเข้าจะได้กำไรและเงินสดที่ไม่มีอยู่จริง\n"
+          +"กรุณาแก้ที่ต้นทางแล้ว Export ใหม่ ไม่มีข้อมูลใดถูกเปลี่ยนจากไฟล์นี้");
+        return;
+      }
 
       let cur=state.transactions.length, inc=data.transactions.length;
       if(!confirm("นำเข้าข้อมูลจากไฟล์ "+f.name+"\n\n"+
