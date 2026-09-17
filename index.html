@@ -1554,7 +1554,9 @@ function save(){
   }
   state.__basedOn=PUBLISHED_STAMP;      /* ร่างนี้ต่อยอดจากข้อมูลเผยแพร่ชุดไหน */
   if(!state.__baseIndex)state.__baseIndex={};
-  if(!state.__baseMaster)state.__baseMaster=buildMasterBase(state);
+  /* ห้ามถ่ายภาพ state ปัจจุบันเป็น base — สิ่งที่เราเพิ่งแก้จะถูกนับว่าเป็นของเดิม
+     แล้วหายไปตอนรวมข้อมูล  ใช้ของว่างเหมือน __baseIndex={} */
+  if(!state.__baseMaster)state.__baseMaster=emptyMasterBase();
   DRAFT_DIRTY=true; DATA_SOURCE="draft";
   renderDataStatus();
   let ok=STORE.set(KEY,JSON.stringify(state));
@@ -1574,9 +1576,9 @@ function showStorageWarning(){
    กติกา: แก้เลขนี้ทุกครั้งที่อัปโหลด index.html ขึ้น GitHub
           X.Y = เพิ่มความสามารถ · X.Y.Z = แก้บั๊ก/ปรับเล็กน้อย
    ================================================================== */
-const APP_VERSION="1.20.0";
-const APP_BUILD="2026-09-14";
-const APP_VERSION_NOTE="ตรวจรอบ 2: นิยามเดียวของรายการที่นับเข้าพอร์ต · นำเข้าผลอนุมัติแบบ atomic · ปิด XSS ครบ 41 ฟิลด์ · three-way merge ข้อมูลหลักที่ถูกจริง · ข้อมูลตลาดขาดแล้วตัวเลขไม่เป็นทางการ · ดอกเบี้ยที่ถึงกำหนดเป็นลูกหนี้ ไม่หายจาก NAV · TWR เป็น N/A เมื่อมีเดือนวัดไม่ได้ · 30/360 US ปลายเดือน ก.พ. · เปิดเผยต้นทุนการซื้อขาย"
+const APP_VERSION="1.21.0";
+const APP_BUILD="2026-09-16";
+const APP_VERSION_NOTE="ตรวจโดยผู้ตรวจอิสระ: การแก้ไขไม่กลายเป็นการอนุมัติตัวเอง · แลกเงินต้องผ่านอนุมัติ · ทะเบียนทีมล็อกด้วยรหัสผู้ดูแล · ผู้อนุมัติต้องไม่ใช่ผู้บันทึก · ประวัติไม่หายตอนรวมข้อมูล · ดอกเบี้ยไม่นับซ้ำในวันจ่าย · ลูกหนี้ดอกเบี้ยผูกกับการถือครองจริงและแยกตามบัญชี"
 function versionLabel(){return "v"+APP_VERSION}
 function versionFull(){return "v"+APP_VERSION+" · build "+APP_BUILD}
 function byId(id){return document.getElementById(id)}
@@ -1864,7 +1866,10 @@ function couponPeriod(s,date){
   const perYear=s.frequency==="Annual"?1:s.frequency==="Quarterly"?4:2;
   const step=12/perYear;
   let rolled=0; const due=[];
-  while(date>next&&(!mat||next<mat)&&rolled<400){
+  /* ต้องเป็น >= ไม่ใช่ >  ในวันจ่ายดอกเบี้ยพอดี สิทธิ์เกิดขึ้นแล้วและเงินเข้าแล้ว
+     ถ้างวดยังไม่เลื่อน ระบบจะคิดดอกค้างเต็มงวดทั้งที่เงินสดก็รับมาแล้ว = นับซ้ำ
+     และวันจ่ายดอกเบี้ยมักเป็นวันสิ้นครึ่งปี/สิ้นปี ซึ่งคือวันที่ออกรายงานพอดี */
+  while(date>=next&&(!mat||next<mat)&&rolled<400){
     due.push(next);            /* งวดนี้ถึงกำหนดแล้ว — ต้องพิสูจน์ว่ารับเงินหรือยัง */
     prev=next; next=addMonths(next,step); rolled++;
   }
@@ -1873,16 +1878,57 @@ function couponPeriod(s,date){
   return {prev,next,rolled,due};
 }
 /* งวดดอกเบี้ยที่ถึงกำหนดแล้ว รับเงินเข้ามาหรือยัง
-   มองหารายการรับดอกเบี้ยของตราสารนั้นในช่วงตั้งแต่วันกำหนดสิทธิถึง 45 วันถัดมา
-   (เผื่อระยะเวลาที่ custodian โอนเข้าบัญชีจริง) */
-function couponReceived(secId,couponDate){
-  if(!secId||!couponDate)return false;
-  const until=shiftDay(couponDate,45);
-  return (state.transactions||[]).some(t=>
-    t.security===secId && INCOME_TYPES.includes(t.type) &&
-    countsInLedger(t) && t.date>=couponDate && t.date<=until);
+
+   เคยใช้ "หน้าต่าง 45 วันนับจากวันกำหนดสิทธิ" ซึ่งเป็นตัวเลขที่ตั้งขึ้นเอง
+   ถ้า custodian จ่ายช้ากว่านั้น ระบบจะยังถือเป็นลูกหนี้ทั้งที่เงินเข้าแล้ว
+   = นับซ้ำกับเงินสด ทำให้ NAV สูงเกินจริง แย่กว่าอาการที่ตั้งใจจะแก้
+
+   ของใหม่ไม่ใช้หน้าต่างเวลา แต่จับคู่ตามจำนวนแบบเข้าก่อนออกก่อน
+   หลักเดียวกับ FIFO ของต้นทุนหลักทรัพย์ที่ระบบใช้อยู่แล้ว
+   นับเฉพาะรายการที่ไม่เกินวันตีราคา รายงานย้อนหลังจะได้ไม่รู้อนาคต */
+function couponPaymentCount(secId,from,to,account){
+  if(!secId||!from)return 0;
+  let n=0;
+  (state.transactions||[]).forEach(t=>{
+    if(t.security!==secId)return;
+    /* ต้องแยกตามบัญชี — ของเดิมนับรวมทุกบัญชี บัญชีหนึ่งรับเงินแล้ว
+       อีกบัญชีที่ยังไม่ได้รับก็ถูกถือว่ารับไปด้วย ลูกหนี้ของบัญชีนั้นจึงหายไปเฉย ๆ */
+    if(account&&t.account!==account)return;
+    if(!INCOME_TYPES.includes(t.type))return;
+    if(!countsInLedger(t))return;
+    if(t.date<from)return;
+    if(to&&t.date>to)return;
+    n++;
+  });
+  return n;
 }
-function fixedValuation(s,qty,date){
+/* จำนวนที่ถืออยู่ ณ วันหนึ่ง — ใช้ตอบว่า "ตอนวันกำหนดสิทธิ เราถือตราสารนี้อยู่หรือเปล่า"
+   ถ้าไม่ถาม ตราสารที่ซื้อมาทีหลังจะได้ลูกหนี้ดอกเบี้ยของเจ้าของเดิมติดมาด้วย
+   และเนื่องจากไม่มีวันมีรายการรับเงินมาหักล้าง ลูกหนี้ก้อนนั้นจะค้างอยู่ตลอดไป */
+function qtyHeldOn(account,secId,date){
+  if(!secId||!date)return 0;
+  let q=0;
+  (state.transactions||[]).forEach(t=>{
+    if(t.security!==secId)return;
+    if(account&&t.account!==account)return;
+    if(!TYPE_GROUPS.trade.includes(t.type))return;
+    if(!countsInLedger(t))return;
+    if(t.date>date)return;
+    q+=(["BUY","FUND SUBSCRIPTION"].includes(t.type)?1:-1)*(Number(t.qty)||0);
+  });
+  return q;
+}
+/* งวดที่ถึงกำหนด (เรียงเก่าไปใหม่) เทียบกับจำนวนครั้งที่รับเงินจริง
+   เหลือเท่าไรคืองวดที่เก่าที่สุดที่ยังไม่ได้รับ */
+function unpaidCoupons(secId,due,asOf,account){
+  const all=Array.isArray(due)?due:[];
+  /* นับเฉพาะงวดที่เราถือตราสารอยู่จริง ณ วันกำหนดสิทธิ */
+  const d=all.filter(x=>qtyHeldOn(account,secId,x)>1e-10);
+  if(!d.length)return [];
+  const paid=couponPaymentCount(secId,d[0],asOf,account);
+  return paid>=d.length?[]:d.slice(paid);
+}
+function fixedValuation(s,qty,date,account){
   if(!s||!isFixed(s)||qty<=0)return {accruedLocal:0,cleanLocal:0,dirtyLocal:0,convDays:0,yf:0,
     prev:"",next:"",rolled:0,receivableLocal:0,unpaid:[]};
   let cp=couponPeriod(s,date), prev=cp.prev, next=cp.next;
@@ -1903,10 +1949,13 @@ function fixedValuation(s,qty,date){
      ================================================================== */
   const perYear=s.frequency==="Annual"?1:s.frequency==="Quarterly"?4:2;
   const perCoupon=face*(Number(s.coupon)||0)/perYear;
-  const unpaid=[];
-  (cp.due||[]).forEach(d=>{ if(!couponReceived(s.id,d))unpaid.push(d) });
+  const unpaid=unpaidCoupons(s.id,cp.due,date,account);
   const receivable=s.instrument==="Fixed Deposit"?0:unpaid.length*perCoupon;
-  return {accruedLocal:accrued,cleanLocal:clean,
+  /* เลยวันครบกำหนดไถ่ถอนแล้วแต่ยังมีตัวคงค้างในพอร์ต แปลว่ายังไม่ได้บันทึกการไถ่ถอน
+     ของเดิมจะค้างดอกเบี้ยงวดสุดท้ายเต็มจำนวนไว้ตลอดไปอย่างเงียบ ๆ
+     ต้องให้เห็น ไม่ใช่ปล่อยให้ตัวเลขนิ่งอยู่อย่างนั้น */
+  const matured=!!(s.maturity&&date>s.maturity&&qty>1e-10);
+  return {accruedLocal:accrued,cleanLocal:clean,matured,
           dirtyLocal:clean+accrued+receivable,
           receivableLocal:receivable,unpaid,
           convDays:conv,yf,prev,next,rolled:cp.rolled};
@@ -1918,7 +1967,7 @@ function viewData(asOf){
   for(const p of e.positions){
     if(!accountVisible(p.account)||p.qty<=1e-10)continue;
     let s=sec(p.security),rate=getFx(s.currency,date),price=getPrice(s.id,date);
-    let fv=fixedValuation(s,p.qty,date),marketLocal=isFixed(s)?fv.dirtyLocal:p.qty*price;
+    let fv=fixedValuation(s,p.qty,date,p.account),marketLocal=isFixed(s)?fv.dirtyLocal:p.qty*price;
     let cleanLocal=isFixed(s)?fv.cleanLocal:marketLocal;
     let mvUSD=rate?marketLocal/rate:0;
     let assetPL=rate?(cleanLocal-p.costLocal)/rate:0;
@@ -2002,7 +2051,7 @@ function navAt(date){
     if(!accountVisible(p.account)||p.qty<=1e-10)continue;
     let s=sec(p.security);if(!s)continue;
     let rate=getFx(s.currency,date);if(!rate)continue;
-    let fv=fixedValuation(s,p.qty,date);
+    let fv=fixedValuation(s,p.qty,date,p.account);
     let mvLocal=isFixed(s)?fv.dirtyLocal:p.qty*getPrice(s.id,date);
     total+=mvLocal/rate;
   }
@@ -2124,7 +2173,13 @@ function snapshotAt(date){
       if(!q||!t.fx||!TYPE_GROUPS.trade.includes(t.type))return a;
       return a+(["BUY","FUND SUBSCRIPTION"].includes(t.type)?-q:q)/t.fx;
     },0),
-    expense:v.tx.filter(t=>["FEE","TAX"].includes(t.type)).reduce((a,t)=>a+t.cashUSD,0),
+    /* ค่าธรรมเนียมการแลกเงินหักออกจากเงินสดจริง (อยู่ใน cashImpact)
+       แต่ engine บังคับ cashUSD=0 ให้รายการ FX CONVERSION เพื่อกันการสร้าง/ทำลายมูลค่า
+       ผลคือค่าธรรมเนียมไม่มีถังไหนรับ แล้วไปโผล่เป็น "ยอดที่อธิบายไม่ได้"
+       ต้องนับเข้าค่าใช้จ่ายให้ตรงกับที่หักเงินสดไปจริง */
+    expense:v.tx.filter(t=>["FEE","TAX"].includes(t.type)).reduce((a,t)=>a+t.cashUSD,0)
+      +v.tx.filter(t=>t.type==="FX CONVERSION")
+        .reduce((a,t)=>a-(t.fx?((Number(t.fee)||0)+(Number(t.tax)||0))/t.fx:0),0),
     /* ค่าธรรมเนียม/ภาษีที่ฝังในรายการซื้อขาย — ถูกรวมเข้าต้นทุนสินทรัพย์ตามมาตรฐาน
        จึงไปปรากฏใน Capital Gain ไม่ใช่ใน Fees & Taxes
        เก็บไว้เพื่อ "เปิดเผย" ให้เห็นต้นทุนการซื้อขายที่แท้จริง ไม่ได้อยู่ในสมการ */
@@ -2779,9 +2834,20 @@ function renderFixed(){
   /* ถ้าต้องเลื่อนงวดให้ แปลว่าทะเบียนวันจ่ายดอกเบี้ยเก่ากว่าความเป็นจริง — ควรไปอัปเดต */
   const owed=rows.filter(h=>h.fixed&&h.fixed.receivableLocal>0);
   const stale=rows.filter(h=>h.fixed&&h.fixed.rolled);
+  /* เลยวันครบกำหนดไถ่ถอนแต่ยังมีตัวค้างในพอร์ต = ยังไม่ได้บันทึกการไถ่ถอน
+     ถ้าไม่เตือน ระบบจะค้างมูลค่าหน้าตั๋วและดอกงวดสุดท้ายไว้อย่างนั้นตลอดไป */
+  const matured=rows.filter(h=>h.fixed&&h.fixed.matured);
   const nb=byId("fixedRollNote");
   if(nb){
-    if(owed.length){
+    if(matured.length){
+      nb.style.display="block";
+      nb.innerHTML='<div class="gap-bar"><span class="gap-ic">\u26a0</span><div>'
+        +'<b>เลยวันครบกำหนดไถ่ถอนแล้วแต่ยังมีตัวคงค้าง '+matured.length+' ตราสาร</b>'
+        +'<div class="gap-list">'+matured.map(h=>esc(h.s.id)+" (ครบกำหนด "+dmy(h.s.maturity)+")").join(" \u00b7 ")+'</div>'
+        +'<div class="gap-list">ระบบยังตีมูลค่าและคิดดอกเบี้ยงวดสุดท้ายค้างไว้ '
+        +'<b>กรุณาบันทึกรายการไถ่ถอนเงินต้นและดอกเบี้ยงวดสุดท้าย</b> '
+        +'มิฉะนั้นมูลค่าพอร์ตจะสูงเกินจริงไปเรื่อย ๆ</div></div></div>';
+    }else if(owed.length){
       nb.style.display="block";
       nb.innerHTML='<div class="gap-bar"><span class="gap-ic">\u26a0</span><div>'
         +'<b>มีดอกเบี้ยที่ถึงกำหนดแล้วแต่ยังไม่พบรายการรับเงิน '+owed.length+' ตราสาร</b>'
@@ -2943,9 +3009,33 @@ function guardTeam(){
   if(canEditTeam())return true;
   return guard("edit");
 }
-function saveTeam(){
+async function saveTeam(){
   if(!guardTeam())return;
   const t=syncTeamInputs().map(m=>({...m}));   /* คง pwHash/pwSalt เดิมไว้เสมอ */
+  /* ---- การเปลี่ยน "บทบาท" คือการเปลี่ยนว่าใครมีอำนาจอะไร จึงต้องมีด่าน ---- */
+  const before=teamOf();
+  const roleChanges=t.filter(m=>{
+    const o=before.find(x=>x.id===m.id);
+    return o && o.role!==m.role;
+  }).map(m=>{
+    const o=before.find(x=>x.id===m.id);
+    return {id:m.id,title:m.title||m.id,from:o.role,to:m.role};
+  });
+  const newWithRole=t.filter(m=>!before.some(x=>x.id===m.id)&&needsPassword(m.role))
+    .map(m=>({id:m.id,title:m.title||m.id,from:"(ใหม่)",to:m.role}));
+  const allRoleChanges=[...roleChanges,...newWithRole];
+  /* ห้ามเปลี่ยนบทบาทของตัวเองไม่ว่ากรณีใด — คนสอบคนเดียวกับคนตอบไม่ได้ */
+  const selfChange=allRoleChanges.find(c=>c.id===meId());
+  if(selfChange&&!setupMode()){
+    alert("เปลี่ยนบทบาทของตำแหน่งที่เครื่องนี้ใช้งานอยู่ไม่ได้ ("+selfChange.title+")\n\n"
+      +"ต้องให้ผู้ดูแลระบบเปลี่ยนให้จากเครื่องอื่น\n"
+      +"เหตุผล: ถ้าตั้งบทบาทตัวเองได้ ผู้บันทึกจะตั้งตัวเองเป็นผู้อนุมัติแล้วเดินครบวงจรคนเดียว");
+    return;
+  }
+  if(allRoleChanges.length){
+    const ok=await requireAdmin("เปลี่ยนบทบาทในทะเบียนทีม "+allRoleChanges.length+" รายการ");
+    if(!ok)return;
+  }
   if(!t.length){alert("ต้องมีอย่างน้อย 1 ตำแหน่งในทะเบียน");return}
   const blank=t.find(m=>!m.title);
   if(blank){alert("ทุกแถวต้องระบุชื่อตำแหน่ง (แถวรหัส "+blank.id+" ยังว่างอยู่)");
@@ -2960,6 +3050,10 @@ function saveTeam(){
   const eds=t.filter(m=>m.role==="editor").length;
   if(eds!==1&&!confirm("ควรมีผู้บันทึกรายการเพียง 1 คนเพื่อไม่ให้ข้อมูลขัดกัน\nขณะนี้ตั้งไว้ "+eds+" คน — ยืนยันหรือไม่?"))return;
   if(!t.some(m=>m.role==="approver")&&!confirm("ไม่มีผู้อนุมัติเหลืออยู่ในทะเบียน — รายการจะค้างที่สถานะ \"รออนุมัติ\"\nยืนยันหรือไม่?"))return;
+  allRoleChanges.forEach(c=>auditPush("","ROLE_CHANGE",
+    c.title+" ("+c.id+"): "+(ROLE_LABEL[c.from]||c.from)+" → "+(ROLE_LABEL[c.to]||c.to)));
+  const goneIds=before.filter(o=>!t.some(m=>m.id===o.id));
+  goneIds.forEach(o=>auditPush("","MEMBER_REMOVE",(o.title||o.id)+" ("+o.id+")"));
   state.team=t; resetTeamEdit();
   /* ถ้าตำแหน่งที่เครื่องนี้ผูกอยู่ถูกลบไป ให้ถอยกลับเป็นดูอย่างเดียว */
   if(meId()&&!t.some(m=>m.id===meId())){
@@ -3800,6 +3894,7 @@ function ledgerAfterDecisions(decisions){
 function editTransaction(id){
   if(!guard("edit"))return;
   let t=state.transactions.find(x=>x.id===id);if(!t)return;
+  const blocked=amendBlockedReason(t); if(blocked){alert(blocked);return}
   editTxnId=id;editOriginal=JSON.parse(JSON.stringify(t));currentType=t.type;
   go("new");
   byId("fDate").value=t.date||"";
@@ -3841,12 +3936,65 @@ function affectedTransactions(oldT,newT){
   let accounts=new Set([oldT.account,newT.account].filter(Boolean));
   return state.transactions.filter(t=>t.id!==oldT.id&&accounts.has(t.account)&&t.date>=earliest).length;
 }
+/* ==================================================================
+   การแก้ไขรายการ ต้องไม่กลายเป็นการอนุมัติตัวเอง
+
+   ของเดิม candidateFromForm() สร้างก้อนใหม่จากฟอร์มล้วน ๆ ซึ่งไม่มีฟิลด์ status
+   แล้ว confirmEditSave() เอาไปทับทั้งก้อน  พอ status หาย txStatus() ซึ่งมีค่า
+   ตั้งต้นเป็น "APPROVED" (ไว้รองรับข้อมูลเก่า) ก็ตีความว่ารายการนั้นอนุมัติแล้ว
+   ผล: กดแก้โน้ตของร่างตัวเอง = รายการเข้าบัญชีทางการทันทีโดยไม่มีใครอนุมัติ
+   และถ้าแก้รายการที่อนุมัติแล้ว ตราประทับผู้อนุมัติก็หายไปพร้อมกัน
+   ================================================================== */
+function statusAfterAmend(prev){
+  if(prev==="PENDING")return "PENDING";   /* ยังรออนุมัติเหมือนเดิม คำตัดสินเดิมเป็นโมฆะ */
+  return "DRAFT";                          /* ร่าง / ส่งกลับ / ไม่อนุมัติ → กลับเป็นร่าง */
+}
+/* รวมค่าจากฟอร์มเข้ากับรายการเดิม โดยรักษาฟิลด์กำกับดูแลไว้ทั้งหมด
+   และกำหนดสถานะใหม่อย่างชัดแจ้ง ไม่ปล่อยให้ตกไปใช้ค่าตั้งต้น */
+function mergeAmendment(oldT,cand){
+  const prev=txStatus(oldT), st=statusAfterAmend(prev);
+  const out=Object.assign({},cand,{
+    status:st,
+    version:(oldT.version||1)+1,
+    createdBy:oldT.createdBy||"",
+    createdAt:oldT.createdAt||"",
+    submittedAt:st==="PENDING"?(oldT.submittedAt||""):"",
+    assignedTo:st==="PENDING"?(oldT.assignedTo||""):"",
+    amendedBy:meId()||meName()||""
+  });
+  /* ตราประทับผู้อนุมัติของรุ่นก่อน ใช้กับรุ่นใหม่ไม่ได้ */
+  delete out.approvedBy; delete out.approvedAt; delete out.decidedAt; delete out.rejectReason;
+  return out;
+}
+/* รายการที่อนุมัติแล้ว ห้ามแก้ในที่เดิม — ต้องให้ผู้อนุมัติส่งกลับก่อน
+   ไม่อย่างนั้นผู้บันทึกจะเปลี่ยนตัวเลขที่ผ่านการอนุมัติไปแล้วได้เอง */
+function amendBlockedReason(t){
+  if(txStatus(t)==="APPROVED")
+    return "รายการ "+t.id+" อนุมัติไปแล้ว จึงแก้ในที่เดิมไม่ได้\n\n"
+      +"ทางที่ถูกต้องมีสองทาง:\n"
+      +"  1) ให้ผู้อนุมัติกด \"ส่งกลับแก้ไข\" รายการนี้ก่อน แล้วจึงแก้และส่งอนุมัติใหม่\n"
+      +"  2) บันทึกรายการปรับปรุงใหม่ แล้วอ้างอิงถึงรายการเดิม\n\n"
+      +"เหตุผล: ถ้าแก้ได้เลย ตัวเลขที่ผ่านการอนุมัติจะถูกเปลี่ยนโดยไม่มีใครตรวจ";
+  return "";
+}
 function previewEditImpact(){
   if(!editTxnId||!editOriginal)return;
   let c=candidateFromForm(editTxnId),a=acct(c.account),s=sec(c.security),trade=TYPE_GROUPS.trade.includes(c.type),ccy=trade?s?.currency:a?.currency,rate=Number(c.fxOverride)||getFx(ccy,c.date);
   if(!c.date||!a||!rate||(trade&&(!s||c.qty<=0||c.price<=0))||(!trade&&c.amount<=0)){alert("กรุณากรอกข้อมูลที่จำเป็นให้ครบ");return}
-  let next=state.transactions.map(t=>t.id===editTxnId?c:t),err=validateTransactionSet(next,"working");
-  if(err){alert(err);return}
+  const oldT0=state.transactions.find(t=>t.id===editTxnId);
+  const blocked=oldT0?amendBlockedReason(oldT0):""; if(blocked){alert(blocked);return}
+  /* ตรวจด้วยก้อนที่มีสถานะจริง ไม่ใช่ก้อนเปล่าจากฟอร์ม
+     และตรวจทั้งชุดทางการและชุดรวมร่าง เพราะ working เป็นซูเปอร์เซ็ตของ official
+     ชุดที่ผ่าน working อาจทำให้บัญชีทางการขายเกินได้ */
+  const cm=oldT0?mergeAmendment(oldT0,c):c;
+  let next=state.transactions.map(t=>t.id===editTxnId?cm:t);
+  const vv=validateBothUniverses(next);
+  if(vv.official||vv.working){
+    alert("แก้ไขแล้วบัญชีจะไม่สมดุล จึงยังไม่บันทึก\n\n"
+      +(vv.official?"[ชุดที่อนุมัติแล้ว] "+vv.official+"\n":"")
+      +(vv.working?"[รวมร่างและรออนุมัติ] "+vv.working:""));
+    return;
+  }
   pendingEditCandidate=c;
   let before=snapshotWithTransactions(state.transactions),after=snapshotWithTransactions(next),changes=materialChanges(editOriginal,c),affected=changes.length?affectedTransactions(editOriginal,c):0;
   byId("impactSubtitle").textContent=changes.length?`Financial fields changed: ${changes.length} · ระบบจะคำนวณใหม่จาก Transaction ledger`:"แก้เฉพาะข้อมูลอ้างอิง/หมายเหตุ — ไม่มีผลต่อ Cost/P&L";
@@ -3867,13 +4015,16 @@ function confirmEditSave(){
   let reason=byId("amendReason").value.trim();if(!reason){alert("กรุณาระบุ Reason for amendment");return}
   let oldT=state.transactions.find(x=>x.id===editTxnId);if(!oldT)return;
   let vfrom=oldT.version||1,vto=vfrom+1,now=new Date().toISOString();
-  let amended={...pendingEditCandidate,version:vto,amendedAt:now};
+  let amended=Object.assign(mergeAmendment(oldT,pendingEditCandidate),{version:vto,amendedAt:now});
   state.auditTrail=state.auditTrail||[];
   state.auditTrail.push({txnId:editTxnId,versionFrom:vfrom,versionTo:vto,amendedAt:now,reason,before:JSON.parse(JSON.stringify(oldT)),after:JSON.parse(JSON.stringify(amended))});
   state.transactions=state.transactions.map(t=>t.id===editTxnId?amended:t);
   save();closeImpactModal();
   let savedId=editTxnId;editTxnId="";editOriginal=null;pendingEditCandidate=null;
-  clearTransaction();renderAll();toast(`${savedId} amended to v${vto} · Recalculated`);
+  auditPush(savedId,"AMEND","v"+vfrom+" → v"+vto+" · "+reason+" · สถานะใหม่: "+STATUS_TH[txStatus(amended)]);
+  save();
+  clearTransaction();renderAll();
+  toast(`${savedId} แก้ไขเป็น v${vto} · สถานะ ${STATUS_TH[txStatus(amended)]} — ต้องส่งอนุมัติใหม่`);
   previewTxn=savedId;previewDocument(savedId);
 }
 
@@ -3945,12 +4096,22 @@ function nextTxnId(date){
 function saveFxConversion(){
   let a=acct(byId("fAccount").value),date=byId("fDate").value,L=fxLegs(date);
   if(!date||!a||L.from===L.to||L.fromAmt<=0||!L.deal||!L.rF||!L.rT){alert("กรุณากรอก Account / วันที่ / สกุลเงิน และจำนวนที่ต้องการแลกให้ครบ");return}
+  if(!(L.toAmt>0)){alert("จำนวนเงินปลายทางต้องมากกว่าศูนย์");return}
   let id=nextTxnId(date);
-  state.transactions.push({id,date,type:"FX CONVERSION",account:a.id,ccy:L.from,security:"",qty:0,price:0,
+  /* การแลกเงินคือการเคลื่อนย้ายเงินจริงและสร้างกำไร/ขาดทุนอัตราแลกเปลี่ยน
+     จึงต้องผ่านการอนุมัติเหมือนรายการอื่น ของเดิมไม่ใส่สถานะเลย
+     ทำให้ txStatus() ตีความเป็น APPROVED และเข้าบัญชีทางการทันทีที่กด Save */
+  const newTxn={id,date,type:"FX CONVERSION",account:a.id,ccy:L.from,security:"",qty:0,price:0,
     amount:simRound(L.fromAmt,2),fxFrom:L.from,fxTo:L.to,fxFromAmount:simRound(L.fromAmt,2),fxToAmount:simRound(L.toAmt,2),
     dealRate:L.deal,fxOverride:L.rF,accrued:0,fee:Number(byId("fFee").value)||0,tax:0,
-    ref:byId("fRef").value.trim(),note:byId("fNote").value.trim()||`Spot conversion ${L.from} → ${L.to} @ ${fmt(L.deal,6)}`,version:1});
-  save();alert(`Saved ${esc(id)}`);previewTxn=id;clearTransaction();renderAll();previewDocument(id);
+    ref:byId("fRef").value.trim(),note:byId("fNote").value.trim()||`Spot conversion ${L.from} → ${L.to} @ ${fmt(L.deal,6)}`,
+    version:1,status:"DRAFT",createdAt:new Date().toISOString(),createdBy:meId()||meName()||""};
+  const errFx=validateTransactionSet([...state.transactions,newTxn],"working");
+  if(errFx){alert(errFx);return}
+  state.transactions.push(newTxn);
+  auditPush(id,"CREATE","FX CONVERSION "+L.from+" → "+L.to);
+  save();alert(`บันทึกร่าง ${esc(id)} — ต้องส่งอนุมัติก่อนจึงจะเข้าบัญชีทางการ`);
+  previewTxn=id;clearTransaction();renderAll();previewDocument(id);
 }
 function saveTransaction(){
   if(!guard("edit"))return;
@@ -3960,7 +4121,7 @@ function saveTransaction(){
   let qty=Number(byId("fQty").value)||0,price=Number(byId("fPrice").value)||0,amount=Number(byId("fAmount").value)||0;
   if(!date||!a||!rate||(trade&&(!s||qty<=0||price<=0))||(!trade&&amount<=0)){alert("กรุณากรอกข้อมูลที่จำเป็นให้ครบ");return}
   let id=nextTxnId(date);
-  let newTxn={id,date,type:currentType,account:a.id,security:trade?s.id:"",qty,price,amount,fxOverride:Number(byId("fFxOverride").value)||0,accrued:Number(byId("fAccrued").value)||0,fee:Number(byId("fFee").value)||0,tax:Number(byId("fTax").value)||0,ref:byId("fRef").value.trim(),note:byId("fNote").value.trim(),version:1,status:"DRAFT",createdAt:new Date().toISOString()};
+  let newTxn={id,date,type:currentType,account:a.id,security:trade?s.id:"",qty,price,amount,fxOverride:Number(byId("fFxOverride").value)||0,accrued:Number(byId("fAccrued").value)||0,fee:Number(byId("fFee").value)||0,tax:Number(byId("fTax").value)||0,ref:byId("fRef").value.trim(),note:byId("fNote").value.trim(),version:1,status:"DRAFT",createdAt:new Date().toISOString(),createdBy:meId()||meName()||""};
   let err=validateTransactionSet([...state.transactions,newTxn],"working");if(err){alert(err);return}
   state.transactions.push(newTxn);
   save();alert(`Saved ${esc(id)}`);
@@ -4049,7 +4210,9 @@ function masterKeyOf(set,x){
   if(set==="fx")return x.date;
   if(set==="holidays")return x.date+"|"+String(x.ccy||"").toUpperCase();
   if(set==="settleRules")return String(x.ccy||"").toUpperCase()+"|"+String(x.instrument||"");
-  return x.id;
+  /* ไม่มี id (ข้อมูลเสีย) ก็ยังต้องไม่ถูกยุบรวมกับรายการอื่นที่ไม่มี id
+     ใช้เนื้อทั้งก้อนเป็นคีย์แทน จะได้ไม่ทับกัน */
+  return x.id||("?"+JSON.stringify(x));
 }
 /* ภาพของข้อมูลหลัก ณ ตอนที่เราเริ่มแก้ — เก็บเป็นสตริงเทียบง่ายและไม่โตเกินไป */
 const asArr=v=>Array.isArray(v)?v:[];
@@ -4063,6 +4226,16 @@ function buildMasterBase(o){
   const fd={};
   Object.keys((o&&o.fixedDates)||{}).forEach(k=>{fd[k]=JSON.stringify(o.fixedDates[k])});
   b.fixedDates=fd;
+  return b;
+}
+/* base ว่าง — ใช้เมื่อ "ไม่รู้จริง ๆ ว่าจุดตั้งต้นคืออะไร"
+   ห้ามใช้ภาพของฝั่งใดฝั่งหนึ่งแทน เพราะจะกลายเป็นว่าอีกฝั่งไม่ได้แก้
+   แล้วของอีกฝั่งจะถูกทิ้งเงียบ ๆ  ของว่างทำให้ทั้งสองฝั่งดูเหมือนเป็นคนเพิ่ม
+   ผลคือเก็บไว้ทั้งคู่ และจะฟ้องชนก็ต่อเมื่อคีย์เดียวกันมีค่าต่างกันจริง */
+function emptyMasterBase(){
+  const b={};
+  MASTER_SETS.forEach(([set])=>{b[set]={}});
+  b.fixedDates={};
   return b;
 }
 /* รวมชุดเดียว โดยรู้ว่าฝั่งไหนเป็นคนแก้ */
@@ -4128,9 +4301,10 @@ function threeWayMerge(baseIndex, mine, theirs){
     a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
   const mc=[]; const C=x=>mc.push(x);
   /* base ของข้อมูลหลักมาจากภาพที่เก็บไว้ตอนโหลดชุดที่เผยแพร่ล่าสุด
-     ถ้ายังไม่มี (ข้อมูลเก่าก่อนมีฟีเจอร์นี้) ให้ถือว่า theirs คือ base
-     ซึ่งแปลว่า "เราเป็นคนแก้ฝ่ายเดียว" — ปลอดภัยกว่าการฟ้องชนมั่ว */
-  const mBase=mine.__baseMaster||buildMasterBase(theirs);
+     ถ้ายังไม่มี (ข้อมูลเก่าก่อนมีฟีเจอร์นี้) ต้องใช้ "ของว่าง" เท่านั้น
+     เคยใช้ buildMasterBase(theirs) ซึ่งผิด: ทุกคีย์จะเข้าเงื่อนไข ts===bs
+     = "เขาไม่ได้แก้" แล้วรายการที่เขามีแต่เราไม่มีจะถูกทิ้งทั้งหมด */
+  const mBase=mine.__baseMaster||emptyMasterBase();
   MASTER_SETS.forEach(([set,label])=>{
     /* ถ้าไม่มีฝั่งไหนเป็น array เลย (ข้อมูลรูปแบบอื่น) ให้ปล่อยของเดิมไว้ ไม่แปลงชนิด */
     if(!Array.isArray(mine[set])&&!Array.isArray(theirs[set]))return;
@@ -4138,14 +4312,34 @@ function threeWayMerge(baseIndex, mine, theirs){
   });
   merged.fixedDates=mergeFixedDates(mBase,mine.fixedDates,theirs.fixedDates,C);
   if(mc.length)return {ok:false,collisions:[...new Set(mc)],masterOnly:true,myDiff,thDiff};
-  merged.auditTrail = [...(theirs.auditTrail||[]),
-    ...(mine.auditTrail||[]).filter(e=>!(theirs.auditTrail||[]).some(x=>
-      x.txnId===e.txnId&&x.versionTo===e.versionTo&&x.amendedAt===e.amendedAt))];
+  /* ของเดิมเทียบซ้ำด้วย txnId + versionTo + amendedAt
+     แต่รายการกำกับดูแล (SUBMIT/APPROVE/REJECT/REASSIGN/DELETE_DRAFT) ไม่มีสองฟิลด์หลัง
+     เงื่อนไขจึงกลายเป็น undefined===undefined = จริง ทุกเหตุการณ์ที่สองของรายการเดิม
+     ถูกทิ้งว่าเป็นของซ้ำ — เหลือเก็บแค่เหตุการณ์แรกต่อหนึ่งรายการ
+     ซึ่งคือหลักฐานการแบ่งแยกหน้าที่ทั้งหมดที่หายไป */
+  merged.auditTrail = mergeAuditTrails(theirs.auditTrail,mine.auditTrail);
   merged.valuationDate = mine.valuationDate||theirs.valuationDate;
 
   return {ok:true,merged,myDiff,thDiff};
 }
 
+/* คีย์ประจำตัวของรายการประวัติ ต้องครอบคลุมทั้งสองรูปแบบที่ระบบเขียน:
+   การแก้ไข {versionTo, amendedAt} และการกำกับดูแล {action, at, by} */
+function auditKey(e){
+  return [e&&e.txnId,e&&e.versionTo,e&&e.amendedAt,
+          e&&e.action,e&&e.at,e&&e.by,e&&e.detail]
+    .map(v=>v===undefined||v===null?"":String(v)).join("\u0001");
+}
+function mergeAuditTrails(a,b){
+  const out=[],seen={};
+  [...(a||[]),...(b||[])].forEach(e=>{
+    if(!e)return;
+    const k=auditKey(e);
+    if(seen[k])return;
+    seen[k]=1; out.push(e);
+  });
+  return out;
+}
 function diffSummary(d){
   const p=[];
   if(d.added.length)p.push("เพิ่ม "+d.added.length);
@@ -4512,6 +4706,12 @@ function decide(id,decision){
   if(txStatus(t)!=="PENDING"){alert("รายการนี้ไม่ได้อยู่ในสถานะรออนุมัติ");return}
   /* กันผู้อนุมัติคนอื่นตัดสินรายการที่ไม่ได้มอบหมายให้ตน
      ถ้าปล่อยให้ตัดสินได้ทุกคน แล้วผลขัดกัน ผู้บันทึกจะกลายเป็นคนเลือกว่าเสียงใครมีผล */
+  /* ผู้อนุมัติต้องไม่ใช่คนที่บันทึกรายการนั้นเอง — หัวใจของการแบ่งแยกหน้าที่ */
+  if(t.createdBy&&meId()&&t.createdBy===meId()){
+    alert("รายการ "+id+" คุณเป็นผู้บันทึกเอง จึงอนุมัติเองไม่ได้\n\n"
+      +"ต้องให้ผู้อนุมัติคนอื่นเป็นผู้ตัดสิน");
+    return;
+  }
   if(t.assignedTo&&meId()&&t.assignedTo!==meId()){
     alert("รายการ "+id+" มอบหมายให้ "+(assignedName(t)||t.assignedTo)+" เป็นผู้อนุมัติ\n\n"
       +"คุณจึงตัดสินรายการนี้ไม่ได้\n"
@@ -5228,11 +5428,19 @@ function applyDecisions(d){
     if(dec.hash!==txnHash(t)){changed.push(id);return}
     /* ต้องเป็นผู้อนุมัติที่ถูกมอบหมายรอบนี้ */
     const who=memberByIdOrName(dec.by);
+    /* บทบาทต้องเป็นผู้อนุมัติเสมอ ไม่ว่าจะถูกมอบหมายไว้หรือไม่
+       ของเดิมข้ามการตรวจบทบาทเมื่อมี assignedTo ทำให้ใครก็ตามที่ถูกมอบหมาย
+       กลายเป็นผู้อนุมัติที่ถูกต้องตามบันทึกได้ */
+    if(!who||who.role!=="approver"){
+      wrongWho.push(id+" → \""+(dec.by||"(ไม่ระบุ)")+"\" (ไม่ใช่ผู้อนุมัติในทะเบียน)");return;
+    }
     if(t.assignedTo){
       const want=memberByIdOrName(t.assignedTo);
-      if(!who||!want||who.id!==want.id){wrongWho.push(id+" → \""+(dec.by||"(ไม่ระบุ)")+"\"");return}
-    }else if(!who||who.role!=="approver"){
-      wrongWho.push(id+" → \""+(dec.by||"(ไม่ระบุ)")+"\"");return;
+      if(!want||who.id!==want.id){wrongWho.push(id+" → \""+(dec.by||"(ไม่ระบุ)")+"\"");return}
+    }
+    /* ผู้อนุมัติต้องไม่ใช่ผู้บันทึกรายการนั้น */
+    if(t.createdBy&&who.id===t.createdBy){
+      wrongWho.push(id+" → \""+(who.name||who.id)+"\" (เป็นผู้บันทึกรายการนี้เอง)");return;
     }
     accepted[id]={decision:dec.decision,at:dec.at,note:dec.note||"",
                   by:who.name||who.id};     /* ชื่อจากทะเบียนทีม ไม่ใช่ข้อความในไฟล์ */
@@ -5442,7 +5650,16 @@ function deleteDraft(id){
   if(!t){alert("ไม่พบรายการ "+id);return}
   if(!isEditableStatus(txStatus(t))){alert("ลบได้เฉพาะรายการร่างหรือรายการที่ถูกส่งกลับแก้ไขเท่านั้น\nรายการที่ส่งอนุมัติแล้วต้องเก็บไว้เป็นหลักฐาน");return}
   if(!confirm("ลบรายการร่าง "+id+"?\n\n"+t.type+" "+(t.security||"CASH")+"\nวันที่ "+dmy(t.date)+"\n\nลบแล้วกู้คืนไม่ได้"))return;
-  state.transactions=state.transactions.filter(x=>x.id!==id);
+  /* ลบร่างที่เป็นตัวรองรับรายการขาย อาจทำให้ชุดที่เหลือขายเกิน — ต้องตรวจก่อนลบจริง */
+  const afterDel=state.transactions.filter(x=>x.id!==id);
+  const vvDel=validateBothUniverses(afterDel);
+  if(vvDel.official||vvDel.working){
+    alert("ลบรายการนี้ไม่ได้ เพราะบัญชีที่เหลือจะไม่สมดุล\n\n"
+      +(vvDel.official?"[ชุดที่อนุมัติแล้ว] "+vvDel.official+"\n":"")
+      +(vvDel.working?"[รวมร่างและรออนุมัติ] "+vvDel.working:""));
+    return;
+  }
+  state.transactions=afterDel;
   auditPush(id,"DELETE_DRAFT",meName()||"");
   save(); renderAll(); toast("ลบรายการร่าง "+id+" แล้ว");
 }
@@ -5608,6 +5825,56 @@ const hasPassword = m => !!(m&&m.pwHash&&m.pwSalt);
 const setupMode = ()=>!teamOf().some(hasPassword);
 const canEditTeam = ()=>canEdit()||setupMode();
 
+/* ==================================================================
+   รหัสผู้ดูแลระบบ — ด่านของ "ใครเป็นใคร" ไม่ใช่ด่านของ "ใครทำรายการ"
+
+   ทะเบียนทีมคือที่ที่กำหนดว่าใครเป็นผู้อนุมัติ ถ้าผู้บันทึกแก้เองได้
+   เขาก็ตั้งตัวเองเป็นผู้อนุมัติแล้วเดินครบวงจรคนเดียว การแบ่งแยกหน้าที่จึงว่างเปล่า
+   รหัสนี้กันเรื่องนั้น  ข้อจำกัดเดียวกับรหัสประจำตำแหน่งยังใช้อยู่:
+   ไม่มีเซิร์ฟเวอร์ตรวจ จึงเป็นเครื่องกีดขวางและหลักฐานเจตนา ไม่ใช่กำแพงกันผู้จงใจหลบ
+   ================================================================== */
+const adminRec = ()=>(state&&state.admin)||null;
+const adminSet = ()=>{const a=adminRec();return !!(a&&a.pwHash&&a.pwSalt)};
+async function setAdminPassword(){
+  if(!cryptoOK()){alert("เบราว์เซอร์นี้ไม่รองรับการเข้ารหัส (Web Crypto)");return false}
+  if(adminSet()){
+    const old=prompt("รหัสผู้ดูแลระบบเดิม","");
+    if(old===null)return false;
+    const a=adminRec();
+    const h=await pbkdf2(old,a.pwSalt,a.pwIter);
+    if(!safeEqual(h,a.pwHash)){alert("รหัสผู้ดูแลเดิมไม่ถูกต้อง");return false}
+  }
+  const pw=prompt("ตั้งรหัสผู้ดูแลระบบ (อย่างน้อย 8 ตัวอักษร)\n\n"
+    +"ใช้ตอนแก้บทบาทในทะเบียนทีม และตอนล้าง/ตั้งรหัสผ่านให้ผู้อื่น\n"
+    +"ควรอยู่กับผู้จัดการฝ่าย ไม่ใช่ผู้บันทึกรายการ","");
+  if(pw===null)return false;
+  if(pw.length<8){alert("รหัสต้องยาวอย่างน้อย 8 ตัวอักษร");return false}
+  const pw2=prompt("พิมพ์อีกครั้งเพื่อยืนยัน","");
+  if(pw2===null)return false;
+  if(pw!==pw2){alert("รหัสทั้งสองครั้งไม่ตรงกัน");return false}
+  const salt=randHex(16);
+  state.admin={pwSalt:salt,pwIter:PBKDF2_ITER,pwHash:await pbkdf2(pw,salt,PBKDF2_ITER),
+               setAt:new Date().toISOString(),setBy:meName()||meId()||""};
+  auditPush("","ADMIN_PW","ตั้ง/เปลี่ยนรหัสผู้ดูแลระบบ");
+  save(); renderAll();
+  alert("ตั้งรหัสผู้ดูแลระบบแล้ว\n\nอย่าลืมกด \"เผยแพร่ให้ทีม\" เพื่อให้มีผลบนเครื่องอื่น");
+  return true;
+}
+/* ขอรหัสผู้ดูแลก่อนทำสิ่งที่กระทบว่า "ใครมีอำนาจอะไร" */
+async function requireAdmin(what){
+  if(setupMode())return true;          /* ยังไม่มีใครตั้งรหัสผ่านเลย = ระบบยังไม่มีเจ้าของ */
+  if(!adminSet()){
+    if(!confirm("การ"+what+"ต้องใช้รหัสผู้ดูแลระบบ ซึ่งยังไม่ได้ตั้งไว้\n\nตั้งตอนนี้เลยหรือไม่?"))return false;
+    return await setAdminPassword();
+  }
+  const a=adminRec();
+  const pw=prompt("ใส่รหัสผู้ดูแลระบบเพื่อ"+what,"");
+  if(pw===null)return false;
+  const h=await pbkdf2(pw,a.pwSalt,a.pwIter);
+  if(!safeEqual(h,a.pwHash)){alert("รหัสผู้ดูแลไม่ถูกต้อง");return false}
+  return true;
+}
+
 /* ---------- ตั้ง / เปลี่ยนรหัสผ่าน ---------- */
 async function setMemberPassword(id){
   if(!cryptoOK()){alert("เบราว์เซอร์นี้ไม่รองรับการเข้ารหัส (Web Crypto)\nกรุณาใช้ Chrome หรือ Edge รุ่นปัจจุบัน");return}
@@ -5615,6 +5882,12 @@ async function setMemberPassword(id){
   /* เจ้าตัวเปลี่ยนรหัสของตัวเองได้ หรือผู้บันทึกรายการรีเซ็ตให้ได้ */
   const self=meId()===id;
   if(!self&&!canEditTeam()){alert("เปลี่ยนรหัสผ่านของผู้อื่นได้เฉพาะผู้บันทึกรายการ");return}
+  /* ตั้งรหัสให้ผู้อื่น = สวมเป็นคนนั้นได้ ต้องผ่านผู้ดูแลระบบ */
+  if(!self){
+    const okAdm=await requireAdmin("ตั้งรหัสผ่านให้ "+(m.name||m.title));
+    if(!okAdm)return;
+    auditPush("","PW_SET","ตั้งรหัสผ่านให้ "+(m.name||m.title)+" ("+id+")");
+  }
   const first=setupMode();
   if(first&&!needsPassword(m.role)){alert("ตำแหน่งนี้ดูอย่างเดียว จึงไม่ต้องใช้รหัสผ่าน");return}
   if(self&&hasPassword(m)){
@@ -5650,10 +5923,16 @@ async function setMemberPassword(id){
   renderAll();
   alert("ตั้งรหัสผ่านให้ "+m.name+" เรียบร้อย\n\nอย่าลืมกด \"เผยแพร่ให้ทีม\" เพื่อให้รหัสนี้ใช้ได้บนเครื่องอื่น");
 }
-function clearMemberPassword(id){
+async function clearMemberPassword(id){
   if(!canEdit()){alert("ทำได้เฉพาะผู้บันทึกรายการ");return}
   const m=memberById(id); if(!m)return;
   if(!confirm("ลบรหัสผ่านของ "+m.name+"?\nหลังลบแล้วตำแหน่งนี้จะเข้าใช้งานไม่ได้จนกว่าจะตั้งรหัสใหม่"))return;
+  /* ล้างรหัสของผู้อื่น = เปิดทางให้ตั้งรหัสใหม่แล้วสวมเป็นคนนั้น ต้องผ่านผู้ดูแล */
+  if(meId()!==id){
+    const ok=await requireAdmin("ล้างรหัสผ่านของ "+(m.name||m.title));
+    if(!ok)return;
+  }
+  auditPush("","PW_RESET","ล้างรหัสผ่านของ "+(m.name||m.title)+" ("+id+")");
   delete m.pwHash; delete m.pwSalt; delete m.pwIter; delete m.pwSetAt;
   state.team=teamOf().map(x=>x.id===id?m:x);
   if(TEAM_EDIT){const d=TEAM_EDIT.find(x=>x.id===id);
@@ -5833,6 +6112,8 @@ function renderDataStatus(){
 }
 
 function importData(){
+  /* การนำเข้าไฟล์คือการเขียนทับบัญชีทั้งชุด ต้องมีสิทธิ์เท่ากับการบันทึกรายการ */
+  if(!guard("edit"))return;
   let inp=document.createElement("input");
   inp.type="file"; inp.accept="application/json,.json";
   inp.onchange=function(){
@@ -5874,10 +6155,14 @@ function importData(){
          ไม่อย่างนั้นรหัสผ่านของทุกตำแหน่งจะหายไปพร้อมการนำเข้า */
       const keepTeam=Array.isArray(state.team)?state.team:null;
       const keepEntity=state.entity||null;
+      /* ประวัติเป็นบันทึกแบบต่อท้ายอย่างเดียว ห้ามหายไปกับการนำเข้าไฟล์
+         ของเดิม state=data ทับทั้งก้อน ประวัติในเครื่องจึงถูกไฟล์เก่าลบทิ้งได้ */
+      const keepAudit=Array.isArray(state.auditTrail)?state.auditTrail:[];
       state=data;
       if(!Array.isArray(state.team)&&keepTeam)state.team=keepTeam;
       if(!state.entity&&keepEntity)state.entity=keepEntity;
-      state.auditTrail=state.auditTrail||[];
+      state.auditTrail=mergeAuditTrails(keepAudit,state.auditTrail);
+      auditPush("","IMPORT","นำเข้าไฟล์ "+f.name+" ("+inc+" รายการ)");
       dashboardCurrency=state.dashboardCurrency||dashboardCurrency||"THB";
       filterPortfolio="";filterAccount="";previewTxn="";
       PAGE_LIMIT={txn:PAGE_STEP.txn,doc:PAGE_STEP.doc,market:PAGE_STEP.market};
