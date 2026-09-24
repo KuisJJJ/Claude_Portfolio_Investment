@@ -1576,9 +1576,9 @@ function showStorageWarning(){
    กติกา: แก้เลขนี้ทุกครั้งที่อัปโหลด index.html ขึ้น GitHub
           X.Y = เพิ่มความสามารถ · X.Y.Z = แก้บั๊ก/ปรับเล็กน้อย
    ================================================================== */
-const APP_VERSION="1.21.0";
-const APP_BUILD="2026-09-16";
-const APP_VERSION_NOTE="ตรวจโดยผู้ตรวจอิสระ: การแก้ไขไม่กลายเป็นการอนุมัติตัวเอง · แลกเงินต้องผ่านอนุมัติ · ทะเบียนทีมล็อกด้วยรหัสผู้ดูแล · ผู้อนุมัติต้องไม่ใช่ผู้บันทึก · ประวัติไม่หายตอนรวมข้อมูล · ดอกเบี้ยไม่นับซ้ำในวันจ่าย · ลูกหนี้ดอกเบี้ยผูกกับการถือครองจริงและแยกตามบัญชี"
+const APP_VERSION="1.23.0";
+const APP_BUILD="2026-09-21";
+const APP_VERSION_NOTE="ตรวจโค้ดที่เพิ่งเขียน: วันตีราคาย้อนหลังไม่เห็นรายการในอนาคต · ตัวตรวจเดินลำดับเดียวกับเครื่องคำนวณ · seq ไม่กลับลำดับ · ตัดชำระลูกหนี้แบบเข้าก่อนออกก่อนจริง · ดอกที่จ่ายก่อนกำหนดไม่นับซ้ำ · จำนวนติดลบถูกปฏิเสธ"
 function versionLabel(){return "v"+APP_VERSION}
 function versionFull(){return "v"+APP_VERSION+" · build "+APP_BUILD}
 function byId(id){return document.getElementById(id)}
@@ -1773,12 +1773,47 @@ function countsInLedger(t,mode){
   if(ledgerUniverse(mode)==="official"&&st!=="APPROVED")return false;
   return true;
 }
+/* ==================================================================
+   ลำดับของรายการที่เกิด "วันเดียวกัน"
+
+   ระบบไม่ได้เก็บเวลาในวัน จึงไม่รู้ว่าซื้อก่อนหรือขายก่อน
+   ของเดิมใช้รหัสรายการตัดสิน ซึ่งเป็นลำดับที่ผู้ใช้บังเอิญคีย์เข้ามา
+   ผลคือถ้าคีย์รายการขายก่อน ระบบจะฟ้องว่าขายเกินทั้งที่สิ้นวันไม่ติดลบ
+   (ผู้ตรวจอิสระภายนอกชี้จุดนี้ · ทำซ้ำได้จริง)
+
+   กติกาใหม่: ภายในวันเดียวกัน ให้รายการที่ "เพิ่มของ" เกิดก่อนรายการที่ "เอาของออก"
+   เป็นลำดับเดียวที่รับประกันว่า ถ้ามีลำดับใดที่ทำให้บัญชีถูกต้อง ระบบจะเจอลำดับนั้น
+   ทีมที่รู้ลำดับจริงระบุเองได้ด้วยฟิลด์ seq (น้อยไปมาก) ซึ่งมีน้ำหนักเหนือกติกานี้
+
+   ต้องใช้ตัวเดียวกันทั้งใน engine และในตัวตรวจความสมดุล
+   ไม่อย่างนั้นสองที่จะเห็นบัญชีคนละชุด
+   ================================================================== */
+const SAMEDAY_RANK=t=>{
+  const ty=t&&t.type;
+  if(["BUY","FUND SUBSCRIPTION"].includes(ty))return 0;   /* ได้ของเข้ามาก่อน */
+  if(["CASH IN","TRANSFER IN","DIVIDEND","INTEREST","COUPON"].includes(ty))return 1;
+  if(ty==="FX CONVERSION")return 2;
+  if(["SELL","FUND REDEMPTION"].includes(ty))return 3;    /* แล้วค่อยเอาของออก */
+  return 4;                                                /* CASH OUT / TRANSFER OUT / FEE / TAX */
+};
+function ledgerOrder(a,b){
+  if(a.date!==b.date)return a.date.localeCompare(b.date);
+  /* seq มีผลต่อเมื่อ "ทั้งคู่" ระบุมา
+     ของเดิมเทียบ seq ก่อนเสมอ และรายการที่ไม่ใส่นับเป็น 0
+     ผลคือพอระบุ seq ให้ใบไหน ใบนั้นจะถูกดันไปอยู่หลังใบที่ไม่ได้ระบุ
+     ซึ่งกลับกติกาซื้อก่อนขายทั้งหมด (ผู้ตรวจอิสระชี้ · ทำซ้ำได้จริง) */
+  const sa=Number(a.seq), sb=Number(b.seq);
+  const ha=Number.isFinite(sa), hb=Number.isFinite(sb);
+  if(ha&&hb&&sa!==sb)return sa-sb;
+  return (SAMEDAY_RANK(a)-SAMEDAY_RANK(b))
+      || String(a.id||"").localeCompare(String(b.id||""));
+}
 function engine(asOf){
   let positions={},cash={},txDetails=[];
   let txs=[...state.transactions].filter(t=>{
     if(!countsInLedger(t))return false;
     return !asOf||t.date<=asOf;
-  }).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+  }).sort(ledgerOrder);
   for(const t of txs){
     const a=acct(t.account); if(!a)continue;
     const s=sec(t.security),ccy=txnCurrency(t),rate=Number(t.fxOverride)||getFx(ccy,t.date)||0;
@@ -1886,21 +1921,29 @@ function couponPeriod(s,date){
    ของใหม่ไม่ใช้หน้าต่างเวลา แต่จับคู่ตามจำนวนแบบเข้าก่อนออกก่อน
    หลักเดียวกับ FIFO ของต้นทุนหลักทรัพย์ที่ระบบใช้อยู่แล้ว
    นับเฉพาะรายการที่ไม่เกินวันตีราคา รายงานย้อนหลังจะได้ไม่รู้อนาคต */
-function couponPaymentCount(secId,from,to,account){
+/* ยอดดอกเบี้ยที่ "รับมาแล้วจริง" ของตราสาร+บัญชีนั้น ในช่วงที่กำหนด
+
+   ของเดิมนับ "จำนวนใบ" ซึ่งผิด: ถ้าบันทึกดอกงวดเดียวเป็นสองใบ
+   (ยอดขั้นต้นใบหนึ่ง ปรับภาษีหัก ณ ที่จ่ายอีกใบ) ระบบจะนับเป็นสองงวด
+   แล้วไปตัดลูกหนี้ของงวดถัดไปทิ้งด้วย ทำให้ NAV หายทั้งงวด
+   (ผู้ตรวจอิสระภายนอกชี้จุดนี้ · ทำซ้ำได้จริง: ลูกหนี้ 600 → 200 ทั้งที่ควรเป็น 400)
+
+   ของใหม่รวม "จำนวนเงิน" แล้วเทียบกับสิทธิ์ที่เกิดขึ้น ซึ่งตรงตามนิยามของลูกหนี้
+   และไม่ต้องใช้ตัวเลขสมมติใด ๆ มาช่วยตัดสิน */
+function couponReceivedAmount(secId,from,to,account){
   if(!secId||!from)return 0;
-  let n=0;
+  let sum=0;
   (state.transactions||[]).forEach(t=>{
     if(t.security!==secId)return;
-    /* ต้องแยกตามบัญชี — ของเดิมนับรวมทุกบัญชี บัญชีหนึ่งรับเงินแล้ว
-       อีกบัญชีที่ยังไม่ได้รับก็ถูกถือว่ารับไปด้วย ลูกหนี้ของบัญชีนั้นจึงหายไปเฉย ๆ */
+    /* ต้องแยกตามบัญชี — บัญชีหนึ่งรับเงินแล้ว ไม่ได้แปลว่าอีกบัญชีรับด้วย */
     if(account&&t.account!==account)return;
     if(!INCOME_TYPES.includes(t.type))return;
     if(!countsInLedger(t))return;
     if(t.date<from)return;
     if(to&&t.date>to)return;
-    n++;
+    sum+=Number(t.amount)||0;
   });
-  return n;
+  return sum;
 }
 /* จำนวนที่ถืออยู่ ณ วันหนึ่ง — ใช้ตอบว่า "ตอนวันกำหนดสิทธิ เราถือตราสารนี้อยู่หรือเปล่า"
    ถ้าไม่ถาม ตราสารที่ซื้อมาทีหลังจะได้ลูกหนี้ดอกเบี้ยของเจ้าของเดิมติดมาด้วย
@@ -1920,13 +1963,54 @@ function qtyHeldOn(account,secId,date){
 }
 /* งวดที่ถึงกำหนด (เรียงเก่าไปใหม่) เทียบกับจำนวนครั้งที่รับเงินจริง
    เหลือเท่าไรคืองวดที่เก่าที่สุดที่ยังไม่ได้รับ */
-function unpaidCoupons(secId,due,asOf,account){
+/* งวดที่ยังไม่ได้รับเงิน — ตัดสินด้วยจำนวนเงินสะสม ไม่ใช่จำนวนใบ
+   คืน {unpaid:[วันที่], receivable:ยอดคงค้าง, entitled:สิทธิ์รวม, received:รับมาแล้ว} */
+function couponSettlement(s,due,asOf,account,fallbackQty){
   const all=Array.isArray(due)?due:[];
-  /* นับเฉพาะงวดที่เราถือตราสารอยู่จริง ณ วันกำหนดสิทธิ */
-  const d=all.filter(x=>qtyHeldOn(account,secId,x)>1e-10);
-  if(!d.length)return [];
-  const paid=couponPaymentCount(secId,d[0],asOf,account);
-  return paid>=d.length?[]:d.slice(paid);
+  /* ระบุบัญชี = ใช้จำนวนที่ถือจริงของบัญชีนั้น ณ วันกำหนดสิทธิของแต่ละงวด
+     ไม่ระบุบัญชี = ใช้จำนวนที่ผู้เรียกกำลังตีราคาอยู่ เพื่อให้ลูกหนี้ได้สัดส่วนกับ
+     สิ่งที่กำลังตีราคา ถ้าไปหยิบยอดรวมทุกบัญชีมาใช้ ฟังก์ชันจะตีมูลค่า 1 หน่วย
+     แต่ตั้งลูกหนี้ของ 10 หน่วย ซึ่งขัดกันเอง (ผมพลาดตรงนี้ในรอบแรกของการแก้) */
+  const qtyAt=x=>account?qtyHeldOn(account,s.id,x):(Number(fallbackQty)||0);
+  const d=all.filter(x=>qtyAt(x)>1e-10);
+  if(!d.length)return {unpaid:[],receivable:0,entitled:0,received:0};
+  const perYear=s.frequency==="Annual"?1:s.frequency==="Quarterly"?4:2;
+  const face=Number(s.face)||0, cpn=Number(s.coupon)||0;
+  /* สิทธิ์ของแต่ละงวด คิดจากจำนวนที่ถือ ณ วันกำหนดสิทธิของงวดนั้น */
+  const ent=d.map(x=>qtyAt(x)*face*cpn/perYear);
+  const entitled=ent.reduce((a,x)=>a+x,0);
+  /* หน้าต่างการจับคู่ต้องเริ่มที่ "ต้นงวด" ไม่ใช่ "วันกำหนดสิทธิ"
+     custodian จ่ายก่อนกำหนดได้เมื่อวันกำหนดตรงวันหยุด เงินจึงลงวันที่ก่อนหน้า
+     ของเดิมตัดรายการนั้นทิ้ง แล้วตั้งลูกหนี้ค้างไว้ถาวรทั้งที่เงินเข้าแล้ว = นับซ้ำ
+     (ผู้ตรวจอิสระชี้ · ทำซ้ำได้จริง: จ่ายก่อน 1 วันเต็มจำนวน แต่ลูกหนี้ยังเต็ม)
+     เริ่มถัดจากวันกำหนดของงวดก่อนหน้า เพื่อไม่ให้ไปกินเงินของงวดที่ปิดไปแล้ว */
+  const step0=12/perYear;
+  const prevDue=addMonths(d[0],-step0);
+  /* เริ่มหน้าต่างที่ "กึ่งกลางระหว่างงวดก่อนกับงวดนี้"
+     ครั้งแรกผมถอยไปถึงต้นงวดเต็ม ๆ ซึ่งกว้างเกินไป: เงินของงวดก่อนหน้า
+     ถูกดูดมาปิดงวดนี้ (ทดสอบจริงเจอ ลูกหนี้ 600 หายไป 400 เพราะรายการเดือน ส.ค.)
+     จุดกึ่งกลางคือเส้นแบ่งที่ไม่ต้องสมมติตัวเลขวันใด ๆ ขึ้นมาเอง
+     และกว้างพอรองรับการจ่ายก่อนกำหนดเพราะวันกำหนดตรงวันหยุด */
+  const halfway=shiftDay(prevDue,Math.ceil(dayDiff(prevDue,d[0])/2));
+  const received=couponReceivedAmount(s.id,halfway,asOf,account);
+  /* ตัดชำระจากงวดเก่าที่สุดก่อน — พอเจองวดที่จ่ายไม่ครบ ต้องหยุด
+     ของเดิมไม่หักเงินที่เหลือออก แล้วปล่อยให้ไปปิดงวดหลังแทน
+     (ent [100,50] รับมา 60 → งวดแรกค้าง แต่งวดสองถูกทำเครื่องหมายว่าจ่ายแล้ว)
+     ผู้ตรวจอิสระชี้จุดนี้ · ผิดตามนิยามของ "เข้าก่อนออกก่อน" */
+  let left=received; const unpaid=[];
+  for(let i=0;i<d.length;i++){
+    const tol=Math.max(0.005,Math.abs(ent[i])*1e-6);
+    if(left>=ent[i]-tol){ left-=ent[i]; continue }
+    unpaid.push(d[i]);
+    left=0;                      /* เงินที่เหลือเป็นการจ่ายบางส่วนของงวดนี้ ไม่ใช่ของงวดหลัง */
+  }
+  const receivable=Math.max(0,entitled-received);
+  return {unpaid,receivable,entitled,received};
+}
+/* คงชื่อเดิมไว้ให้โค้ดและชุดทดสอบที่เรียกอยู่ยังใช้ได้ */
+function unpaidCoupons(secId,due,asOf,account,fallbackQty){
+  const s=sec(secId); if(!s)return [];
+  return couponSettlement(s,due,asOf,account,fallbackQty).unpaid;
 }
 function fixedValuation(s,qty,date,account){
   if(!s||!isFixed(s)||qty<=0)return {accruedLocal:0,cleanLocal:0,dirtyLocal:0,convDays:0,yf:0,
@@ -1948,20 +2032,45 @@ function fixedValuation(s,qty,date,account){
      สิทธิ์ในดอกเบี้ยเกิดขึ้นแล้ว ณ วันกำหนดสิทธิ จะหายได้ก็ต่อเมื่อรับเงินจริง
      ================================================================== */
   const perYear=s.frequency==="Annual"?1:s.frequency==="Quarterly"?4:2;
-  const perCoupon=face*(Number(s.coupon)||0)/perYear;
-  const unpaid=unpaidCoupons(s.id,cp.due,date,account);
-  const receivable=s.instrument==="Fixed Deposit"?0:unpaid.length*perCoupon;
+  /* ==================================================================
+     ลูกหนี้ดอกเบี้ย = สิทธิ์ที่เกิดขึ้นแล้ว − เงินที่รับมาแล้วจริง
+
+     สิทธิ์เกิด ณ วันกำหนดสิทธิ จึงคิดจากจำนวนที่ถือ "ในวันนั้น" ของแต่ละงวด
+     (ไม่ใช่จำนวน ณ วันตีราคา — ซื้อเพิ่มทีหลังลูกหนี้จะพอง ขายทีหลังลูกหนี้จะหด)
+     และหักด้วย "จำนวนเงิน" ที่รับมา ไม่ใช่ "จำนวนใบ" ที่บันทึก
+     ================================================================== */
+  const settle=couponSettlement(s,cp.due,date,account,qty);
+  const unpaid=settle.unpaid;
+  const receivable=s.instrument==="Fixed Deposit"?0:settle.receivable;
+  /* รับมาไม่ตรงกับสิทธิ์ = อาจบันทึกภาษีหัก ณ ที่จ่ายรวมในใบเดียวกับดอกเบี้ย
+     ซึ่งต้องแยกเป็นรายการ TAX ต่างหาก จึงต้องให้เห็น ไม่ใช่ปล่อยเงียบ */
+  const couponMismatch=(settle.entitled>0&&settle.received>0
+    &&Math.abs(settle.received-settle.entitled)>Math.max(0.01,settle.entitled*1e-6)
+    &&settle.unpaid.length===0)?(settle.received-settle.entitled):0;
   /* เลยวันครบกำหนดไถ่ถอนแล้วแต่ยังมีตัวคงค้างในพอร์ต แปลว่ายังไม่ได้บันทึกการไถ่ถอน
      ของเดิมจะค้างดอกเบี้ยงวดสุดท้ายเต็มจำนวนไว้ตลอดไปอย่างเงียบ ๆ
      ต้องให้เห็น ไม่ใช่ปล่อยให้ตัวเลขนิ่งอยู่อย่างนั้น */
   const matured=!!(s.maturity&&date>s.maturity&&qty>1e-10);
-  return {accruedLocal:accrued,cleanLocal:clean,matured,
+  return {accruedLocal:accrued,cleanLocal:clean,matured,couponMismatch,
+          couponEntitled:settle.entitled,couponReceived:settle.received,
           dirtyLocal:clean+accrued+receivable,
           receivableLocal:receivable,unpaid,
           convDays:conv,yf,prev,next,rolled:cp.rolled};
 }
 function viewData(asOf){
-  let date=asOf||state.valuationDate,e=engine(asOf?date:undefined);
+  /* ==================================================================
+     ต้องกรองธุรกรรมถึง "วันตีราคา" เสมอ ไม่ใช่เฉพาะตอนที่ส่ง asOf มา
+
+     ของเดิม engine(asOf?date:undefined) — เรียกแบบไม่ส่งวันเมื่อไม่มี asOf
+     ซึ่งแปลว่า "เอาธุรกรรมทั้งหมดที่มี" ปกติไม่มีปัญหาเพราะวันตีราคา
+     มักเป็นวันล่าสุดอยู่แล้ว แต่พอผู้ใช้เลื่อนวันตีราคาย้อนหลังเพื่อปิดงบเดือนก่อน
+     หน้าจอจะแสดง "สถานะของวันนี้" ตีด้วย "ราคาของเดือนก่อน"
+     วัดจริงในชุดข้อมูลจำลอง: หน้าจอแสดง 1,006,747.26 ขณะที่ตัวเลขที่ถูกต้อง
+     คือ 1,010,066.19 ต่างกัน 3,318.93 โดยไม่มีอะไรเตือน
+     (พบจากการทดสอบด้วยชุดข้อมูลชุดที่สอง ชุดเดิมมองไม่เห็นเพราะวันตีราคา
+      ตรงกับรายการสุดท้ายพอดีเสมอ)
+     ================================================================== */
+  let date=asOf||state.valuationDate,e=engine(date);
   const rejectedView=(e.rejected||[]).filter(t=>accountVisible(t.account));
   let holdings=[];
   for(const p of e.positions){
@@ -2902,14 +3011,21 @@ function negativeCashScan(uptoDate){
   let e; try{ e=engine(end) }catch(err){ SHOW_APPROVED_ONLY=keep; return hits }
   SHOW_APPROVED_ONLY=keep;
   const bal={};
-  for(const t of (e.txDetails||[])){
+  /* ตรวจที่ "ยอดปิดสิ้นวัน" ด้วยเหตุผลเดียวกับตัวตรวจขายเกิน:
+     ไม่มีเวลาในวัน การขายเพื่อเอาเงินไปซื้อในวันเดียวกันจึงดูเหมือนติดลบ
+     ทั้งที่สิ้นวันเงินไม่เคยติดลบจริง — custodian ก็กระทบยอดที่ยอดปิดเช่นกัน */
+  const rows=(e.txDetails||[]);
+  for(let i=0;i<rows.length;i++){
+    const t=rows[i];
     const k=t.account+"|"+t.currency;
     bal[k]=(bal[k]||0)+(Number(t.cashLocal)||0);
     if(t.type==="FX CONVERSION"&&t.fxTo){
       const k2=t.account+"|"+t.fxTo;
       bal[k2]=(bal[k2]||0)+(Number(t.fxToAmount)||0);
     }
-    /* ตรวจทุกเส้นหลังจบรายการนี้ ไม่ใช่เฉพาะเส้นที่เพิ่งขยับ
+    /* ยังไม่ปิดวัน ก็ยังไม่ตัดสิน */
+    if(i+1<rows.length&&rows[i+1].date===t.date)continue;
+    /* ตรวจทุกเส้นเมื่อปิดวัน ไม่ใช่เฉพาะเส้นที่เพิ่งขยับ
        เพราะขาแลกเปลี่ยนเงินทำให้เส้นอื่นติดลบได้ */
     for(const k3 in bal){
       if(bal[k3]<-0.005){
@@ -3863,15 +3979,34 @@ function candidateFromForm(existingId){
    ตอนนี้ตัวตรวจมองชุดเดียวกับที่ engine ใช้คำนวณ */
 function validateTransactionSet(txs,mode){
   let pos={};
-  let sorted=[...txs].filter(t=>countsInLedger(t,mode))
-    .sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+  let sorted=[...txs].filter(t=>countsInLedger(t,mode)).sort(ledgerOrder);
+  /* ==================================================================
+     ต้องเดิน "ลำดับเดียวกับที่ engine เดิน" ไม่ใช่ดูแค่ยอดสุทธิสิ้นวัน
+
+     เคยเปลี่ยนไปดูยอดสุทธิสิ้นวัน เพื่อเลี่ยงการฟ้องผิดตอนซื้อขายวันเดียวกัน
+     แต่นั่นทำให้ตัวตรวจกับ engine ตอบคนละอย่าง: ตัวตรวจบอกผ่าน
+     ขณะที่ engine เดินติดลบระหว่างทางแล้วสร้างกำไรลอยกับล็อตผีขึ้นมา
+     (ผู้ตรวจอิสระชี้ · ทำซ้ำได้จริง: กำไรลอย 10,000 และ qty=0 แต่ล็อตรวม 100)
+
+     เมื่อกติกาลำดับคือ "ซื้อก่อนขาย" อยู่แล้ว การเดินทีละรายการจึงไม่ฟ้องผิด
+     ในกรณีซื้อขายวันเดียวกันอีกต่อไป และได้ความสอดคล้องกับ engine กลับมา
+     ส่วนเงินสดยังตรวจที่ยอดปิดสิ้นวัน เพราะขายเพื่อเอาเงินไปซื้อในวันเดียวกัน
+     เป็นเรื่องปกติและไม่ใช่การเบิกเกินบัญชีจริง
+     ================================================================== */
   for(const t of sorted){
     if(t.type==="FX CONVERSION")continue;
     if(!TYPE_GROUPS.trade.includes(t.type)||!t.security)continue;
     let k=t.account+"|"+t.security,q=Number(t.qty)||0,have=pos[k]||0;
+    /* จำนวนติดลบในรายการซื้อขาย = สร้างของจากอากาศ ต้องปฏิเสธตั้งแต่ต้น */
+    if(!(q>0))return `Transaction ${esc(t.id)} (${dmy(t.date)} · ${esc(t.security)}): `
+      +`จำนวนต้องมากกว่าศูนย์ (ได้ ${fmt(q,4)})`;
     if(["BUY","FUND SUBSCRIPTION"].includes(t.type))pos[k]=have+q;
     else{
-      if(q>have+1e-9)return `Transaction ${esc(t.id)}: ขาย ${fmt(q,4)} มากกว่าคงเหลือ ${fmt(have,4)}`;
+      if(q>have+1e-9)return `Transaction ${esc(t.id)} (${dmy(t.date)} · ${esc(t.security)} · ${esc(t.account)}): `
+        +`ขาย ${fmt(q,4)} มากกว่าคงเหลือ ${fmt(have,4)}\n\n`
+        +`ถ้ารายการซื้อของวันเดียวกันควรเกิดก่อน ให้ระบุฟิลด์ seq ให้ทั้งสองใบ\n`
+        +`ถ้ากำลังส่งกลับหรือแก้รายการซื้อ ต้องจัดการรายการขายใบนี้ก่อน `
+        +`(ส่งกลับหรือปรับจำนวนให้ไม่เกินที่ถือ) แล้วจึงกลับมาทำรายการซื้อ`;
       pos[k]=have-q;
     }
   }
@@ -6145,6 +6280,26 @@ function importData(){
         return;
       }
 
+      /* ==================================================================
+         รายการที่ไม่มีฟิลด์ status จะถูก txStatus() ตีความเป็น "APPROVED"
+         ซึ่งเปิดทางให้ลบ status ออกจากไฟล์แล้วนำเข้า = ข้ามการอนุมัติทั้งกระบวนการ
+         (ผู้ตรวจอิสระภายนอกชี้จุดนี้ · ทำซ้ำได้จริง)
+
+         ไฟล์ที่ระบบสร้างเองมี status ครบทุกใบเสมอ
+         ไฟล์ที่ขาด = ถูกแก้ด้วยมือ หรือมาจากรุ่นเก่ามาก จึงต้องให้ผู้ใช้รับรู้
+         และต้องทิ้งหลักฐานไว้ในประวัติ ไม่ใช่รับเข้าเงียบ ๆ
+         ================================================================== */
+      const noStatus=data.transactions.filter(t=>t&&!t.status);
+      if(noStatus.length){
+        if(!confirm("⛔ ไฟล์นี้มี "+noStatus.length+" รายการที่ไม่ระบุสถานะการอนุมัติ\n\n"
+          +"ระบบจะถือว่ารายการเหล่านี้ \"อนุมัติแล้ว\" ซึ่งเท่ากับข้ามการอนุมัติทั้งกระบวนการ\n"
+          +"ไฟล์ที่ระบบสร้างเองจะมีสถานะครบทุกใบเสมอ — ไฟล์นี้จึงถูกแก้ด้วยมือ หรือมาจากรุ่นเก่า\n\n"
+          +"ตัวอย่าง: "+noStatus.slice(0,5).map(t=>t.id||"(ไม่มีรหัส)").join(", ")+"\n\n"
+          +"ยืนยันรับเข้าในฐานะยอดยกมาที่ไม่มีหลักฐานการอนุมัติหรือไม่?"))return;
+        const now=new Date().toISOString();
+        noStatus.forEach(t=>{t.status="APPROVED";t.legacyBaseline=true;t.legacyAt=now});
+      }
+
       let cur=state.transactions.length, inc=data.transactions.length;
       if(!confirm("นำเข้าข้อมูลจากไฟล์ "+f.name+"\n\n"+
                   "รายการในไฟล์: "+inc+" รายการ\n"+
@@ -6162,7 +6317,8 @@ function importData(){
       if(!Array.isArray(state.team)&&keepTeam)state.team=keepTeam;
       if(!state.entity&&keepEntity)state.entity=keepEntity;
       state.auditTrail=mergeAuditTrails(keepAudit,state.auditTrail);
-      auditPush("","IMPORT","นำเข้าไฟล์ "+f.name+" ("+inc+" รายการ)");
+      auditPush("","IMPORT","นำเข้าไฟล์ "+f.name+" ("+inc+" รายการ)"
+        +(noStatus.length?" · ยอดยกมาที่ไม่มีหลักฐานการอนุมัติ "+noStatus.length+" รายการ":""));
       dashboardCurrency=state.dashboardCurrency||dashboardCurrency||"THB";
       filterPortfolio="";filterAccount="";previewTxn="";
       PAGE_LIMIT={txn:PAGE_STEP.txn,doc:PAGE_STEP.doc,market:PAGE_STEP.market};
